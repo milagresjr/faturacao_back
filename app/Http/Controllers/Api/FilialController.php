@@ -9,9 +9,25 @@ use Illuminate\Support\Facades\Validator;
 
 class FilialController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Filial::all(), 200);
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+
+        $filialQuery = Filial::query();
+
+        if ($search) {
+            // Supondo que você queira filtrar pelo campo 'nome'. Altere conforme sua necessidade.
+            $filialQuery->where('nome', 'like', '%' . $search . '%');
+        }
+
+        // Return a list of all CategoriaProduto records
+        $filial = $filialQuery
+        ->orderByDesc('id')->paginate($per_page);
+
+        return response()->json($filial);
+
     }
 
     public function show($id)
@@ -53,7 +69,7 @@ class FilialController extends Controller
         $validator = Validator::make($request->all(), [
             'nome' => 'sometimes|required|string|max:255',
             'telefone' => 'sometimes|required|string|max:20',
-            'email' => 'sometimes|required|email|max:255',
+            'email' => 'sometimes|nullable|email|max:255',
             'endereco' => 'sometimes|required|string|max:255',
             'nif' => 'sometimes|required|string|max:50',
             'estado' => 'sometimes|required|boolean',
