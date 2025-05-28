@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\CategoriaProduto;
+use Illuminate\Http\Request;
+
+class CategoriaProdutoController extends Controller
+{
+    public function index(Request $request)
+    {
+
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+
+        $categoriaQuery = CategoriaProduto::query();
+
+        if ($search) {
+            // Supondo que você queira filtrar pelo campo 'nome'. Altere conforme sua necessidade.
+            $categoriaQuery->where('nome', 'like', '%' . $search . '%');
+        }
+
+        // Return a list of all CategoriaProduto records
+        $categoriasProduto = $categoriaQuery
+        ->orderByDesc('id')->paginate($per_page);
+
+        return response()->json($categoriasProduto);
+    }
+
+    public function show($id)
+    {
+        // Return a single CategoriaProduto record by ID
+        $categoriaProduto = CategoriaProduto::findOrFail($id);
+        return response()->json($categoriaProduto);
+    }
+
+    public function store(Request $request)
+    {
+        // Validate and create a new CategoriaProduto record
+        $validatedData = $request->validate([
+            'nome' => 'required|string|max:255',
+            'descricao' => 'nullable|string',
+            'estado' => 'boolean',
+            'empresa_id' => 'required|exists:empresas,id',
+            'utilizador_id' => 'required|exists:utilizadores,id',
+        ]);
+
+        $validatedData['nome'] = mb_strtoupper($validatedData['nome']);
+
+        $categoriaProduto = CategoriaProduto::create($validatedData);
+        return response()->json($categoriaProduto, 201);
+    }
+
+    public function update(Request $request, $id)
+    {
+        // Validate and update an existing CategoriaProduto record
+        $validatedData = $request->validate([
+            'nome' => 'sometimes|required|string|max:255',
+            'descricao' => 'sometimes|nullable|string',
+            'estado' => 'sometimes|boolean',
+            'empresa_id' => 'sometimes|required|exists:empresas,id',
+            'utilizador_id' => 'sometimes|required|exists:utilizadores,id',
+        ]);
+
+        $validatedData['nome'] = mb_strtoupper($validatedData['nome']);
+
+        $categoriaProduto = CategoriaProduto::findOrFail($id);
+        $categoriaProduto->update($validatedData);
+        return response()->json($categoriaProduto);
+    }
+
+    public function destroy($id)
+    {
+        // Delete a CategoriaProduto record
+        $categoriaProduto = CategoriaProduto::findOrFail($id);
+        $categoriaProduto->delete();
+        return response()->json(null, 204);
+    }
+}
