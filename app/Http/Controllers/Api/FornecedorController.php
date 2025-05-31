@@ -9,9 +9,24 @@ use Illuminate\Support\Facades\Validator;
 
 class FornecedorController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Fornecedor::all(), 200);
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+
+        $fornecedorQuery = Fornecedor::query();
+
+        if ($search) {
+            // Supondo que você queira filtrar pelo campo 'nome'. Altere conforme sua necessidade.
+            $fornecedorQuery->where('nome', 'like', '%' . $search . '%');
+        }
+
+        // Return a list of all Marca records
+        $fornecedores = $fornecedorQuery
+        ->orderByDesc('id')->paginate($per_page);
+
+        return response()->json($fornecedores);
     }
 
     public function show($id)

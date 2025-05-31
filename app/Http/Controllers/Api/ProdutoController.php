@@ -9,9 +9,23 @@ use Illuminate\Support\Facades\Validator;
 
 class ProdutoController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $produtos = Produto::all();
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+
+        $produtoQuery = Produto::query();
+
+        if ($search) {
+            // Assuming you want to filter by the 'nome' field. Adjust as necessary.
+            $produtoQuery->where('descricao', 'like', '%' . $search . '%');
+        }
+
+        // Return a list of all filial records
+        $produtos = $produtoQuery
+        ->with(['marca','categoria','subCategoria','armazem','fornecedor'])->orderByDesc('id')->paginate($per_page);
+        
         return response()->json($produtos);
     }
 

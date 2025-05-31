@@ -8,10 +8,23 @@ use Illuminate\Http\Request;
 
 class MarcaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+
+        $marcaQuery = Marca::query();
+
+        if ($search) {
+            // Supondo que você queira filtrar pelo campo 'nome'. Altere conforme sua necessidade.
+            $marcaQuery->where('nome', 'like', '%' . $search . '%');
+        }
+
         // Return a list of all Marca records
-        $marcas = Marca::all();
+        $marcas = $marcaQuery
+        ->orderByDesc('id')->paginate($per_page);
+
         return response()->json($marcas);
     }
 
