@@ -19,7 +19,8 @@ class FornecedorController extends Controller
 
         if ($search) {
             // Supondo que você queira filtrar pelo campo 'nome'. Altere conforme sua necessidade.
-            $fornecedorQuery->where('nome', 'like', '%' . $search . '%');
+            $fornecedorQuery->where('nome', 'like', '%' . $search . '%')
+            ->orWhere('nif', 'like', '%' . $search . '%');
         }
 
         // Return a list of all Marca records

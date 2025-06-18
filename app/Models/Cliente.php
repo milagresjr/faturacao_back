@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Cliente extends Model
 {
+
+    use SoftDeletes;
 
     protected $table = 'clientes';
 
@@ -19,6 +22,15 @@ class Cliente extends Model
         'data_nasc',
         'estado',
         'tipo_cliente_id',
+        'gestor_id',
+        'vencimento',
+        'telemovel',
+        'fatura_eletronica',
+        'website',
+        'grupo_preco_id',
+        'observacoes',
+        'faz_retencao',
+        'pais',
         'empresa_id',
         'utilizador_id'
     ];

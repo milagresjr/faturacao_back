@@ -28,9 +28,6 @@ class TipoProdutoController extends Controller
         $validatedData = $request->validate([
             'nome' => 'required|string|max:255',
             'descricao' => 'nullable|string',
-            'estado' => 'boolean',
-            'empresa_id' => 'required|exists:empresas,id',
-            'utilizador_id' => 'required|exists:utilizadores,id',
         ]);
 
         $tipoProduto = TipoProduto::create($validatedData);
@@ -44,8 +41,6 @@ class TipoProdutoController extends Controller
             'nome' => 'sometimes|required|string|max:255',
             'descricao' => 'sometimes|nullable|string',
             'estado' => 'sometimes|boolean',
-            'empresa_id' => 'sometimes|required|exists:empresas,id',
-            'utilizador_id' => 'sometimes|required|exists:utilizadores,id',
         ]);
 
         $tipoProduto = TipoProduto::findOrFail($id);

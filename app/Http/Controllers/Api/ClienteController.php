@@ -9,9 +9,22 @@ use Illuminate\Support\Facades\Validator;
 
 class ClienteController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $clientes = Cliente::all();
+        $per_page = $request->input('per_page', 10);
+        $search = $request->query('search');
+
+        $clienteQuery = Cliente::query();
+
+        if ($search) {
+            // Assuming you want to filter by the 'nome' field. Adjust as necessary.
+            $clienteQuery->where('nome', 'like', '%' . $search . '%')
+                         ->orWhere('nif', 'like', '%' . $search . '%');
+        }
+
+        // Return a list of all cliente records
+        $clientes = $clienteQuery->with(['tipoCliente', 'empresa', 'utilizador'])->orderByDesc('id')->paginate($per_page);
+
         return response()->json($clientes);
     }
 
@@ -26,6 +39,15 @@ class ClienteController extends Controller
             'endereco' => 'nullable|string|max:255',
             'data_nasc' => 'nullable|date',
             'tipo_cliente_id' => 'required|integer|exists:tipo_clientes,id',
+            'gestor_id' => 'nullable|integer|exists:utilizadores,id',
+            'vencimento' => 'nullable|string|integer',
+            'telemovel' => 'nullable|string|max:20',
+            'fatura_eletronica' => 'nullable|boolean',
+            'website' => 'nullable|string|max:255',
+            'grupo_preco_id' => 'nullable|integer|exists:grupo_precos,id',
+            'observacoes' => 'nullable|string',
+            'faz_retencao' => 'nullable|boolean',
+            'pais' => 'nullable|string|max:100',
             'empresa_id' => 'required|integer|exists:empresas,id',
             'utilizador_id' => 'required|integer|exists:utilizadores,id',
         ]);
@@ -67,6 +89,15 @@ class ClienteController extends Controller
             'data_nasc' => 'sometimes|required|date',
             'estado' => 'sometimes|required|boolean',
             'tipo_cliente_id' => 'sometimes|required|integer|exists:tipo_clientes,id',
+            'gestor_id' => 'sometimes|nullable|integer|exists:utilizadores,id',
+            'vencimento' => 'sometimes|nullable|date',
+            'telemovel' => 'sometimes|nullable|string|max:20',
+            'fatura_eletronica' => 'sometimes|nullable|boolean',
+            'website' => 'sometimes|nullable|string|max:255',
+            'grupo_preco_id' => 'sometimes|nullable|integer|exists:grupo_precos,id',
+            'observacoes' => 'sometimes|nullable|string',
+            'faz_retencao' => 'sometimes|nullable|boolean',
+            'pais' => 'sometimes|nullable|string|max:100',
             'empresa_id' => 'sometimes|required|integer|exists:empresas,id',
             'utilizador_id' => 'sometimes|required|integer|exists:utilizadores,id',
         ]);

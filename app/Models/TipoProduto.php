@@ -12,17 +12,5 @@ class TipoProduto extends Model
         'nome',
         'descricao',
         'estado',
-        'empresa_id',
-        'utilizador_id'
     ];
-
-    public function empresa()
-    {
-        return $this->belongsTo(Empresa::class);
-    }
-
-    public function utilizador()
-    {
-        return $this->belongsTo(Utilizador::class);
-    }
 }

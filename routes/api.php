@@ -15,6 +15,9 @@ use App\Http\Controllers\Api\ProdutoController;
 use App\Http\Controllers\Api\SubCategoriaController;
 use App\Http\Controllers\Api\TipoClienteController;
 use App\Http\Controllers\Api\TipoProdutoController;
+use App\Http\Controllers\Api\MotivoIsencaoController;
+use App\Http\Controllers\Api\MovimentoStockController;
+use App\Http\Controllers\Api\TipoStockController;
 
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
@@ -45,5 +48,8 @@ Route::middleware('api')->group(function () {
     Route::apiResource('tipo-clientes', TipoClienteController::class);
     Route::apiResource('clientes', ClienteController::class);
     Route::apiResource('produtos', ProdutoController::class);
+    Route::get('motivo-isencao', [MotivoIsencaoController::class, 'index']);
+    Route::get('tipo-stock', [TipoStockController::class, 'index']);
+    Route::apiResource('movimento-stock', MovimentoStockController::class);
     //Route::apiResource('utilizadores', UtilizadorController::class);
 //});
