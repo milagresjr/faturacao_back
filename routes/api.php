@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaProdutoController;
 use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\DocumentoController;
 use App\Http\Controllers\Api\EmpresaController;
 use App\Http\Controllers\Api\FilialController;
 use App\Http\Controllers\Api\FornecedorController;
@@ -51,5 +52,8 @@ Route::middleware('api')->group(function () {
     Route::get('motivo-isencao', [MotivoIsencaoController::class, 'index']);
     Route::get('tipo-stock', [TipoStockController::class, 'index']);
     Route::apiResource('movimento-stock', MovimentoStockController::class);
+
+    Route::apiResource('documento', DocumentoController::class);
+    Route::get('/documento/{id}/pdf',[DocumentoController::class, 'gerarPdf']);
     //Route::apiResource('utilizadores', UtilizadorController::class);
 //});
