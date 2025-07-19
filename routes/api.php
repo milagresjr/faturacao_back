@@ -4,8 +4,10 @@ use App\Http\Controllers\Api\ArmazemController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BancoController;
 use App\Http\Controllers\Api\CategoriaProdutoController;
 use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\ContaController;
 use App\Http\Controllers\Api\DocumentoController;
 use App\Http\Controllers\Api\EmpresaController;
 use App\Http\Controllers\Api\FilialController;
@@ -19,6 +21,8 @@ use App\Http\Controllers\Api\TipoProdutoController;
 use App\Http\Controllers\Api\MotivoIsencaoController;
 use App\Http\Controllers\Api\MovimentoStockController;
 use App\Http\Controllers\Api\TipoStockController;
+use App\Http\Controllers\Api\TipoTaxaIvaController;
+use App\Http\Middleware\AuthenticateWithRememberToken;
 
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
@@ -35,6 +39,11 @@ Route::middleware('api')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
+        
+   
+    Route::apiResource('produtos', ProdutoController::class);
     
     // Add your protected routes here
     Route::apiResource('empresas', EmpresaController::class);
@@ -48,12 +57,21 @@ Route::middleware('api')->group(function () {
     Route::apiResource('armazens', ArmazemController::class);
     Route::apiResource('tipo-clientes', TipoClienteController::class);
     Route::apiResource('clientes', ClienteController::class);
-    Route::apiResource('produtos', ProdutoController::class);
+    //Route::apiResource('produtos', ProdutoController::class);
     Route::get('motivo-isencao', [MotivoIsencaoController::class, 'index']);
-    Route::get('tipo-stock', [TipoStockController::class, 'index']);
+    Route::apiResource('tipo-stock', TipoStockController::class);
     Route::apiResource('movimento-stock', MovimentoStockController::class);
 
     Route::apiResource('documento', DocumentoController::class);
-    Route::get('/documento/{id}/pdf',[DocumentoController::class, 'gerarPdf']);
     //Route::apiResource('utilizadores', UtilizadorController::class);
+    
+    Route::apiResource('tipos-taxa-iva', TipoTaxaIvaController::class);
+    
+    Route::apiResource('contas', ContaController::class);
+    Route::apiResource('bancos', BancoController::class);
+    
+    
+});
+Route::get('/documento/{id}/pdf',[DocumentoController::class, 'gerarPdf']);
+
 //});

@@ -21,6 +21,7 @@ class Utilizador extends Authenticatable
         'email',
         'senha',
         'nivel_acesso',
+        'remember_token',
         'estado',
         'perfil_id',
         'empresa_id',

@@ -4,10 +4,15 @@
     <meta charset="UTF-8">
     <title>Factura Recibo</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body {
+            margin: 20 20 20 50px; /* margem esquerda maior */
             font-family: DejaVu Sans, sans-serif;
             font-size: 12px;
-            margin: 20px;
             position: relative;
         }
 
@@ -53,6 +58,15 @@
         }
 
         .table-meio-pag th {
+            border-top: 2px solid #333;
+            border-bottom: 1px solid #333;
+            padding: 1px;
+            text-align: left;
+        }
+
+       
+
+        .table-banco th{
             border-top: 2px solid #333;
             border-bottom: 1px solid #333;
             padding: 1px;
@@ -106,25 +120,41 @@
 <body>
 
    <div class="section" style="width: 100%; position: relative; margin-bottom: 100px;">
-     <div class="col-left">
-        <h2>{{ $documento->empresa_nome ?? 'NEXPERIENCE LDA' }}</h2>
-        <span>{{ $documento->empresa_endereco ?? 'Rua da Lionesa, 446, G20 - 4465-671 Leça do Balio' }}</span> <br>
-        <span>Contribuinte: {{ $documento->empresa_nif ?? '509442013' }}</span> <br>
+    
+    @if($documento->empresa_logo)
+    <div style="border-bottom: 1px solid #069; width: 100%; margin-bottom: 10px;">
+        <div style="display: inline-block; vertical-align: top;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png" alt="Logo" style="width: 120px; height: 100px; z-index: 10; object-fit: contain; display: block;">
+            </div>
+            <div style="display: block; float: right; width: 200px; text-align: right; margin-top: 20px;">
+                <span style="font-size: 12pt; font-weight: bold;">{{ $documento->tipo_nome }}</span> <br>
+                <span style="font-size: 10pt;">{{ $documento->via }}</span>
+            </div>
+     </div>
+    @endif
+    
+    <div class="col-left">
+        <span style="font-size: 12pt; font-weight: bold;">{{ $documento->empresa_nome ?? '' }}</span>
+        <span>{{ $documento->empresa_endereco ?? '' }}</span> <br>
+        <span><b>Contribuinte:</b> {{ $documento->empresa_nif ?? '' }}</span> <br>
+        <span><b>E-mail:</b> {{ $documento->empresa_email ?? '' }}</span> <br>
+        <span><b>Tel:</b> {{ $documento->empresa_telefone ?? '' }}</span> <br>
     </div>
 
     <div class="col-right" style="text-align: right;">
-
-    <strong>Factura Recibo</strong><br>
-    <small>Original</small> <br>
-         
+    @if(!$documento->empresa_logo)
+        <span style="font-size: 12pt; font-weight: bold;">{{ $documento->tipo_nome }}</span> <br>
+        <span style="font-size: 10pt;">{{ $documento->via }}</span> <br> <br>
+    @endif
     <strong style="margin-top: 15px;">{{ $documento->cliente_nome ?? "Milagres jr" }}</strong><br>
     <span>{{ $documento->cliente_endereco ?? "Luanda, viana" }}</span>
                
     </div>
+
    </div>
 
     <div class="section">
-        <h3 style="margin-bottom: 3px;">FR T09P2025/11</h3>
+        <h3 style="margin-bottom: 3px;">{{ $documento->num_fatura }}</h3>
         <table style="width: 100%; border-top: 2px solid #000;">
             <tr style="">
                 <th style="border-bottom: 1px solid #000; text-align: left; margin: 3px;">Data de Emissão</th>
@@ -136,51 +166,54 @@
                 <td>{{ \Carbon\Carbon::parse($documento->data_emissao)->format('Y-m-d') }}</td>
                 <td>{{ \Carbon\Carbon::parse($documento->data_vencimento)->format('Y-m-d') }}</td>
                 <td>{{ $documento->cliente_nif ?? "9999999999" }}</td>
-                <td>{{ $documento->tipo_sigla ?? "FR" }} {{ $documento->id ?? "123" }}</td>
+                <td>{{ $documento->num_fatura }}</td>
             </tr>
         </table>
     </div>
 
-    <div style="font-size: 10px; margin-top: -25px;">
+    <div style="font-size: 10px; margin-top: -20px;">
         <p><strong>Observações:</strong> {{ $documento->observacoes ?? 'Documento emitido para fins de Formação. Não tem validade fiscal.' }}</p>
     </div>
 
-    <div class="section">
+    <div class="section" style="border: 1px solid #000; min-height: 400px; max-height: 400px; padding: 10px; margin-top: 20px;">
         <table class="table-main">
             <thead>
                 <tr>
                     <th>Código</th>
-                    <th>Descrição</th>
+                    <th style="width: 30%;">Descrição</th>
                     <th>Preço Uni.</th>
                     <th>Uni.</th>
                     <th>Qtd.</th>
                     <th>IVA</th>
-                    <th style="text-align: right;">Total</th>
+                      <th style="text-align: right;">Total</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach ($documento->itens as $item)
-                    <tr>
-                        <td>{{ $item->produto_codigo ?? "23" }}</td>
-                        <td>{{ $item->produto_nome ?? "Produto01" }}</td>
-                        <td >{{ number_format($item->preco_unitario, 2, ',', '.') }} Kz</td>
-                        <td>Uni</td>
-                        <td >{{ $item->quantidade ?? "23" }}</td>
-                        <td >{{ $item->iva_percent ?? "14" }}</td>
-                        <td  class="right">{{ number_format($item->total, 2, ',', '.') }} Kz</td>
-                    </tr>
-                @endforeach
+                {{-- @for($i = 1; $i <= 7; $i++) --}}
+                    @foreach ($documento->itens as $item)
+                        <tr>
+                            <td>{{ $item->produto_codigo ?? "23" }}</td>
+                            <td>{{ $item->produto_nome ?? "Produto01" }}</td>
+                            <td >{{ number_format($item->preco_unitario, 2, ',', '.') }} Kz</td>
+                            <td>Uni</td>
+                            <td >{{ $item->quantidade ?? "23" }}</td>
+                            <td >{{ $item->iva_percent ?? "14" }}</td>
+                            <td  class="right">{{ number_format($item->total, 2, ',', '.') }} Kz</td>
+                        </tr>
+                    @endforeach
+                {{-- @endfor --}}
             </tbody>
         </table>
     </div>
 
     <div class="section row" style="width: 100%;">
         <!-- Impostos à esquerda -->
-        <div class="col-left">
-            <div>
-            <table class="table-imposto" style="width: 80%;">
+     
+        <div class="col-left" style="width: 70%; float: left; margin-top: 10px;">
+            <table class="table-imposto" style="width: 420px; margin-bottom: 20px;">
                 <thead>
                     <tr>
+                        <th style="text-align: left;">Cod. IVA</th>
                         <th style="text-align: left;">Taxa</th>
                         <th style="text-align: left;">Incidência</th>
                         <th style="text-align: right;">Imposto</th>
@@ -189,31 +222,53 @@
                 <tbody>
                     @foreach($quadroImposto as $taxa => $valores)
                         <tr>
-                            <td>{{ $taxa == 0 ? 'Isento' : $taxa . '%' }}</td>
+                            <td>{{$valores['codigo']}}</td>
+                            <td>{{ $valores['taxa'] == 0 ? 'Isento' : $valores['taxa'] . '%' }}</td>
                             <td>{{ number_format($valores['incidencia'], 2, ',', '.') }} Kz</td>
                             <td style="text-align: right;">{{ number_format($valores['imposto'], 2, ',', '.') }} Kz</td>
                         </tr>
+                        @if ($valores['taxa'] == 0)
+                        <tr class="borderless">
+                            <td colspan="4" style="font-size: 10px; color: #555;">
+                                <em>{{$valores['motivo_isencao']}}</em>
+                            </td>
+                        </tr>
+                        @endif
                     @endforeach
                 </tbody>
             </table>
-        </div>
 
-        <div class="" style="margin-top: 15px;">
-            <table class="table-meio-pag" style="width: 80%;">
+        
+            <table class="table-meio-pag" style="width: 420px;">
                 <tr style="border-top: 1px solid #000;">
                     <th class="text-align: left;">Meio de Pagamento</th>
                     <th></th>
                 </tr>
-                <tr>
-                    <td>{{ $documento->forma_pagamento ?? 'Dinheiro' }}</td>
-                    <td style="text-align: right;">{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</td>
-                </tr>
+                @foreach($meiosPagamento as $meioPagamento)
+                    <tr>
+                        <td>{{ $meioPagamento->descricao }}</td>
+                        <td style="text-align: right;">{{ number_format($meioPagamento->valor, 2, ',', '.') }} Kz</td>
+                    </tr>
+                @endforeach
             </table>
-        </div>
+
+            <table class="table-banco" style="margin-top: 10px; width: 420px;">
+                <tr style="border-top: 1px solid #000;">
+                    <th colspan="3" style="text-align: left; width: 50%;">Coordenadas Bancárias</th>
+                </tr>
+                @foreach($bancos as $banco)
+                    <tr>
+                        <td style="font-size: 9pt;">{{ $banco->sigla }}</td>
+                        <td style="font-size: 9pt;">{{ $banco->numero_conta }}</td>
+                        <td style="font-size: 9pt; text-align: right;">{{ $banco->iban }}</td>
+                    </tr>
+                @endforeach
+            </table>
+         
         </div>
 
        <!-- Totais à direita -->
-        <div style="margin-top: 150px; width: 250px; display: block; float: right;">
+        <div style="margin-top: 10px; width: 250px; display: block; float: right;">
             <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #000; border-bottom: 1px solid #000;">
                 <tr>
                     <td style="text-align: left; padding: 2px;">Total liquido</td>

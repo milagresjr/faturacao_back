@@ -55,6 +55,9 @@ class AuthController extends Controller
 
         $token = $utilizador->createToken('auth_token')->plainTextToken;
 
+        $utilizador->remember_token = $token;
+        $utilizador->save();
+
         return response()->json([
             'message' => 'Login successful',
             'utilizador' => $utilizador,

@@ -33,6 +33,7 @@ class Produto extends Model
         'codigo_barra',
         'data_validade',
         'imposto',
+        'unidade',
         'motivo_isencao_id',
         'estado',
         'tipo_stock_id',
@@ -75,6 +76,21 @@ class Produto extends Model
     public function subCategoria()
     {
         return $this->belongsTo(SubCategoria::class);
+    }
+
+    public function tipoStock()
+    {
+        return $this->belongsTo(TipoStock::class);
+    }
+
+    public function motivoIsencao()
+    {
+        return $this->belongsTo(MotivoIsencao::class);
+    }
+
+    public function tipoIva()
+    {
+        return $this->belongsTo(TipoTaxaIva::class, 'imposto', 'id');
     }
 
     public function empresa()

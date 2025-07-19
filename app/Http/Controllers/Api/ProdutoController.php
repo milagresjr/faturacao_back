@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Produto;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class ProdutoController extends Controller
 {
@@ -25,7 +27,8 @@ class ProdutoController extends Controller
         }
 
         $produtos = $produtoQuery
-            ->with(['marca', 'categoria', 'subCategoria', 'armazem', 'fornecedor', 'movimentosStock'])
+           // ->where('empresa_id', $request->empresa_id) // Filtra por empresa_id
+            ->with(['marca', 'categoria', 'subCategoria', 'armazem', 'tipoIva', 'motivoIsencao', 'fornecedor', 'movimentosStock'])
             ->orderByDesc('id')
             ->paginate($per_page);
 
@@ -70,9 +73,10 @@ class ProdutoController extends Controller
             'codigo_produto' => 'nullable|string|max:255',
             'codigo_barra' => 'nullable|string|max:255',
             'data_validade' => 'nullable|date',
-            'imposto' => 'required|string|max:255',
+            'imposto' => 'required|string|integer|max:255',
             'motivo_isencao_id' => 'nullable|integer|exists:motivo_isencao,id',
-            'tipo_stock_id' => 'nullable|integer|exists:tipo_stock,id',
+            'unidade' => 'nullable|string|max:50',
+            'tipo_stock_id' => 'required|integer|exists:tipo_stock,id',
             'marca_id' => 'nullable|integer|exists:marcas,id',
             'tipo_id' => 'required|integer|exists:tipo_produtos,id',
             'armazem_id' => 'required|integer|exists:armazens,id',
@@ -89,6 +93,22 @@ class ProdutoController extends Controller
 
         $data = $request->all();
 
+        $codigoProduto = $this->gerarCodigoProduto($request->nome, $request->tipo_id == 1 ? 'P' : 'S', $request->empresa_id);
+        
+        if(empty($data['codigo_produto'])) {
+            $data['codigo_produto'] = $codigoProduto; // Gera o código se não for fornecido
+        } else {
+            // Verifica se o código já existe
+            if (Produto::where('codigo_produto', $data['codigo_produto'])->exists()) {
+                return response()->json(['error' => 'Código de produto já existe'], 422);
+            }
+        }
+
+        // Garante que o id da empresa seja do utilizador autenticado, se disponível
+        if (isset($request->empresa_id)) {
+            $data['empresa_id'] = $request->empresa_id;
+        }
+
         if ($request->hasFile('imagem')) {
             $file = $request->file('imagem');
             $filename = $file->hashName(); // ex: gpGxW5fiTCtyjYQ3EMatApbXRdfSQv0s2AOiZOKM.jpg
@@ -98,6 +118,33 @@ class ProdutoController extends Controller
 
         $produto = Produto::create($data);
         return response()->json($produto, 201);
+    }
+
+
+    function gerarCodigoProduto(string $nomeProduto, string $tipo, string $empresaId): string
+    {
+        $prefixoMarca = strtoupper(Str::substr(Str::slug($nomeProduto, ''), 0, 3)); // Ex: "Asus x8" → "ASU"
+        $prefixo =  $tipo == 'P' ? 'P'. $prefixoMarca : 'S' . $prefixoMarca; // Ex: 'VASU'
+
+        $data = Carbon::now()->format('ymd'); // Ex: 250708
+
+        // Contar quantos produtos já foram cadastrados hoje com esse prefixo
+        $hoje = Carbon::today();
+
+        $ultimoProduto = Produto::where('empresa_id', $empresaId)
+        ->orderByDesc('id')->first();
+
+        $ultimoId = $ultimoProduto ? $ultimoProduto->id : 0;
+
+       /* $sequencia = Produto::where('codigo_produto', 'like', "{$prefixo}-{$data}%")
+            ->whereDate('created_at', $hoje)
+            ->count() + 1; */
+
+        $nextId = $ultimoId + 1; // Incrementa o ID do último produto
+
+        $codigo = "{$prefixo}".str_pad($nextId, 2, '0', STR_PAD_LEFT)."-{$data}";
+    
+        return $codigo;
     }
 
     public function show($id)
@@ -151,6 +198,7 @@ class ProdutoController extends Controller
             'codigo_barra' => 'nullable|string|max:255',
             'data_validade' => 'nullable|date',
             'imposto' => 'sometimes|required|string|max:255',
+            'unidade' => 'nullable|string|max:50',
             'estado' => 'sometimes|nullable|boolean',
             'marca_id' => 'sometimes|nullable|integer|exists:marcas,id',
             'motivo_isencao_id' => 'nullable|integer|exists:motivo_isencao,id',

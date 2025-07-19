@@ -18,6 +18,7 @@ class Documento extends Model
         'via',
 
         'empresa_id',
+        'empresa_logo',
         'empresa_nome', 
         'empresa_nif', 
         'empresa_telefone', 

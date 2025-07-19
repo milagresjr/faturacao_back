@@ -13,11 +13,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Utilizador::factory(10)->create();
-
-        Utilizador::factory()->create([
-            'name' => 'Test Utilizador',
-            'email' => 'test@example.com',
+        $this->call([
+            TipoTaxaIvaSeeder::class,
         ]);
     }
 }

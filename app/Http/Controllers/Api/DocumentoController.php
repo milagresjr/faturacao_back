@@ -3,11 +3,18 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Banco;
+use App\Models\BancoDocumento;
+use App\Models\Conta;
 use App\Models\Documento;
+use App\Models\MeioPagamentoDocumento;
+use App\Models\TipoTaxaIva;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class DocumentoController extends Controller
 {
@@ -24,6 +31,12 @@ class DocumentoController extends Controller
      */
     public function store(Request $request)
     {
+
+        $numFatura = $this->gerarNumeroDocumento(
+            $request->input('sigla_fatura'),
+            $request->input('empresa_id')
+        );
+
         // Validação dos dados recebidos
         $validated = Validator::make($request->all(), [
             // Dados do documento
@@ -59,6 +72,10 @@ class DocumentoController extends Controller
             'total_sem_desconto' => 'nullable|numeric',
             'total_impostos' => 'nullable|numeric',
             'total_geral' => 'nullable|numeric',
+
+            'meiosPagamento' => 'required|array',
+            'meiosPagamento.*.descricao' => 'required|string',
+            'meiosPagamento.*.valor' => 'required|numeric',
 
             // Itens do documento
             'itens' => 'required|array|min:1',
@@ -103,12 +120,15 @@ class DocumentoController extends Controller
                 $desconto = ($item['desconto_percent'] / 100) * $precoBruto;
             }
             $subtotal = $precoBruto - $desconto;
-            if($item['iva_percent'] == 'auto'){
+            if ($item['iva_percent'] == 'auto') {
                 $item['iva_percent'] = 14; // Definindo IVA automático como 14%
             } elseif (!is_numeric($item['iva_percent'])) {
                 $item['iva_percent'] = 0; // Se não for numérico, assume-se isento
             }
-            $iva = ($item['iva_percent'] / 100) * $subtotal;
+
+            $taxaIva = TipoTaxaIva::find($item['iva_percent'])->taxa;
+
+            $iva = ($taxaIva / 100) * $subtotal;
 
             $totalSemDesconto += $subtotal;
             $descontoTotal += $desconto;
@@ -123,7 +143,7 @@ class DocumentoController extends Controller
             'tipo_sigla' => $request['sigla_fatura'],
             //'tipo_cor' => $request['tipo_cor'],
 
-            'num_fatura' => 'FR BX2025/22',
+            'num_fatura' => $numFatura,
             'via' => 'original',
 
             'empresa_id' => $request['empresa_id'],
@@ -162,9 +182,42 @@ class DocumentoController extends Controller
             'utilizador' => $request['utilizador']
         ]);
 
+
+        $bancos = Conta::with('banco')
+            ->where('empresa_id', $request->input('empresa_id'))
+            ->where('estado', true)
+            ->get();
+
+        foreach ($bancos as $banco) {
+            DB::table('bancos_documento')->insert([
+                'documento_id' => $documento->id,
+                'sigla' => $banco['banco']->sigla,
+                'descricao' => $banco['banco']->descricao,
+                'numero_conta' => $banco->numero_conta,
+                'iban' => $banco->iban,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         // Criação dos itens
         $itens = [];
         foreach ($request['itens'] as $item) {
+            $taxaIva = TipoTaxaIva::find($item['iva_percent'])->taxa;
+            $codigoIva = TipoTaxaIva::find($item['iva_percent'])->codigo;
+            //$motivoIsencaoCodigo = null;
+            $motivoIsencaoDescricao = null;
+
+            if ($codigoIva === 'ISENTO') {
+                $motivo = DB::table('motivo_isencao')
+                    ->where('id', $item['motivo_isencao_id']) // <-- aqui
+                    ->first();
+                if ($motivo) {
+                    $codigoIva = $motivo->codigo;
+                    $motivoIsencaoDescricao = $motivo->motivo;
+                }
+            }
+
             $itens[] = [
                 'documento_id' => $documento->id,
                 'produto_nome' => $item['produto_nome'],
@@ -173,7 +226,9 @@ class DocumentoController extends Controller
                 'quantidade' => $item['quantidade'],
                 'desconto_percent' => $item['desconto_percent'],
                 'desconto_fixo' => $item['desconto_fixo'],
-                'iva_percent' => $item['iva_percent'] ?? 0,
+                'iva_percent' => $taxaIva ?? 0,
+                'codigo_iva' => $codigoIva ?? '',
+                'motivo_isencao' => $motivoIsencaoDescricao,
                 'total' => ($item['preco_venda'] * $item['quantidade']),
                 // Adicione outros campos conforme necessário
             ];
@@ -187,6 +242,25 @@ class DocumentoController extends Controller
         ], 201);
     }
 
+    public function gerarNumeroDocumento(string $tipoSigla, string $empresId): string
+    {
+        $ano = Carbon::now()->year;
+
+        $empresa = DB::table('empresas')->find($empresId);
+
+        // Conta quantos documentos desse tipo e ano já existem
+        $contador = DB::table('documentos')
+            ->where('tipo_sigla', $tipoSigla) // campo tipo como 'FR', por exemplo
+            ->where('empresa_id', $empresId) // campo empresa_id
+            ->whereYear('created_at', $ano)
+            ->count();
+
+        $sequencial = $contador + 1;
+
+        // Formato final: FR T11P2025/2
+        return "{$tipoSigla} {$empresa->indicativo_fatura}{$ano}/{$sequencial}";
+    }
+
     public function gerarPdf(string $id)
     {
 
@@ -197,25 +271,41 @@ class DocumentoController extends Controller
             return response()->json(['message' => 'Documento não encontrado.'], 404);
         }
 
+        $bancos = BancoDocumento::where('documento_id',$id)->get();
+
+        $meiosPagamento = MeioPagamentoDocumento::where('documento_id', $id)->get();
+
+        //return $bancos;
+
         $quadroImposto = [];
 
         foreach ($documento->itens as $item) {
-            $taxa = $item->iva_percent ?? 0;
+            $taxa = $item['iva_percent'];
+           // $taxa = TipoTaxaIva::find($item['iva_percent'])->taxa;
+            $motivo = $item['motivo_isencao'] ?? '';
+            $codigo = $item['codigo_iva'] ?? '';
 
-            $subtotal = $item->preco_unitario * $item->quantidade;
+            $subtotal = $item['preco_unitario'] * $item['quantidade'];
 
-            if (!isset($quadroImposto[$taxa])) {
-                $quadroImposto[$taxa] = [
+            // Cria uma chave única combinando taxa + motivo
+            $chave = $taxa . '|' . $motivo;
+
+            if (!isset($quadroImposto[$chave])) {
+                $quadroImposto[$chave] = [
+                    'taxa' => $taxa,
+                    'codigo' => $codigo,
+                    'motivo_isencao' => $motivo,
                     'incidencia' => 0,
                     'imposto' => 0,
                 ];
             }
 
-            $quadroImposto[$taxa]['incidencia'] += $subtotal;
-            $quadroImposto[$taxa]['imposto'] += ($taxa / 100) * $subtotal;
+            $quadroImposto[$chave]['incidencia'] += $subtotal;
+            $quadroImposto[$chave]['imposto'] += ($taxa / 100) * $subtotal;
         }
 
-        $pdf = Pdf::loadView('pdf.documento', compact(['documento','quadroImposto']))
+
+        $pdf = Pdf::loadView('pdf.documento', compact(['documento', 'quadroImposto', 'bancos', 'meiosPagamento']))
             ->setPaper('A4', 'portrait')
             ->setOptions([
                 'defaultFont' => 'Helvetica',
@@ -236,8 +326,20 @@ class DocumentoController extends Controller
 
             // Posição inicial à esquerda, com margem de 40px
             $x = 40;
-            $y1 = $canvas->get_height() - 70;
+            $y1 = $canvas->get_height() - 50;
             $y2 = $y1 + 12; // 12px abaixo do texto1
+
+            // Desenha uma linha horizontal acima do rodapé
+            $lineY = $y1 - 5; // 5px acima do primeiro texto
+            $canvas->line(
+                $x,
+                $lineY,
+                $canvas->get_width() - $x,
+                $lineY,
+                [0, 0, 0], // cor
+                1          // espessura
+            );
+
 
             $canvas->text($x, $y1, $text1, $font, $size);
             $canvas->text($x, $y2, $text2, $font, $size);

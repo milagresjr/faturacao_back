@@ -14,6 +14,8 @@ class Empresa extends Model
         'nif',
         'telefone',
         'morada',
+        'logo',
+        'indicativo_fatura'
     ];
 
     protected $casts = [
