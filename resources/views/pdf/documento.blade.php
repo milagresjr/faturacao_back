@@ -179,13 +179,13 @@
         <table class="table-main">
             <thead>
                 <tr>
-                    <th>Código</th>
-                    <th style="width: 30%;">Descrição</th>
-                    <th>Preço Uni.</th>
-                    <th>Uni.</th>
-                    <th>Qtd.</th>
-                    <th>IVA</th>
-                      <th style="text-align: right;">Total</th>
+                    <th style="width: 20%;">Código</th>
+                    <th style="width: 35%;">Descrição</th>
+                    <th style="width: 15%;">Preço Uni.</th>
+                    <th style="width: 8%;">Uni.</th>
+                    <th style="width: 10%;">Qtd.</th>
+                    <th style="width: 7%;">IVA</th>
+                    <th style="width: 15%; text-align: right;">Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -222,10 +222,10 @@
                 <tbody>
                     @foreach($quadroImposto as $taxa => $valores)
                         <tr>
-                            <td>{{$valores['codigo']}}</td>
-                            <td>{{ $valores['taxa'] == 0 ? 'Isento' : $valores['taxa'] . '%' }}</td>
-                            <td>{{ number_format($valores['incidencia'], 2, ',', '.') }} Kz</td>
-                            <td style="text-align: right;">{{ number_format($valores['imposto'], 2, ',', '.') }} Kz</td>
+                            <td style="font-size: 8pt;">{{$valores['codigo']}}</td>
+                            <td style="font-size: 8pt;">{{ $valores['taxa'] == 0 ? 'Isento' : $valores['taxa'] . '%' }}</td>
+                            <td style="font-size: 8pt;">{{ number_format($valores['incidencia'], 2, ',', '.') }} Kz</td>
+                            <td style="font-size: 8pt; text-align: right;">{{ number_format($valores['imposto'], 2, ',', '.') }} Kz</td>
                         </tr>
                         @if ($valores['taxa'] == 0)
                         <tr class="borderless">
@@ -246,21 +246,26 @@
                 </tr>
                 @foreach($meiosPagamento as $meioPagamento)
                     <tr>
-                        <td>{{ $meioPagamento->descricao }}</td>
-                        <td style="text-align: right;">{{ number_format($meioPagamento->valor, 2, ',', '.') }} Kz</td>
+                        <td style="font-size: 8pt;">{{ $meioPagamento->descricao }}</td>
+                        <td style="font-size: 8pt; text-align: right;">{{ number_format($meioPagamento->valor, 2, ',', '.') }} Kz</td>
                     </tr>
                 @endforeach
             </table>
 
             <table class="table-banco" style="margin-top: 10px; width: 420px;">
-                <tr style="border-top: 1px solid #000;">
-                    <th colspan="3" style="text-align: left; width: 50%;">Coordenadas Bancárias</th>
+                <div>
+                    <b style="text-align: left; width: 50%;">Coordenadas Bancárias</b>
+                </div>
+                <tr>
+                    <th style="font-size: 9pt; font-weight: 500;">Banco</th>
+                    <th style="font-size: 9pt; font-weight: 500;">Nº Conta</th>
+                    <th style="font-size: 9pt; font-weight: 500; text-align: right;">Iban</th>
                 </tr>
                 @foreach($bancos as $banco)
                     <tr>
-                        <td style="font-size: 9pt;">{{ $banco->sigla }}</td>
-                        <td style="font-size: 9pt;">{{ $banco->numero_conta }}</td>
-                        <td style="font-size: 9pt; text-align: right;">{{ $banco->iban }}</td>
+                        <td style="font-size: 8pt;">{{ $banco->sigla }}</td>
+                        <td style="font-size: 8pt;">{{ $banco->numero_conta }}</td>
+                        <td style="font-size: 8pt; text-align: right;">{{ $banco->iban }}</td>
                     </tr>
                 @endforeach
             </table>

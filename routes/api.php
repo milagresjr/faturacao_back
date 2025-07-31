@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BancoController;
+use App\Http\Controllers\Api\CaixaController;
 use App\Http\Controllers\Api\CategoriaProdutoController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\ContaController;
@@ -40,7 +41,7 @@ Route::middleware('api')->group(function () {
         return $request->user();
     });
 
-    Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
+Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         
    
     Route::apiResource('produtos', ProdutoController::class);
@@ -70,6 +71,7 @@ Route::middleware('api')->group(function () {
     Route::apiResource('contas', ContaController::class);
     Route::apiResource('bancos', BancoController::class);
     
+    Route::apiResource('caixas', CaixaController::class);
     
 });
 Route::get('/documento/{id}/pdf',[DocumentoController::class, 'gerarPdf']);

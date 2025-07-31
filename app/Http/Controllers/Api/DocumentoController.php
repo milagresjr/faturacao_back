@@ -61,7 +61,6 @@ class DocumentoController extends Controller
             'caixa' => 'required|string',
             'data_emissao' => 'required|date',
             'data_vencimento' => 'required|date',
-            'forma_pagamento' => 'required|string',
             'movimenta_stock' => 'required|boolean',
 
             'taxa_iva' => 'nullable|numeric',
@@ -197,6 +196,14 @@ class DocumentoController extends Controller
                 'iban' => $banco->iban,
                 'created_at' => now(),
                 'updated_at' => now(),
+            ]);
+        }
+
+        foreach ($request->input('meiosPagamento') as $meioPagamento) {
+            MeioPagamentoDocumento::create([
+                'documento_id' => $documento->id,
+                'descricao' => $meioPagamento['descricao'],
+                'valor' => $meioPagamento['valor'],
             ]);
         }
 
