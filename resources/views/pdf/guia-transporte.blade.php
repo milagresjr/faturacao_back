@@ -180,42 +180,25 @@
             <thead>
                 <tr>
                     <th style="width: 20%;">Código</th>
-                    <th style="width: 30%;">Descrição</th>
+                    <th style="width: 35%;">Descrição</th>
                     <th style="width: 15%;">Preço Uni.</th>
-                    <th style="width: 7%;">Uni.</th>
-                    <th style="width: 7%;">Qtd.</th>
+                    <th style="width: 8%;">Uni.</th>
+                    <th style="width: 10%;">Qtd.</th>
                     <th style="width: 7%;">IVA</th>
-                    <th style="width: 15%;">Desc.</th>
-                    <th style="width: 16%; text-align: right;">Total</th>
+                    <th style="width: 15%; text-align: right;">Total</th>
                 </tr>
             </thead>
             <tbody>
                 {{-- @for($i = 1; $i <= 7; $i++) --}}
                     @foreach ($documento->itens as $item)
                         <tr>
-                            <td>{{ $item->produto_codigo ?? "" }}</td>
-                            <td>{{ $item->produto_nome ?? "" }}</td>
+                            <td>{{ $item->produto_codigo ?? "23" }}</td>
+                            <td>{{ $item->produto_nome ?? "Produto01" }}</td>
                             <td >{{ number_format($item->preco_unitario, 2, ',', '.') }} Kz</td>
                             <td>Uni</td>
-                            <td >{{ $item->quantidade ?? "" }}</td>
-                            <td >{{ $item->iva_percent ?? "" }}%</td>
-                            <td>
-                                @if ($item->desconto_percent != 0)
-                                    {{ (int) $item->desconto_percent }}%
-                                @elseif ($item->desconto_fixo != 0)
-                                    {{ number_format($item->desconto_fixo, 2, ',', '.') }} Kz
-                                @endif
-                            </td>
-                            <td class="right" style="line-height: 1; padding: 0;">
-                                <span style="display: block;">
-                                    {{ number_format($item->total, 2, ',', '.') }} Kz
-                                </span>
-                                @if($item->desconto_percent != 0 || $item->desconto_fixo != 0)
-                                    <span style="display: block; font-size: 9px; color: #888; text-decoration: line-through; margin-top: -3px;">
-                                        {{ number_format($item->total_sem_desconto, 2, ',', '.') }} Kz
-                                    </span>
-                                @endif
-                            </td>
+                            <td >{{ $item->quantidade ?? "23" }}</td>
+                            <td >{{ $item->iva_percent ?? "14" }}</td>
+                            <td  class="right">{{ number_format($item->total, 2, ',', '.') }} Kz</td>
                         </tr>
                     @endforeach
                 {{-- @endfor --}}
@@ -227,7 +210,6 @@
         <!-- Impostos à esquerda -->
      
         <div class="col-left" style="width: 70%; float: left; margin-top: 10px;">
-            
             <table class="table-imposto" style="width: 420px; margin-bottom: 20px;">
                 <thead>
                     <tr>
@@ -238,36 +220,24 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($quadroImpostoAgrupado as $valores)
+                    @foreach($quadroImposto as $taxa => $valores)
                         <tr>
-                            <td style="font-size: 8pt;">{{ $valores['codigo'] }}</td>
-                            <td style="font-size: 8pt;">
-                                {{ $valores['taxa'] == 0 ? '0%' : (int)$valores['taxa'] . '%' }}
-                            </td>
-                            <td style="font-size: 8pt;">
-                                {{ number_format($valores['incidencia'], 2, ',', '.') }} Kz
-                            </td>
-                            <td style="font-size: 8pt; text-align: right;">
-                                {{ number_format($valores['imposto'], 2, ',', '.') }} Kz
+                            <td style="font-size: 8pt;">{{$valores['codigo']}}</td>
+                            <td style="font-size: 8pt;">{{ $valores['taxa'] == 0 ? 'Isento' : $valores['taxa'] . '%' }}</td>
+                            <td style="font-size: 8pt;">{{ number_format($valores['incidencia'], 2, ',', '.') }} Kz</td>
+                            <td style="font-size: 8pt; text-align: right;">{{ number_format($valores['imposto'], 2, ',', '.') }} Kz</td>
+                        </tr>
+                        @if ($valores['taxa'] == 0)
+                        <tr class="borderless">
+                            <td colspan="4" style="font-size: 10px; color: #555;">
+                                <em>{{$valores['motivo_isencao']}}</em>
                             </td>
                         </tr>
-
-                        @if ($valores['taxa'] == 0 && !empty($valores['motivos']))
-                            <tr class="borderless">
-                                <td colspan="4" style="font-size: 10px; color: #555;">
-                                    @foreach(explode(';', $valores['motivos']) as $motivo)
-                                        @if(trim($motivo) !== '')
-                                            <em style="font-size:8px; line-height:8px; margin:0; padding:0; display:block;">
-                                                {{ trim($motivo) }}
-                                            </em>
-                                        @endif
-                                    @endforeach
-                                </td>
-                            </tr>
                         @endif
                     @endforeach
                 </tbody>
             </table>
+
         
             <table class="table-meio-pag" style="width: 420px;">
                 <tr style="border-top: 1px solid #000;">
@@ -308,15 +278,15 @@
         <div style="margin-top: 10px; width: 250px; display: block; float: right;">
             <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #000; border-bottom: 1px solid #000;">
                 <tr>
-                    <td style="text-align: left; padding: 2px;">Subtotal<</td>
+                    <td style="text-align: left; padding: 2px;">Total liquido</td>
                     <td style="text-align: right; padding: 2px;">
                         {{ number_format($documento->total_sem_desconto, 2, ',', '.') }}
                     </td>
                 </tr>
                 <tr>
-                    <td style="text-align: left; padding: 2px;">Desconto</td>
+                    <td style="text-align: left; padding: 2px;">Total desconto</td>
                     <td style="text-align: right; padding: 2px;">
-                        {{ number_format(($documento->desconto_total), 2, ',', '.') }}
+                        {{ number_format($documento->desconto_total, 2, ',', '.') }}
                     </td>
                 </tr>
                 <tr>
@@ -331,12 +301,12 @@
                         {{ number_format($documento->retencao, 2, ',', '.') }}
                     </td>
                 </tr>
-                {{-- <tr>
+                <tr>
                     <td style="text-align: left; padding: 2px;">Subtotal</td>
                     <td style="text-align: right; padding: 2px;">
-                        {{ number_format($documento->total_sem_desconto, 2, ',', '.') }}
+                        {{ number_format($documento->total, 2, ',', '.') }}
                     </td>
-                </tr> --}}
+                </tr>
                 <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
                     <th style="text-align: left; padding: 2px;">Total (Kz)</th>
                     <td style="text-align: right; padding: 2px;">

@@ -37,15 +37,15 @@ Route::middleware('api')->group(function () {
 });
 
 //Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
+Route::get('/user', function (Request $request) {
+    return $request->user();
+});
 
+Route::apiResource('produtos', ProdutoController::class);
 Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
-        
-   
-    Route::apiResource('produtos', ProdutoController::class);
-    
+
+
+
     // Add your protected routes here
     Route::apiResource('empresas', EmpresaController::class);
     Route::apiResource('perfis', PerfilController::class);
@@ -54,7 +54,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::apiResource('categoria-produtos', CategoriaProdutoController::class);
     Route::apiResource('sub-categoria-produtos', SubCategoriaController::class);
     Route::apiResource('fornecedores', FornecedorController::class);
-    Route::apiResource('filiais',FilialController::class);
+    Route::apiResource('filiais', FilialController::class);
     Route::apiResource('armazens', ArmazemController::class);
     Route::apiResource('tipo-clientes', TipoClienteController::class);
     Route::apiResource('clientes', ClienteController::class);
@@ -63,17 +63,20 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::apiResource('tipo-stock', TipoStockController::class);
     Route::apiResource('movimento-stock', MovimentoStockController::class);
 
-    Route::apiResource('documento', DocumentoController::class);
     //Route::apiResource('utilizadores', UtilizadorController::class);
-    
+
     Route::apiResource('tipos-taxa-iva', TipoTaxaIvaController::class);
-    
+
     Route::apiResource('contas', ContaController::class);
     Route::apiResource('bancos', BancoController::class);
-    
+
     Route::apiResource('caixas', CaixaController::class);
-    
+
 });
-Route::get('/documento/{id}/pdf',[DocumentoController::class, 'gerarPdf']);
+Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);
+Route::apiResource('documentos', DocumentoController::class);
+Route::get('caixas/armazem/{armazemId}', [CaixaController::class, 'getByArmazem']);
+Route::get('/documento/{id}/pdf', [DocumentoController::class, 'gerarPdf']);
+Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
 
 //});

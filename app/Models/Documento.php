@@ -8,10 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Documento extends Model
 {
     protected $table = "documentos";
-    
+
     protected $fillable = [
-        'tipo_nome', 
-        'tipo_sigla', 
+        'tipo_nome',
+        'tipo_sigla',
         'tipo_cor',
 
         'num_fatura',
@@ -19,24 +19,24 @@ class Documento extends Model
 
         'empresa_id',
         'empresa_logo',
-        'empresa_nome', 
-        'empresa_nif', 
-        'empresa_telefone', 
-        'empresa_email', 
+        'empresa_nome',
+        'empresa_nif',
+        'empresa_telefone',
+        'empresa_email',
         'empresa_endereco',
 
         'cliente_id',
-        'cliente_nome', 
-        'cliente_nif', 
-        'cliente_telefone', 
-        'cliente_email', 
+        'cliente_nome',
+        'cliente_nif',
+        'cliente_telefone',
+        'cliente_email',
         'cliente_endereco',
-        
-        'caixa',
-        'data_emissao', 
-        'data_vencimento', 
 
-        'forma_pagamento', 
+        'caixa',
+        'data_emissao',
+        'data_vencimento',
+
+        'forma_pagamento',
         'movimenta_stock',
         'descricao_iva',
 
@@ -44,11 +44,11 @@ class Documento extends Model
         'valor_iva',
         'retencao',
 
-        'desconto_total', 
-        'valor_transporte', 
+        'desconto_total',
+        'valor_transporte',
 
-        'total_sem_desconto', 
-        'total_impostos', 
+        'total_sem_desconto',
+        'total_impostos',
         'total_geral',
 
         'hash',
@@ -59,5 +59,43 @@ class Documento extends Model
     public function itens(): HasMany
     {
         return $this->hasMany(ItemDocumento::class, 'documento_id', 'id');
+    }
+
+    public function meiosPagamento()
+    {
+        return $this->hasMany(MeioPagamentoDocumento::class, 'documento_id', 'id');
+    }
+
+    /**
+     * Documentos que este documento referencia
+     */
+    public function documentosRelacionados()
+    {
+        return $this->belongsToMany(
+            Documento::class,
+            'documento_relacoes',
+            'documento_relacionado_id', // chave no documento relacionado
+            'documento_id', // chave neste documento
+        )->withPivot('tipo_relacao')
+            ->withTimestamps();
+    }
+
+    /**
+     * Documentos que fazem referência a este documento
+     */
+    public function relacionadoEm()
+    {
+        return $this->belongsToMany(
+            Documento::class,
+            'documento_relacoes',
+            'documento_id', // chave no documento original
+            'documento_relacionado_id', // chave neste documento
+        )->withPivot('tipo_relacao')
+            ->withTimestamps();
+    }
+
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id', 'id');
     }
 }

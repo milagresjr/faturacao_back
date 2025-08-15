@@ -55,10 +55,12 @@ return new class extends Migration
             $table->boolean('permite_movimento_negativo')->default(false);
             $table->boolean('permite_multiplos_usuarios')->default(false);
 
+            $table->foreignId('armazem_id')->constrained('armazens')->cascadeOnDelete();
             $table->foreignId('usuario_id')->constrained('utilizadores')->cascadeOnDelete();
             $table->foreignId('empresa_id')->constrained()->cascadeOnDelete();
 
             $table->timestamps();
+            $table->softDeletes(); // Para permitir exclusão suave
         });
     }
 

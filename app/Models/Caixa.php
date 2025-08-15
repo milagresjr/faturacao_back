@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Caixa extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'caixas';
 
     protected $fillable = [
@@ -35,8 +38,14 @@ class Caixa extends Model
         'permite_movimento_negativo',
         'permite_multiplos_usuarios',
         'usuario_id',
+        'armazem_id',
         'empresa_id'
     ];
+
+    public function armazem()
+    {
+        return $this->belongsTo(Armazem::class, 'armazem_id');
+    }
 
     public function usuario()
     {

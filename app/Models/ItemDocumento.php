@@ -20,9 +20,10 @@ class ItemDocumento extends Model
         'iva_percent', 
         'codigo_iva',
         'motivo_isencao',
+        'total_sem_desconto',
         'total'
     ];
-
+    
     public function documento(): BelongsTo
     {
         return $this->belongsTo(Documento::class, 'documento_id');

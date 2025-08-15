@@ -7,6 +7,7 @@ use App\Models\Banco;
 use App\Models\BancoDocumento;
 use App\Models\Conta;
 use App\Models\Documento;
+use App\Models\ImpostoDocumento;
 use App\Models\MeioPagamentoDocumento;
 use App\Models\TipoTaxaIva;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -21,9 +22,30 @@ class DocumentoController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+
+        $documentoQuery = Documento::query();
+
+        if ($search) {
+            // Supondo que você queira filtrar pelo campo 'nome'. Altere conforme sua necessidade.
+            $documentoQuery->where('num_fatura', 'like', '%' . $search . '%');
+        }
+
+        $documentos = $documentoQuery
+            ->with([
+                'itens',
+                'meiosPagamento',
+                'documentosRelacionados', // documentos que este documento referencia
+                'relacionadoEm',          // documentos que referenciam este documento
+            ])
+            ->orderByDesc('id')
+            ->paginate($per_page);
+
+        return response()->json($documentos);
     }
 
     /**
@@ -61,6 +83,7 @@ class DocumentoController extends Controller
             'caixa' => 'required|string',
             'data_emissao' => 'required|date',
             'data_vencimento' => 'required|date',
+            'is_apronto' => 'nullable|boolean',
             'movimenta_stock' => 'required|boolean',
 
             'taxa_iva' => 'nullable|numeric',
@@ -106,35 +129,147 @@ class DocumentoController extends Controller
             ], 422);
         }
 
-        $totalSemDesconto = 0;
-        $descontoTotal = 0;
-        $totalImpostos = 0;
+        // Construção do quadro por taxas (mantendo também o 'liquido' por grupo)
+        $quadroImposto = [];
+        $totalLiquido = 0;
+        $totalBase = 0;
+        $subtotalBruto = 0;
 
         foreach ($request->itens as $item) {
-            $precoBruto = $item['preco_venda'] * $item['quantidade'];
-            // Verifica se o desconto é fixo (> 0) ou percentual
-            if (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
+            $tipo = TipoTaxaIva::find($item['iva_percent']);
+            $taxaIva = $tipo->taxa;
+            $codigo = $tipo->codigo;
+            $motivoIsencaoId = $item['motivo_isencao_id'] ?? '';
+            $motivo = '';
+
+            if ($codigo === 'ISENTO' && $motivoIsencaoId) {
+                $motivo = DB::table('motivo_isencao')->where('id', $motivoIsencaoId)->value('motivo');
+            }
+
+            $subtotalBruto = $item['preco_venda'] * $item['quantidade'];
+
+            $desconto = 0;
+            if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
+                $desconto = $subtotalBruto * ($item['desconto_percent'] / 100);
+            } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
                 $desconto = $item['desconto_fixo'];
-            } else {
-                $desconto = ($item['desconto_percent'] / 100) * $precoBruto;
-            }
-            $subtotal = $precoBruto - $desconto;
-            if ($item['iva_percent'] == 'auto') {
-                $item['iva_percent'] = 14; // Definindo IVA automático como 14%
-            } elseif (!is_numeric($item['iva_percent'])) {
-                $item['iva_percent'] = 0; // Se não for numérico, assume-se isento
             }
 
-            $taxaIva = TipoTaxaIva::find($item['iva_percent'])->taxa;
+            $subtotalLiquido = $subtotalBruto - $desconto;
 
-            $iva = ($taxaIva / 100) * $subtotal;
+            // base e imposto atuais (por item)
+            $base = round($subtotalLiquido / (1 + ($taxaIva / 100)), 2);
+            $imposto = round($subtotalLiquido - $base, 2);
 
-            $totalSemDesconto += $subtotal;
-            $descontoTotal += $desconto;
-            $totalImpostos += $iva;
+            $chave = $taxaIva . '|' . $motivoIsencaoId;
+
+            if (!isset($quadroImposto[$chave])) {
+                $quadroImposto[$chave] = [
+                    'taxa' => $taxaIva,
+                    'codigo' => $codigo,
+                    'motivo_isencao' => $motivo,
+                    'incidencia' => 0.0, // base
+                    'imposto' => 0.0,
+                    'liquido' => 0.0, // subtotal (com IVA) do grupo
+                ];
+            }
+
+            $quadroImposto[$chave]['incidencia'] += $base;
+            $quadroImposto[$chave]['imposto'] += $imposto;
+            $quadroImposto[$chave]['liquido'] += $subtotalLiquido;
+
+            $totalLiquido += $subtotalLiquido;
+            $totalBase += $base;
+            $subtotalBruto += $subtotalBruto;
         }
 
-        $totalGeral = $totalSemDesconto + $totalImpostos;
+        $totalSemDesconto = 0;
+        $descontoItensTotal = 0;
+        // 1. Calcular total bruto e descontos por item
+        foreach ($request->itens as $item) {
+
+            $precoBruto = $item['preco_venda'] * $item['quantidade'];
+
+            // Desconto do item
+            $desconto = 0;
+            if ($item['desconto_percent'] !== null && $item['desconto_percent'] > 0) {
+                $desconto = $precoBruto * ($item['desconto_percent'] / 100);
+            } elseif ($item['desconto_fixo'] !== null && $item['desconto_fixo'] > 0) {
+                $desconto = $item['desconto_fixo'] * $item['quantidade'];
+            }
+
+            $subtotalComIva = $precoBruto - $desconto;
+
+            // Acumula totais gerais
+            $totalSemDesconto += $precoBruto;
+            $descontoItensTotal += $desconto;
+        }
+
+        // Desconto geral (se existir)
+        $descontoGeral = 0; //$request['desconto_total'] ?? 0;
+
+        if ($request['desconto_tipo'] === 'percentual') {
+            $descontoGeral = $totalSemDesconto * ($request['desconto_total'] / 100);
+        } elseif ($request['desconto_tipo'] === 'fixo') {
+            $descontoGeral = $request['desconto_total']; // decide se é total ou por unidade
+        }
+
+        if ($descontoGeral > 0 && $totalLiquido > 0) {
+            $totalLiquidoOriginal = $totalLiquido;
+
+            // para garantir soma exata do desconto distribuído (corrige residual de arredond.)
+            $groupKeys = array_keys($quadroImposto);
+            $lastKey = end($groupKeys);
+            $assigned = 0.0;
+
+            foreach ($groupKeys as $key) {
+                $linha = &$quadroImposto[$key];
+
+                // proporção segundo o liquido do grupo
+                $proporcao = $linha['liquido'] / $totalLiquidoOriginal;
+
+                if ($key !== $lastKey) {
+                    $descontoLinha = round($descontoGeral * $proporcao, 2);
+                    $assigned += $descontoLinha;
+                } else {
+                    // resto do desconto para o último grupo (evita erro de arredondamento)
+                    $descontoLinha = round($descontoGeral - $assigned, 2);
+                }
+
+                // aplica desconto ao liquido do grupo
+                $linha['liquido'] = round($linha['liquido'] - $descontoLinha, 2);
+
+                // recalcula base e imposto segundo a taxa daquele grupo
+                $linha['incidencia'] = round($linha['liquido'] / (1 + ($linha['taxa'] / 100)), 2);
+                $linha['imposto'] = round($linha['liquido'] - $linha['incidencia'], 2);
+
+                unset($linha); // bom hábito ao usar referência
+            }
+
+            // (opcional) Recalcule totais finais:
+            $totalLiquido = array_sum(array_column($quadroImposto, 'liquido'));
+            $totalBase = array_sum(array_column($quadroImposto, 'incidencia'));
+            $totalImposto = array_sum(array_column($quadroImposto, 'imposto'));
+        }
+
+        // 2. Aplicar desconto geral (apenas no final)
+        $totalComIvaFinal = ($totalSemDesconto - $descontoItensTotal) - $descontoGeral;
+
+        // 3. Calcular total final (já com todos descontos)
+        $totalFinal = $totalComIvaFinal;
+
+        $totalImpostos = array_sum(array_column($quadroImposto, 'imposto'));
+
+        $retencao = 0;
+        //Calcular retencao na fonte nos servicos
+        foreach ($request['itens'] as $item) {
+            if (isset($item['tipo_produto']) && $item['tipo_produto'] === 'S') {
+                if ($item['preco_venda'] > 20000) {
+                    $retencao += ($item['preco_venda'] * 0.06); // 5% de retenção
+                }
+            }
+        }
+
 
         // Criação do documento
         $documento = Documento::create([
@@ -165,17 +300,17 @@ class DocumentoController extends Controller
             'forma_pagamento' => $request['forma_pagamento'],
             'movimenta_stock' => $request['movimenta_stock'],
 
-            'taxa_iva' => '14',
+            'taxa_iva' => '0',
             'valor_iva' => '0',
-            'retencao' => '0',
+            'retencao' => $retencao,
 
             'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
 
-            'desconto_total' => $descontoTotal,
+            'desconto_total' => $descontoItensTotal + $descontoGeral,
             'valor_transporte' => $request['valor_transporte'],
             'total_sem_desconto' => $totalSemDesconto,
             'total_impostos' => $totalImpostos,
-            'total_geral' => $totalGeral,
+            'total_geral' => $totalFinal,
 
             'utilizador_id' => $request['utilizador_id'],
             'utilizador' => $request['utilizador']
@@ -207,6 +342,24 @@ class DocumentoController extends Controller
             ]);
         }
 
+        foreach ($quadroImposto as $value) {
+            $value['incidencia'] = round($value['incidencia'], 2);
+            $value['imposto'] = round($value['imposto'], 2);
+            $value['liquido'] = round($value['liquido'], 2);
+
+            ImpostoDocumento::create([
+                'documento_id' => $documento->id,
+                'taxa' => $value['taxa'],
+                'codigo' => $value['codigo'],
+                'isento' => $value['codigo'] === 'ISENTO' ? 1 : 0,
+                'motivo_isencao' => $value['motivo_isencao'],
+                'incidencia' => $value['incidencia'],
+                'imposto' => $value['imposto'],
+                //'liquido' => $value['liquido'],
+                'total' => $value['incidencia'] + $value['imposto'],
+            ]);
+        }
+
         // Criação dos itens
         $itens = [];
         foreach ($request['itens'] as $item) {
@@ -225,6 +378,17 @@ class DocumentoController extends Controller
                 }
             }
 
+            $desconto = 0;
+            if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
+                $desconto = $item['preco_venda'] * ($item['desconto_percent'] / 100);
+            } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
+                $desconto = $item['desconto_fixo'];
+            }
+
+            // Calcula o total do item (sem IVA)
+            $totalSemDesconto = $item['preco_venda'] * $item['quantidade'];
+            $totalItem = $totalSemDesconto - $desconto;
+
             $itens[] = [
                 'documento_id' => $documento->id,
                 'produto_nome' => $item['produto_nome'],
@@ -236,18 +400,130 @@ class DocumentoController extends Controller
                 'iva_percent' => $taxaIva ?? 0,
                 'codigo_iva' => $codigoIva ?? '',
                 'motivo_isencao' => $motivoIsencaoDescricao,
-                'total' => ($item['preco_venda'] * $item['quantidade']),
+                'total_sem_desconto' => $totalSemDesconto,
+                'total' => $totalItem,
                 // Adicione outros campos conforme necessário
             ];
         }
 
         $documento->itens()->createMany($itens);
 
+        // Criar Recibo caso o tipo de vencimento for a prazo
+        if ($request->has('is_apronto') && $request->input('is_apronto') === '1') {
+            // return "hgfthft";
+            // Se for um APRONTO, relaciona com o documento relacionado
+            $request->merge([
+                'tipo_nome' => 'Recibo',
+                'tipo_sigla' => 'RG',
+                'total_geral' => $totalFinal,
+                'documento_relacionado_id' => $documento->id,
+            ]);
+
+            $data = [
+                'tipo_fatura' => 'Recibo', // "RECIBO"
+                'sigla_fatura' => "RG",
+                'total_geral' => $totalFinal,
+                'documento_relacionado_id' => $documento->id,
+                'empresa_id' => $documento->empresa_id,
+                'empresa_nome' => $documento->empresa_nome,
+                'cliente_id' => $documento->cliente_id,
+                'cliente_nome' => $documento->cliente_nome,
+                'meiosPagamento' => $request->input('meiosPagamento'),
+                'utilizador_id' => $request->input('utilizador_id'),
+                'utilizador' => $request->input('utilizador'),
+                'caixa' => $documento->caixa,
+                'data_emissao' => $documento->data_emissao,
+                'data_vencimento' => $documento->data_vencimento,
+            ];
+
+            $recibo = $this->storeRecibo(new Request($data));
+
+            return response()->json([
+                'message' => 'Factura e Recibo criados com sucesso.',
+                'documento' => $documento->load('itens'),
+                'documento_recibo' => $recibo->documento ?? '',
+            ], 201);
+        }
+
         return response()->json([
             'message' => 'Documento criado com sucesso.',
             'documento' => $documento->load('itens')
         ], 201);
     }
+
+    public function storeRecibo(Request $request)
+    {
+        //dd($request->all());
+        $validated = Validator::make($request->all(), [
+            'tipo_fatura' => 'required|string', // "RECIBO"
+            'sigla_fatura' => 'required|string', // "RC"
+            'data_emissao' => 'required|date',
+            'total_geral' => 'required|numeric',
+            'meiosPagamento' => 'required|array|min:1',
+            'meiosPagamento.*.descricao' => 'required|string',
+            'meiosPagamento.*.valor' => 'required|numeric',
+            'documento_relacionado_id' => 'required|integer|exists:documentos,id', // fatura associada
+            'utilizador_id' => 'required|integer',
+            'utilizador' => 'required|string'
+        ]);
+
+        if ($validated->fails()) {
+            return response()->json([
+                'message' => 'Erro de validação.',
+                'errors' => $validated->errors(),
+            ], 422);
+        }
+
+        // Gerar número do recibo
+        $numRecibo = $this->gerarNumeroDocumento(
+            $request->sigla_fatura,
+            $request->empresa_id
+        );
+
+        // Criar recibo
+        $documento = Documento::create([
+            'tipo_nome' => $request->tipo_fatura,
+            'tipo_sigla' => $request->sigla_fatura,
+            'num_fatura' => $numRecibo,
+            'via' => 'Original',
+            'empresa_id' => $request->empresa_id,
+            'empresa_nome' => $request->empresa_nome,
+            'empresa_nif' => $request->empresa_nif,
+            'cliente_id' => $request->cliente_id,
+            'cliente_nome' => $request->cliente_nome,
+            'caixa' => $request->caixa ?? 'CAIXA PRINCIPAL',
+            'data_emissao' => $request->data_emissao,
+            'movimenta_stock' => false,
+            'total_geral' => $request->total_geral,
+            'hash' => \Str::random(50),
+            'utilizador_id' => $request->utilizador_id,
+            'utilizador' => $request->utilizador
+        ]);
+
+        // Criar relação recibo -> fatura
+        DB::table('documento_relacoes')->insert([
+            'documento_id' => $documento->id,
+            'documento_relacionado_id' => $request->documento_relacionado_id,
+            'tipo_relacao' => 'RECIBO_FATURA',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Meios de pagamento
+        foreach ($request->meiosPagamento as $meio) {
+            MeioPagamentoDocumento::create([
+                'documento_id' => $documento->id,
+                'descricao' => $meio['descricao'],
+                'valor' => $meio['valor'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Recibo criado com sucesso.',
+            'documento' => $documento,
+        ], 201);
+    }
+
 
     public function gerarNumeroDocumento(string $tipoSigla, string $empresId): string
     {
@@ -271,48 +547,64 @@ class DocumentoController extends Controller
     public function gerarPdf(string $id)
     {
 
-        $documento = Documento::with('itens')->find($id);
+        $documento = Documento::with([
+            'documentosRelacionados',
+            'relacionadoEm',
+            'itens'
+        ])->find($id);
 
         // Verifica se o documento foi encontrado
         if (!$documento) {
             return response()->json(['message' => 'Documento não encontrado.'], 404);
         }
 
-        $bancos = BancoDocumento::where('documento_id',$id)->get();
+        $bancos = BancoDocumento::where('documento_id', $id)->get();
 
         $meiosPagamento = MeioPagamentoDocumento::where('documento_id', $id)->get();
 
-        //return $bancos;
+        $quadroImposto = ImpostoDocumento::where('documento_id', $id)
+            ->get();
 
-        $quadroImposto = [];
+        $quadroImpostoAgrupado = [];
 
-        foreach ($documento->itens as $item) {
-            $taxa = $item['iva_percent'];
-           // $taxa = TipoTaxaIva::find($item['iva_percent'])->taxa;
-            $motivo = $item['motivo_isencao'] ?? '';
-            $codigo = $item['codigo_iva'] ?? '';
-
-            $subtotal = $item['preco_unitario'] * $item['quantidade'];
-
-            // Cria uma chave única combinando taxa + motivo
-            $chave = $taxa . '|' . $motivo;
-
-            if (!isset($quadroImposto[$chave])) {
-                $quadroImposto[$chave] = [
+        foreach ($quadroImposto as $linha) {
+            $taxa = $linha['taxa'];
+            if (!isset($quadroImpostoAgrupado[$taxa])) {
+                $quadroImpostoAgrupado[$taxa] = [
                     'taxa' => $taxa,
-                    'codigo' => $codigo,
-                    'motivo_isencao' => $motivo,
+                    'codigo' => $linha['codigo'],
                     'incidencia' => 0,
                     'imposto' => 0,
+                    'motivos' => [],
                 ];
             }
 
-            $quadroImposto[$chave]['incidencia'] += $subtotal;
-            $quadroImposto[$chave]['imposto'] += ($taxa / 100) * $subtotal;
+            $quadroImpostoAgrupado[$taxa]['incidencia'] += $linha['incidencia'];
+            $quadroImpostoAgrupado[$taxa]['imposto'] += $linha['imposto'];
+
+            if (
+                !empty($linha['motivo_isencao']) &&
+                !in_array($linha['motivo_isencao'], $quadroImpostoAgrupado[$taxa]['motivos'])
+            ) {
+                $quadroImpostoAgrupado[$taxa]['motivos'][] = $linha['motivo_isencao'];
+            }
         }
 
+        // Depois pode juntar motivos numa string
+        foreach ($quadroImpostoAgrupado as &$linha) {
+            $linha['motivos'] = implode('; ', $linha['motivos']);
+        }
+        unset($linha);
 
-        $pdf = Pdf::loadView('pdf.documento', compact(['documento', 'quadroImposto', 'bancos', 'meiosPagamento']))
+        usort($quadroImpostoAgrupado, function ($a, $b) {
+            //return (float)$a['taxa'] <=> (float)$b['taxa']; // crescente
+            return (float)$b['taxa'] <=> (float)$a['taxa']; // decrescente
+        });
+
+
+        //  return $quadroImpostoAgrupado;
+
+        $pdf = Pdf::loadView('pdf.documento', compact(['documento', 'quadroImpostoAgrupado', 'bancos', 'meiosPagamento']))
             ->setPaper('A4', 'portrait')
             ->setOptions([
                 'defaultFont' => 'Helvetica',
@@ -360,12 +652,92 @@ class DocumentoController extends Controller
         ]);
     }
 
+    public function gerarPdfRecibo(string $id)
+    {
+        $documento = Documento::with([
+            'documentosRelacionados',
+            'relacionadoEm',
+        ])->find($id);
+
+        $docRelacionado = $documento->relacionadoEm->first();
+
+        // Verifica se o documento foi encontrado
+        if (!$documento) {
+            return response()->json(['message' => 'Documento de recibo não encontrado.'], 404);
+        }
+
+        $bancos = BancoDocumento::where('documento_id', $id)->get();
+
+        $meiosPagamento = MeioPagamentoDocumento::where('documento_id', $id)->get();
+
+        $pdf = Pdf::loadView('pdf.recibo', compact(['documento', 'docRelacionado', 'bancos', 'meiosPagamento']))
+            ->setPaper('A4', 'portrait')
+            ->setOptions([
+                'defaultFont' => 'Helvetica',
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+                'isPhpEnabled' => true,
+                'dpi' => 96,
+                'debugPng' => false,
+                'debugKeepTemp' => false,
+                'debugCss' => false,
+            ]);
+
+        $pdf->getDomPDF()->get_canvas()->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "Conteúdo do rodapé";
+            $text2 = "Página $pageNumber / $pageCount";
+            $font = $fontMetrics->get_font('Helvetica', 'normal');
+            $size = 10;
+
+            // Posição inicial à esquerda, com margem de 40px
+            $x = 40;
+            $y1 = $canvas->get_height() - 50;
+            $y2 = $y1 + 12; // 12px abaixo do texto1
+
+            // Desenha uma linha horizontal acima do rodapé
+            $lineY = $y1 - 5; // 5px acima do primeiro texto
+            $canvas->line(
+                $x,
+                $lineY,
+                $canvas->get_width() - $x,
+                $lineY,
+                [0, 0, 0], // cor
+                1          // espessura
+            );
+
+
+            $canvas->text($x, $y1, $text1, $font, $size);
+            $canvas->text($x, $y2, $text2, $font, $size);
+        });
+
+        return new StreamedResponse(function () use ($pdf) {
+            echo $pdf->stream();
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'Inline; filename=fatura-recibo.pdf',
+        ]);
+    }
+
+
     /**
      * Display the specified resource.
      */
     public function show(string $id)
     {
-        //
+
+        // Verifica se o documento existe
+        $documento = Documento::find($id);
+        if (!$documento) {
+            return response()->json(['message' => 'Documento não encontrado.'], 404);
+        }
+
+        // Return a list of all Caixa records
+        $doc = Documento::with('itens')
+            ->with(['meiosPagamento', 'documentosRelacionados', 'relacionadoEm'])
+            ->where('id', $id)
+            ->first();
+
+        return response()->json($doc);
     }
 
     /**

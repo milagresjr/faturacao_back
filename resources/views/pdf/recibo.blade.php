@@ -134,11 +134,11 @@
     @endif
     
     <div class="col-left">
-        <span style="font-size: 12pt; font-weight: bold;">{{ $documento->empresa_nome ?? '' }}</span>
-        <span>{{ $documento->empresa_endereco ?? '' }}</span> <br>
-        <span><b>Contribuinte:</b> {{ $documento->empresa_nif ?? '' }}</span> <br>
-        <span><b>E-mail:</b> {{ $documento->empresa_email ?? '' }}</span> <br>
-        <span><b>Tel:</b> {{ $documento->empresa_telefone ?? '' }}</span> <br>
+        <span style="font-size: 12pt; font-weight: bold;">{{ $docRelacionado->empresa_nome ?? '' }}</span>
+        <span>{{ $docRelacionado->empresa_endereco ?? '' }}</span> <br>
+        <span><b>Contribuinte:</b> {{ $docRelacionado->empresa_nif ?? '' }}</span> <br>
+        <span><b>E-mail:</b> {{ $docRelacionado->empresa_email ?? '' }}</span> <br>
+        <span><b>Tel:</b> {{ $docRelacionado->empresa_telefone ?? '' }}</span> <br>
     </div>
 
     <div class="col-right" style="text-align: right;">
@@ -179,96 +179,27 @@
         <table class="table-main">
             <thead>
                 <tr>
-                    <th style="width: 20%;">Código</th>
-                    <th style="width: 30%;">Descrição</th>
-                    <th style="width: 15%;">Preço Uni.</th>
-                    <th style="width: 7%;">Uni.</th>
-                    <th style="width: 7%;">Qtd.</th>
-                    <th style="width: 7%;">IVA</th>
-                    <th style="width: 15%;">Desc.</th>
-                    <th style="width: 16%; text-align: right;">Total</th>
+                    <th style="width: 20%;">Data</th>
+                    <th style="width: 30%;">Documento</th>
+                    <th style="width: 15%;">Facturado</th>
+                    <th style="width: 16%;">Pago</th>
                 </tr>
             </thead>
             <tbody>
-                {{-- @for($i = 1; $i <= 7; $i++) --}}
-                    @foreach ($documento->itens as $item)
-                        <tr>
-                            <td>{{ $item->produto_codigo ?? "" }}</td>
-                            <td>{{ $item->produto_nome ?? "" }}</td>
-                            <td >{{ number_format($item->preco_unitario, 2, ',', '.') }} Kz</td>
-                            <td>Uni</td>
-                            <td >{{ $item->quantidade ?? "" }}</td>
-                            <td >{{ $item->iva_percent ?? "" }}%</td>
-                            <td>
-                                @if ($item->desconto_percent != 0)
-                                    {{ (int) $item->desconto_percent }}%
-                                @elseif ($item->desconto_fixo != 0)
-                                    {{ number_format($item->desconto_fixo, 2, ',', '.') }} Kz
-                                @endif
-                            </td>
-                            <td class="right" style="line-height: 1; padding: 0;">
-                                <span style="display: block;">
-                                    {{ number_format($item->total, 2, ',', '.') }} Kz
-                                </span>
-                                @if($item->desconto_percent != 0 || $item->desconto_fixo != 0)
-                                    <span style="display: block; font-size: 9px; color: #888; text-decoration: line-through; margin-top: -3px;">
-                                        {{ number_format($item->total_sem_desconto, 2, ',', '.') }} Kz
-                                    </span>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                {{-- @endfor --}}
+                <tr>
+                    <td>{{ $documento->data_emissao }}</td>
+                    <td>{{ $docRelacionado->num_fatura }}</td>
+                    <td >{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</td>
+                    <td >{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</td>
+                </tr>
             </tbody>
         </table>
     </div>
 
     <div class="section row" style="width: 100%;">
-        <!-- Impostos à esquerda -->
-     
-        <div class="col-left" style="width: 70%; float: left; margin-top: 10px;">
-            
-            <table class="table-imposto" style="width: 420px; margin-bottom: 20px;">
-                <thead>
-                    <tr>
-                        <th style="text-align: left;">Cod. IVA</th>
-                        <th style="text-align: left;">Taxa</th>
-                        <th style="text-align: left;">Incidência</th>
-                        <th style="text-align: right;">Imposto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($quadroImpostoAgrupado as $valores)
-                        <tr>
-                            <td style="font-size: 8pt;">{{ $valores['codigo'] }}</td>
-                            <td style="font-size: 8pt;">
-                                {{ $valores['taxa'] == 0 ? '0%' : (int)$valores['taxa'] . '%' }}
-                            </td>
-                            <td style="font-size: 8pt;">
-                                {{ number_format($valores['incidencia'], 2, ',', '.') }} Kz
-                            </td>
-                            <td style="font-size: 8pt; text-align: right;">
-                                {{ number_format($valores['imposto'], 2, ',', '.') }} Kz
-                            </td>
-                        </tr>
 
-                        @if ($valores['taxa'] == 0 && !empty($valores['motivos']))
-                            <tr class="borderless">
-                                <td colspan="4" style="font-size: 10px; color: #555;">
-                                    @foreach(explode(';', $valores['motivos']) as $motivo)
-                                        @if(trim($motivo) !== '')
-                                            <em style="font-size:8px; line-height:8px; margin:0; padding:0; display:block;">
-                                                {{ trim($motivo) }}
-                                            </em>
-                                        @endif
-                                    @endforeach
-                                </td>
-                            </tr>
-                        @endif
-                    @endforeach
-                </tbody>
-            </table>
-        
+         <div class="col-left" style="width: 70%; float: left; margin-top: 10px;">
+           
             <table class="table-meio-pag" style="width: 420px;">
                 <tr style="border-top: 1px solid #000;">
                     <th class="text-align: left;">Meio de Pagamento</th>
@@ -310,34 +241,11 @@
                 <tr>
                     <td style="text-align: left; padding: 2px;">Subtotal<</td>
                     <td style="text-align: right; padding: 2px;">
-                        {{ number_format($documento->total_sem_desconto, 2, ',', '.') }}
+                        {{ number_format($documento->total_geral, 2, ',', '.') }}
                     </td>
                 </tr>
-                <tr>
-                    <td style="text-align: left; padding: 2px;">Desconto</td>
-                    <td style="text-align: right; padding: 2px;">
-                        {{ number_format(($documento->desconto_total), 2, ',', '.') }}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="text-align: left; padding: 2px;">IVA</td>
-                    <td style="text-align: right; padding: 2px;">
-                        {{ number_format($documento->total_impostos, 2, ',', '.') }}
-                    </td>
-                </tr>
-                <tr>
-                    <td style="text-align: left; padding: 2px;">Retenção</td>
-                    <td style="text-align: right; padding: 2px;">
-                        {{ number_format($documento->retencao, 2, ',', '.') }}
-                    </td>
-                </tr>
-                {{-- <tr>
-                    <td style="text-align: left; padding: 2px;">Subtotal</td>
-                    <td style="text-align: right; padding: 2px;">
-                        {{ number_format($documento->total_sem_desconto, 2, ',', '.') }}
-                    </td>
-                </tr> --}}
-                <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
+                <br><br><br>
+                <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000; margin-top: 30px;">
                     <th style="text-align: left; padding: 2px;">Total (Kz)</th>
                     <td style="text-align: right; padding: 2px;">
                         <strong>{{ number_format($documento->total_geral, 2, ',', '.') }}</strong>
