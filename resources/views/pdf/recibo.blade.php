@@ -190,7 +190,7 @@
                     <td>{{ $documento->data_emissao }}</td>
                     <td>{{ $docRelacionado->num_fatura }}</td>
                     <td >{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</td>
-                    <td >{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</td>
+                    <td >{{ number_format($valorPago, 2, ',', '.') }} Kz</td>
                 </tr>
             </tbody>
         </table>
@@ -241,14 +241,14 @@
                 <tr>
                     <td style="text-align: left; padding: 2px;">Subtotal<</td>
                     <td style="text-align: right; padding: 2px;">
-                        {{ number_format($documento->total_geral, 2, ',', '.') }}
+                        {{ number_format($valorPago, 2, ',', '.') }}
                     </td>
                 </tr>
                 <br><br><br>
                 <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000; margin-top: 30px;">
                     <th style="text-align: left; padding: 2px;">Total (Kz)</th>
                     <td style="text-align: right; padding: 2px;">
-                        <strong>{{ number_format($documento->total_geral, 2, ',', '.') }}</strong>
+                        <strong>{{ number_format($valorPago, 2, ',', '.') }}</strong>
                     </td>
                 </tr>
             </table>

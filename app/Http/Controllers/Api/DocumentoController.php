@@ -27,13 +27,75 @@ class DocumentoController extends Controller
         $per_page = $request->input('per_page', 10);
 
         $search = $request->query('search');
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $status = $request->query('status'); // pago, por_pagar, vencido
+        $entidadeId = $request->query('entidade_id'); // cliente
+        $valorMin = $request->query('valor_min');
+        $valorMax = $request->query('valor_max');
 
         $documentoQuery = Documento::query();
 
+        // 🔍 Pesquisa por número da fatura
         if ($search) {
-            // Supondo que você queira filtrar pelo campo 'nome'. Altere conforme sua necessidade.
             $documentoQuery->where('num_fatura', 'like', '%' . $search . '%');
         }
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn('tipo_sigla', $tipo)
+                        ->orWhereIn('tipo_nome', $tipo);
+                });
+            } else {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->where('tipo_sigla', $tipo)
+                        ->orWhere('tipo_nome', $tipo);
+                });
+            }
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        // 👤 Filtrar por cliente/entidade
+        if ($entidadeId) {
+            $documentoQuery->where('entidade_id', $entidadeId);
+        }
+
+        // 💰 Filtro por valor
+        if ($valorMin && $valorMax) {
+            $documentoQuery->whereBetween('total_geral', [$valorMin, $valorMax]);
+        } elseif ($valorMin) {
+            $documentoQuery->where('total_geral', '>=', $valorMin);
+        } elseif ($valorMax) {
+            $documentoQuery->where('total_geral', '<=', $valorMax);
+        }
+
+        // Filtrar por status 
+      /*  if ($status) {
+            $documentoQuery->where(function ($query) use ($status) {
+                if ($status === 'pago') {
+                    $query->whereColumn('total_pago', '>=', 'total_geral');
+                } elseif ($status === 'por_pagar') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '>=', now());
+                } elseif ($status === 'vencido') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '<', now());
+                }
+            });
+        } */
+
+
 
         $documentos = $documentoQuery
             ->with([
@@ -47,6 +109,8 @@ class DocumentoController extends Controller
 
         return response()->json($documentos);
     }
+
+
 
     /**
      * Store a newly created resource in storage.
@@ -661,6 +725,10 @@ class DocumentoController extends Controller
 
         $docRelacionado = $documento->relacionadoEm->first();
 
+        $pagamentos = MeioPagamentoDocumento::where('documento_id', $id)->first();
+
+        $valorPago = $pagamentos->valor;
+
         // Verifica se o documento foi encontrado
         if (!$documento) {
             return response()->json(['message' => 'Documento de recibo não encontrado.'], 404);
@@ -670,7 +738,7 @@ class DocumentoController extends Controller
 
         $meiosPagamento = MeioPagamentoDocumento::where('documento_id', $id)->get();
 
-        $pdf = Pdf::loadView('pdf.recibo', compact(['documento', 'docRelacionado', 'bancos', 'meiosPagamento']))
+        $pdf = Pdf::loadView('pdf.recibo', compact(['documento', 'docRelacionado', 'bancos', 'meiosPagamento', 'valorPago']))
             ->setPaper('A4', 'portrait')
             ->setOptions([
                 'defaultFont' => 'Helvetica',
