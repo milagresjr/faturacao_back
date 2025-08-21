@@ -42,13 +42,13 @@ Route::get('/user', function (Request $request) {
 });
 
 Route::apiResource('produtos', ProdutoController::class);
+Route::apiResource('perfis', PerfilController::class);
 Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
 
 
     // Add your protected routes here
     Route::apiResource('empresas', EmpresaController::class);
-    Route::apiResource('perfis', PerfilController::class);
     Route::apiResource('marcas', MarcaController::class);
     Route::apiResource('tipo-produtos', TipoProdutoController::class);
     Route::apiResource('categoria-produtos', CategoriaProdutoController::class);

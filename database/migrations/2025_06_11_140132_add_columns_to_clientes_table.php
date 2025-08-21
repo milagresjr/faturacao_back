@@ -25,8 +25,6 @@ return new class extends Migration
             $table->text('observacoes')->nullable();
 
             $table->boolean('faz_retencao')->default(false);
-
-            $table->softDeletes(); // Para exclusão lógica
         });
     }
 

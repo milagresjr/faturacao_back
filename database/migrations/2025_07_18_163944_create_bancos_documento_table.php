@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('numero_conta')->nullable();
             $table->string('iban')->nullable();
             $table->timestamps();
+             $table->softDeletes();
         });
     }
 

@@ -21,6 +21,7 @@ return new class extends Migration
             $table->foreignId('utilizador_id')->constrained('utilizadores')->onDelete('cascade');
             $table->string('origem_movimento')->nullable(); // exemplo: venda, compra, inventario
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

@@ -67,6 +67,7 @@ return new class extends Migration
             $table->string('utilizador');
 
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

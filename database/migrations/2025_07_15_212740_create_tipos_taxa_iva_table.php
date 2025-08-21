@@ -16,7 +16,9 @@ return new class extends Migration
             $table->string('codigo')->unique();           // Ex: ISENTO, NOR, RED
             $table->string('descricao');                  // Ex: Taxa Normal, Isento, etc.
             $table->decimal('taxa', 5, 2);    // Ex: 0.00, 1.00, 14.00
+            $table->foreignId('empresa_id')->constrained()->onDelete('cascade');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

@@ -11,9 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('tipo_stock', function (Blueprint $table) {
-            $table->integer('motivo_isencao_id');
+        Schema::create('tipo_stock', function (Blueprint $table) {
+            $table->id();
+            $table->string("tipo");
+            $table->string("sigla");
             $table->foreignId('motivo_isencao_id')->constrained('motivo_isencao')->onDelete('cascade');
+            $table->foreignId('empresa_id')->constrained()->onDelete('cascade');
+            $table->timestamps();
         });
     }
 
@@ -22,8 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('tipo_stock', function (Blueprint $table) {
-            $table->dropColumn('motivo_isencao_id');
-        });
+        Schema::dropIfExists('tipo_stock');
     }
 };
