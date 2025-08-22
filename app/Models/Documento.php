@@ -61,9 +61,14 @@ class Documento extends Model
         return $this->hasMany(ItemDocumento::class, 'documento_id', 'id');
     }
 
-    public function meiosPagamento()
+    public function meiosPagamento(): HasMany
     {
         return $this->hasMany(MeioPagamentoDocumento::class, 'documento_id', 'id');
+    }
+
+    public function impostosDocumento(): HasMany
+    {
+        return $this->hasMany(ImpostoDocumento::class, 'documento_id', 'id');
     }
 
     /**

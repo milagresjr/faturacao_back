@@ -101,6 +101,7 @@ class DocumentoController extends Controller
             ->with([
                 'itens',
                 'meiosPagamento',
+                'impostosDocumento',
                 'documentosRelacionados', // documentos que este documento referencia
                 'relacionadoEm',          // documentos que referenciam este documento
             ])
@@ -800,8 +801,7 @@ class DocumentoController extends Controller
         }
 
         // Return a list of all Caixa records
-        $doc = Documento::with('itens')
-            ->with(['meiosPagamento', 'documentosRelacionados', 'relacionadoEm'])
+        $doc = Documento::with(['itens', 'meiosPagamento', 'impostosDocumento', 'documentosRelacionados', 'relacionadoEm'])
             ->where('id', $id)
             ->first();
 
