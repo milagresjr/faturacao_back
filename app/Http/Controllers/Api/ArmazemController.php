@@ -33,8 +33,8 @@ class ArmazemController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nome' => 'required|string|max:255',
-            'endereco' => 'required|string|max:255',
-            'filial_id' => 'required|integer',
+            'endereco' => 'nullable|string|max:255',
+            'filial_id' => 'nullable|integer',
             'empresa_id' => 'required|integer',
             'utilizador_id' => 'required|integer',
         ]);

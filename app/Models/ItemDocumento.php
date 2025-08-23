@@ -17,9 +17,11 @@ class ItemDocumento extends Model
         'quantidade',
         'desconto_percent', 
         'desconto_fixo', 
+        'imposto_taxa_id',
         'iva_percent', 
         'codigo_iva',
         'motivo_isencao',
+        'motivo_isencao_id',
         'total_sem_desconto',
         'total'
     ];

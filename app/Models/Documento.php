@@ -51,6 +51,8 @@ class Documento extends Model
         'total_impostos',
         'total_geral',
 
+        'motivo_emissao_nota_credito',
+
         'hash',
         'utilizador_id',
         'utilizador'

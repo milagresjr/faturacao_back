@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('clientes', function (Blueprint $table) {
             $table->string('pais')->default('AO'); // Angola como padrão
             $table->unsignedBigInteger('gestor_id')->nullable(); // ID do gestor de conta (relacional)
-            $table->string('vencimento')->default('A Pronto'); // Condição de pagamento
+            $table->string('vencimento')->nullable()->default('A Pronto'); // Condição de pagamento
 
             $table->string('telemovel')->nullable();
 

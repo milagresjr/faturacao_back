@@ -74,6 +74,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
 });
 Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);
+Route::post('documentos/nota-credito', [DocumentoController::class, 'storeNotaCredito']);
 Route::apiResource('documentos', DocumentoController::class);
 Route::get('caixas/armazem/{armazemId}', [CaixaController::class, 'getByArmazem']);
 Route::get('/documento/{id}/pdf', [DocumentoController::class, 'gerarPdf']);
