@@ -39,7 +39,10 @@ class DocumentoController extends Controller
 
         // 🔍 Pesquisa por número da fatura
         if ($search) {
-            $documentoQuery->where('num_fatura', 'like', '%' . $search . '%');
+            $documentoQuery->where('num_fatura', 'like', '%' . $search . '%')
+            ->orWhere('cliente_nome', 'like', '%' . $search . '%')
+            ->orWhere('utilizador', 'like', '%' . $search . '%')
+            ->orWhere('total_geral', 'like', '%' . $search . '%');
         }
 
         // 📄 Filtrar por tipo de documento
@@ -716,8 +719,8 @@ class DocumentoController extends Controller
 
         $idDocumentoPai = $request['documento_id'];
 
-        $dadosDocPai = Documento::find($idDocumentoPai)->first();
-
+        $dadosDocPai = Documento::where('id',$idDocumentoPai)->first();
+     
         // Criação do documento
         $documento = Documento::create([
             'tipo_nome' => 'Nota de Crédito', // $request['tipo_fatura'],
@@ -1015,6 +1018,7 @@ class DocumentoController extends Controller
         if (!$documento) {
             return response()->json(['message' => 'Documento não encontrado.'], 404);
         }
+
 
         $bancos = BancoDocumento::where('documento_id', $id)->get();
 
