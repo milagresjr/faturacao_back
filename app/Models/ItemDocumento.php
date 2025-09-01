@@ -14,6 +14,7 @@ class ItemDocumento extends Model
         'produto_nome', 
         'produto_codigo',
         'preco_unitario', 
+        'descricao',
         'quantidade',
         'desconto_percent', 
         'desconto_fixo', 

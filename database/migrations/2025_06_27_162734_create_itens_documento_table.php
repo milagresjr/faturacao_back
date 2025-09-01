@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('produto_nome');
             $table->string('produto_codigo')->nullable();
             $table->decimal('preco_unitario', 20, 2);
-            
+            $table->string('descricao')->nullable();
             $table->integer('quantidade');
             $table->decimal('desconto_percent', 5, 2)->default(0);
             $table->decimal('desconto_fixo', 20, 2)->default(0);

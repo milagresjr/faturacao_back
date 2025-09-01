@@ -40,9 +40,9 @@ class DocumentoController extends Controller
         // 🔍 Pesquisa por número da fatura
         if ($search) {
             $documentoQuery->where('num_fatura', 'like', '%' . $search . '%')
-            ->orWhere('cliente_nome', 'like', '%' . $search . '%')
-            ->orWhere('utilizador', 'like', '%' . $search . '%')
-            ->orWhere('total_geral', 'like', '%' . $search . '%');
+                ->orWhere('cliente_nome', 'like', '%' . $search . '%')
+                ->orWhere('utilizador', 'like', '%' . $search . '%')
+                ->orWhere('total_geral', 'like', '%' . $search . '%');
         }
 
         // 📄 Filtrar por tipo de documento
@@ -97,8 +97,6 @@ class DocumentoController extends Controller
                 }
             });
         } */
-
-
 
         $documentos = $documentoQuery
             ->with([
@@ -163,15 +161,16 @@ class DocumentoController extends Controller
             'total_impostos' => 'nullable|numeric',
             'total_geral' => 'nullable|numeric',
 
-            'meiosPagamento' => 'required|array',
-            'meiosPagamento.*.descricao' => 'required|string',
-            'meiosPagamento.*.valor' => 'required|numeric',
+            'meiosPagamento' => 'nullable|array',
+            'meiosPagamento.*.descricao' => 'nullable|string',
+            'meiosPagamento.*.valor' => 'nullable|numeric',
 
             // Itens do documento
             'itens' => 'required|array|min:1',
             'itens.*.produto_nome' => 'required|string',
             'itens.*.codigo_produto' => 'required|string',
             'itens.*.preco_venda' => 'required|numeric',
+            'itens.*.descricao' => 'nullable|string',
             'itens.*.quantidade' => 'required|integer',
             'itens.*.desconto_percent' => 'required|numeric',
             'itens.*.desconto_fixo' => 'required|numeric',
@@ -338,6 +337,19 @@ class DocumentoController extends Controller
             }
         }
 
+        $totalEntregue = 0;
+
+        foreach ($request->input('meiosPagamento') as $meioPagamento) {
+            $totalEntregue += (float) $meioPagamento['valor'];
+        }
+
+        $troco = $totalEntregue - $totalFinal;
+
+        // garantir que não dá troco negativo
+        if ($troco < 0) {
+            $troco = 0;
+        }
+
 
         // Criação do documento
         $documento = Documento::create([
@@ -379,6 +391,7 @@ class DocumentoController extends Controller
             'total_sem_desconto' => $totalSemDesconto,
             'total_impostos' => $totalImpostos,
             'total_geral' => $totalFinal,
+            'troco' => $troco,
 
             'utilizador_id' => $request['utilizador_id'],
             'utilizador' => $request['utilizador']
@@ -463,6 +476,7 @@ class DocumentoController extends Controller
                 'produto_nome' => $item['produto_nome'],
                 'produto_codigo' => $item['codigo_produto'],
                 'preco_unitario' => $item['preco_venda'],
+                'descricao' => $item['descricao'],
                 'quantidade' => $item['quantidade'],
                 'desconto_percent' => $item['desconto_percent'],
                 'desconto_fixo' => $item['desconto_fixo'],
@@ -556,6 +570,7 @@ class DocumentoController extends Controller
             'itens.*.produto_nome' => 'required|string',
             'itens.*.codigo_produto' => 'required|string',
             'itens.*.preco_venda' => 'required|numeric',
+            'itens.*.descricao' => 'nullable|string',
             'itens.*.quantidade' => 'required|integer',
             'itens.*.desconto_percent' => 'required|numeric',
             'itens.*.desconto_fixo' => 'required|numeric',
@@ -719,8 +734,8 @@ class DocumentoController extends Controller
 
         $idDocumentoPai = $request['documento_id'];
 
-        $dadosDocPai = Documento::where('id',$idDocumentoPai)->first();
-     
+        $dadosDocPai = Documento::where('id', $idDocumentoPai)->first();
+
         // Criação do documento
         $documento = Documento::create([
             'tipo_nome' => 'Nota de Crédito', // $request['tipo_fatura'],
@@ -844,6 +859,7 @@ class DocumentoController extends Controller
                 'produto_nome' => $item['produto_nome'],
                 'produto_codigo' => $item['codigo_produto'],
                 'preco_unitario' => $item['preco_venda'],
+                'descricao' => $item['descricao'],
                 'quantidade' => $item['quantidade'],
                 'desconto_percent' => $item['desconto_percent'],
                 'desconto_fixo' => $item['desconto_fixo'],
@@ -859,7 +875,7 @@ class DocumentoController extends Controller
 
         $documento->itens()->createMany($itens);
 
-         // Criar relação Nota de credito -> fatura
+        // Criar relação Nota de credito -> fatura
         DB::table('documento_relacoes')->insert([
             'documento_id' => $documento->id,
             'documento_relacionado_id' => $request['documento_id'],
@@ -940,6 +956,19 @@ class DocumentoController extends Controller
             $request->empresa_id
         );
 
+        $totalEntregue = 0;
+
+        foreach ($request->input('meiosPagamento') as $meioPagamento) {
+            $totalEntregue += (float) $meioPagamento['valor'];
+        }
+
+        $troco = $totalEntregue - $request->total_geral;
+
+        // garantir que não dá troco negativo
+        if ($troco < 0) {
+            $troco = 0;
+        }
+
         // Criar recibo
         $documento = Documento::create([
             'tipo_nome' => $request->tipo_fatura,
@@ -956,6 +985,7 @@ class DocumentoController extends Controller
             'data_emissao' => $request->data_emissao,
             'movimenta_stock' => false,
             'total_geral' => $request->total_geral,
+            'troco' => $troco,
             'hash' => \Str::random(50),
             'utilizador_id' => $request->utilizador_id,
             'utilizador' => $request->utilizador
@@ -1018,7 +1048,6 @@ class DocumentoController extends Controller
         if (!$documento) {
             return response()->json(['message' => 'Documento não encontrado.'], 404);
         }
-
 
         $bancos = BancoDocumento::where('documento_id', $id)->get();
 
@@ -1106,11 +1135,13 @@ class DocumentoController extends Controller
             $canvas->text($x, $y2, $text2, $font, $size);
         });
 
+        $filename = str_replace([' ', '/'], '_', $documento['num_fatura']);
+
         return new StreamedResponse(function () use ($pdf) {
             echo $pdf->stream();
         }, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'Inline; filename=fatura-recibo.pdf',
+            'Content-Disposition' => 'Inline; filename=' . $filename . '.pdf',
         ]);
     }
 
@@ -1203,6 +1234,21 @@ class DocumentoController extends Controller
             ->first();
 
         return response()->json($doc);
+    }
+
+    public function anularDocumento(string $id)
+    {
+        $doc = Documento::findOrFail($id);
+
+        // regra: só pode anular se ainda não tiver nota de crédito associada
+        if ($doc->estado !== 'emitido') {
+            return response()->json(['erro' => 'Não pode anular este documento.'], 400);
+        }
+
+        $doc->estado = 'anulado';
+        $doc->save();
+
+        return response()->json(['sucesso' => 'Documento anulado com sucesso.']);
     }
 
     /**

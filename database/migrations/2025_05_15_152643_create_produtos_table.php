@@ -34,8 +34,8 @@ return new class extends Migration
             $table->boolean('estado')->default(true);
             $table->foreignId('marca_id')->nullable()->constrained('marcas')->onDelete('cascade');
             $table->foreignId('tipo_id')->constrained('tipo_produtos')->onDelete('cascade');
-            $table->foreignId('armazem_id')->constrained('armazens')->onDelete('cascade');
-            $table->foreignId('categoria_id')->constrained('categorias')->onDelete('cascade');
+            $table->foreignId('armazem_id')->nullable()->constrained('armazens')->onDelete('cascade');
+            $table->foreignId('categoria_id')->nullable()->constrained('categorias')->onDelete('cascade');
             $table->foreignId('sub_categoria_id')->nullable()->constrained('sub_categorias')->onDelete('cascade');
             $table->foreignId('motivo_isencao_id')->nullable()->constrained('motivo_isencao')->onDelete('cascade');
             $table->foreignId('tipo_stock_id')->constrained('tipo_stock')->onDelete('cascade');

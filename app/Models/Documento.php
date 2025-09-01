@@ -50,10 +50,14 @@ class Documento extends Model
         'total_sem_desconto',
         'total_impostos',
         'total_geral',
+        'troco',
 
         'motivo_emissao_nota_credito',
 
         'hash',
+
+        'estado',
+        
         'utilizador_id',
         'utilizador'
     ];

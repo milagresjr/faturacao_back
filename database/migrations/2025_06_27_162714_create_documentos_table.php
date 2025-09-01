@@ -16,7 +16,7 @@ return new class extends Migration
 
             // Tipo de documento
             $table->string('tipo_nome')->default('Factura');
-            $table->string('tipo_sigla')->default('FA');
+            $table->string('tipo_sigla')->default('FT');
             $table->string('tipo_cor')->nullable();
 
             //Numero de fatura
@@ -53,11 +53,12 @@ return new class extends Migration
             $table->decimal('valor_iva', 20, 2)->default(0);
             $table->decimal('retencao', 20, 2)->default(0);
             $table->decimal('valor_transporte', 20, 2)->default(0);
-
+            
             // Totais
             $table->decimal('total_sem_desconto', 20, 2)->default(0);
             $table->decimal('total_impostos', 20, 2)->default(0);
             $table->decimal('total_geral', 20, 2)->default(0);
+            $table->decimal('troco', 20, 2)->default(0);
 
             //Hash
             $table->text('hash');
