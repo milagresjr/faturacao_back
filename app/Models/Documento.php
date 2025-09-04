@@ -57,9 +57,14 @@ class Documento extends Model
         'hash',
 
         'estado',
-        
+
         'utilizador_id',
-        'utilizador'
+        'utilizador',
+
+        'local_entrega',
+        'data_recepcao',
+        'observacoes',
+        'paga',
     ];
 
     public function itens(): HasMany

@@ -75,10 +75,12 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 });
 Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);
 Route::post('documentos/nota-credito', [DocumentoController::class, 'storeNotaCredito']);
+Route::post('documentos/doc-compra', [DocumentoController::class, 'storeFaturaCompra']);
 Route::post('documentos/{id}/anular', [DocumentoController::class, 'anularDocumento']);
 Route::apiResource('documentos', DocumentoController::class);
 Route::get('caixas/armazem/{armazemId}', [CaixaController::class, 'getByArmazem']);
 Route::get('/documento/{id}/pdf', [DocumentoController::class, 'gerarPdf']);
 Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
+Route::get('/documento/{id}/pdf/fatura-compra', [DocumentoController::class, 'gerarPdfFaturaCompra']);
 
 //});
