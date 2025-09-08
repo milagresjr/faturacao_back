@@ -986,7 +986,7 @@ class DocumentoController extends Controller
             'movimenta_stock' => false,
             'total_geral' => $request->total_geral,
             'troco' => $troco,
-            'hash' => \Str::random(50),
+            'hash' => 'rfsuhihuhuycgygyfyukgeyggfavdyvd',
             'utilizador_id' => $request->utilizador_id,
             'utilizador' => $request->utilizador
         ]);
@@ -1053,13 +1053,13 @@ class DocumentoController extends Controller
             // Itens do documento
             'itens' => 'required|array|min:1',
             'itens.*.produto_nome' => 'required|string',
-            'itens.*.codigo_produto' => 'required|string',
+            'itens.*.codigo_produto' => 'nullable|string',
             'itens.*.preco_custo' => 'required|numeric',
-            'itens.*.preco_venda' => 'required|numeric',
+            'itens.*.preco_venda' => 'nullable|numeric',
             'itens.*.descricao' => 'nullable|string',
-            'itens.*.quantidade' => 'required|integer',
-            'itens.*.desconto_percent' => 'required|numeric',
-            'itens.*.desconto_fixo' => 'required|numeric',
+            'itens.*.quantidade' => 'nullable|integer',
+            'itens.*.desconto_percent' => 'nullable|numeric',
+            'itens.*.desconto_fixo' => 'nullable|numeric',
             'itens.*.iva_percent' => 'nullable|numeric',
         ], [
             // Mensagens personalizadas de validação
