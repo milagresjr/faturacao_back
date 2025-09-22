@@ -16,6 +16,7 @@ return new class extends Migration
             $table->date('data_recepcao')->nullable();
             $table->string('observacoes')->nullable();
             $table->boolean('paga')->default(false);
+            $table->decimal('valor_pago', 20, 2)->default(0);
         });
     }
 

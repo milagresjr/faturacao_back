@@ -65,6 +65,9 @@ class Documento extends Model
         'data_recepcao',
         'observacoes',
         'paga',
+        'valor_pago',
+
+        'tipo_documento'
     ];
 
     public function itens(): HasMany

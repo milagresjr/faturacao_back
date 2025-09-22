@@ -1,32 +1,13 @@
 <?php
-
 return [
-
-    /*
-    |--------------------------------------------------------------------------
-    | Cross-Origin Resource Sharing (CORS) Configuration
-    |--------------------------------------------------------------------------
-    |
-    | Here you may configure your settings for cross-origin resource sharing
-    | or "CORS". This determines what cross-origin operations may execute
-    | in web browsers. You are free to adjust these settings as needed.
-    |
-    | To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
-    |
-    */
 
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
     'allowed_methods' => ['*'],
 
-     'allowed_origins' => [
-        'http://127.0.0.1:3000', // React local
-        'http://localhost:3000',
-        'http://127.0.0.1:8000', // API local
-        'http://localhost:8000',
-        'https://*.ngrok.io',    // ngrok
-        'https://*.trycloudflare.com', // cloudflare tunnel
-        'https://*.loca.lt',     // localtunnel
+    'allowed_origins' => [
+        'https://softseven-faturacao-front.vercel.app',
+        'http://localhost:3000' // para dev local
     ],
 
     'allowed_origins_patterns' => [],

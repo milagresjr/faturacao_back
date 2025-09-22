@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('documentos', function (Blueprint $table) {
+        Schema::create('documentos_compra', function (Blueprint $table) {
             $table->id();
 
             // Tipo de documento
@@ -31,34 +31,36 @@ return new class extends Migration
             $table->string('empresa_email')->nullable();
             $table->string('empresa_endereco')->nullable();
 
-            // Dados do cliente no momento do documento
-            $table->string('cliente_id');
-            $table->string('cliente_nome');
-            $table->string('cliente_nif')->nullable();
-            $table->string('cliente_telefone')->nullable();
-            $table->string('cliente_email')->nullable();
-            $table->string('cliente_endereco')->nullable();
+            // Dados do fornecedor no momento do documento
+            $table->string('fornecedor_id');
+            $table->string('fornecedor_nome');
+            $table->string('fornecedor_nif')->nullable();
+            $table->string('fornecedor_telefone')->nullable();
+            $table->string('fornecedor_email')->nullable();
+            $table->string('fornecedor_endereco')->nullable();
 
             // Configurações
-            $table->string('caixa')->nullable();
-            $table->date('data_emissao');
+            $table->date('data_fatura');
             $table->date('data_vencimento')->nullable();
-            $table->string('forma_pagamento')->nullable();
-            $table->boolean('movimenta_stock')->default(false);
-            $table->string('descricao_iva')->nullable();
+            $table->string('obs_pagamento')->nullable();
 
             // Descontos e transporte
             $table->decimal('desconto_total', 20, 2)->default(0);
             $table->decimal('taxa_iva', 20, 2)->default(0);
-            $table->decimal('valor_iva', 20, 2)->default(0);
+            $table->decimal('valor_fatura', 20, 2)->default(0);
             $table->decimal('retencao', 20, 2)->default(0);
-            $table->decimal('valor_transporte', 20, 2)->default(0);
-            
+
             // Totais
             $table->decimal('total_sem_desconto', 20, 2)->default(0);
             $table->decimal('total_impostos', 20, 2)->default(0);
             $table->decimal('total_geral', 20, 2)->default(0);
             $table->decimal('troco', 20, 2)->default(0);
+
+            $table->string('local_entrega')->nullable();
+            $table->date('data_recepcao')->nullable();
+            $table->string('observacoes')->nullable();
+            $table->boolean('paga')->default(false);
+            $table->decimal('valor_pago', 20, 2)->default(0);
 
             //Hash
             $table->text('hash');
@@ -66,8 +68,6 @@ return new class extends Migration
             //Utilizador
             $table->string('utilizador_id');
             $table->string('utilizador');
-
-            $table->string('tipo_documento')->nullable();
 
             $table->timestamps();
             $table->softDeletes();
@@ -79,6 +79,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('documentos');
+        Schema::dropIfExists('documentos_compra');
     }
 };

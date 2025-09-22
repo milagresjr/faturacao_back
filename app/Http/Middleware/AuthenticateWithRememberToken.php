@@ -25,7 +25,6 @@ class AuthenticateWithRememberToken
             $user = Utilizador::where('remember_token', $token)->first();
 
             if ($user) {
-                
                 // Injeta id_empresa
                 $request->merge(['empresa_id' => $user->empresa_id]);
 

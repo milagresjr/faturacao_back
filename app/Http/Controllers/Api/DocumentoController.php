@@ -112,7 +112,98 @@ class DocumentoController extends Controller
         return response()->json($documentos);
     }
 
+    public function listFaturas(Request $request)
+    {
 
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $status = $request->query('status'); // pago, por_pagar, vencido
+        $entidadeId = $request->query('entidade_id'); // cliente
+        $valorMin = $request->query('valor_min');
+        $valorMax = $request->query('valor_max');
+
+        $documentoQuery = Documento::query();
+
+        // 🔍 Pesquisa por número da fatura
+        if ($search) {
+            $documentoQuery->where('num_fatura', 'like', '%' . $search . '%')
+                ->orWhere('cliente_nome', 'like', '%' . $search . '%')
+                ->orWhere('utilizador', 'like', '%' . $search . '%')
+                ->orWhere('total_geral', 'like', '%' . $search . '%');
+        }
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn('tipo_sigla', $tipo)
+                        ->orWhereIn('tipo_nome', $tipo);
+                });
+            } else {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->where('tipo_sigla', $tipo)
+                        ->orWhere('tipo_nome', $tipo);
+                });
+            }
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        // 👤 Filtrar por cliente/entidade
+        if ($entidadeId) {
+            $documentoQuery->where('entidade_id', $entidadeId);
+        }
+
+        // 💰 Filtro por valor
+        if ($valorMin && $valorMax) {
+            $documentoQuery->whereBetween('total_geral', [$valorMin, $valorMax]);
+        } elseif ($valorMin) {
+            $documentoQuery->where('total_geral', '>=', $valorMin);
+        } elseif ($valorMax) {
+            $documentoQuery->where('total_geral', '<=', $valorMax);
+        }
+
+        // Filtrar por status 
+        /*  if ($status) {
+            $documentoQuery->where(function ($query) use ($status) {
+                if ($status === 'pago') {
+                    $query->whereColumn('total_pago', '>=', 'total_geral');
+                } elseif ($status === 'por_pagar') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '>=', now());
+                } elseif ($status === 'vencido') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '<', now());
+                }
+            });
+        } */
+
+        $documentoQuery->whereIn('tipo_sigla', ['FT', 'FA', 'FR', 'FG']);
+
+        $documentos = $documentoQuery
+            ->with([
+                'itens',
+                'meiosPagamento',
+                'impostosDocumento',
+                'documentosRelacionados', // documentos que este documento referencia
+                'relacionadoEm',          // documentos que referenciam este documento
+            ])
+            ->orderByDesc('id')
+            ->paginate($per_page);
+
+        return response()->json($documentos);
+    }
 
     /**
      * Store a newly created resource in storage.
@@ -383,6 +474,8 @@ class DocumentoController extends Controller
             'taxa_iva' => '0',
             'valor_iva' => '0',
             'retencao' => $retencao,
+
+            'estado' => 'emitido',
 
             'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
 
@@ -769,6 +862,8 @@ class DocumentoController extends Controller
             'valor_iva' => '0',
             //'retencao' => $retencao,
 
+            'estado' => 'emitido',
+
             'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
 
             'desconto_total' => $descontoItensTotal + $descontoGeral,
@@ -986,6 +1081,7 @@ class DocumentoController extends Controller
             'movimenta_stock' => false,
             'total_geral' => $request->total_geral,
             'troco' => $troco,
+            'estado' => 'emitido',
             'hash' => 'rfsuhihuhuycgygyfyukgeyggfavdyvd',
             'utilizador_id' => $request->utilizador_id,
             'utilizador' => $request->utilizador
@@ -1012,459 +1108,6 @@ class DocumentoController extends Controller
         return response()->json([
             'message' => 'Recibo criado com sucesso.',
             'documento' => $documento,
-        ], 201);
-    }
-
-    public function storeFaturaCompra(Request $request)
-    {
-        // Validação dos dados recebidos
-        $validated = Validator::make($request->all(), [
-            // Dados do documento
-            'tipo_fatura' => 'nullable|string',
-            'sigla_fatura' => 'nullable|string',
-            'tipo_cor' => 'nullable|string',
-
-            'empresa_id' => 'nullable|integer',
-            'empresa_nome' => 'required|string',
-            'empresa_nif' => 'required|integer',
-            'empresa_telefone' => 'nullable|integer',
-            'empresa_email' => 'nullable|email',
-            'empresa_endereco' => 'nullable|string',
-
-            'cliente_id' => 'nullable|integer',
-            'cliente_nome' => 'required|string',
-            'cliente_nif' => 'required|string',
-            'cliente_telefone' => 'nullable|string',
-            'cliente_email' => 'nullable|email',
-            'cliente_endereco' => 'nullable|string',
-
-            'data_emissao' => 'required|date',
-            'data_vencimento' => 'required|date',
-
-            'taxa_iva' => 'nullable|numeric',
-            'valor_iva' => 'nullable|numeric',
-
-            'desconto_total' => 'nullable|numeric',
-            'valor_transporte' => 'nullable|numeric',
-            'total_sem_desconto' => 'nullable|numeric',
-            'total_impostos' => 'nullable|numeric',
-            'total_geral' => 'nullable|numeric',
-
-            // Itens do documento
-            'itens' => 'required|array|min:1',
-            'itens.*.produto_nome' => 'required|string',
-            'itens.*.codigo_produto' => 'nullable|string',
-            'itens.*.preco_custo' => 'required|numeric',
-            'itens.*.preco_venda' => 'nullable|numeric',
-            'itens.*.descricao' => 'nullable|string',
-            'itens.*.quantidade' => 'nullable|integer',
-            'itens.*.desconto_percent' => 'nullable|numeric',
-            'itens.*.desconto_fixo' => 'nullable|numeric',
-            'itens.*.iva_percent' => 'nullable|numeric',
-        ], [
-            // Mensagens personalizadas de validação
-            'required' => 'O campo :attribute é obrigatório.',
-            'string' => 'O campo :attribute deve ser uma string.',
-            'integer' => 'O campo :attribute deve ser um número inteiro.',
-            'numeric' => 'O campo :attribute deve ser um número.',
-            'email' => 'O campo :attribute deve ser um email válido.',
-            'date' => 'O campo :attribute deve ser uma data válida.',
-            'array' => 'O campo :attribute deve ser uma lista.',
-            'min' => [
-                'array' => 'O campo :attribute deve ter pelo menos :min item(ns).',
-            ],
-        ]);
-
-        if ($validated->fails()) {
-            return response()->json([
-                'message' => 'Erro de validação.',
-                'errors' => $validated->errors(),
-            ], 422);
-        }
-
-        // Construção do quadro por taxas (mantendo também o 'liquido' por grupo)
-        /*      $quadroImposto = [];
-        $totalLiquido = 0;
-        $totalBase = 0;
-        $subtotalBruto = 0;
-
-        foreach ($request->itens as $item) {
-            //$tipo = TipoTaxaIva::find($item['iva_percent']);
-            $taxaIva = $item['iva_percent'];
-            // $codigo = $tipo->codigo;
-            // $motivoIsencaoId = $item['motivo_isencao_id'] ?? '';
-            // $motivo = '';
-
-            // if ($codigo === 'ISENTO' && $motivoIsencaoId) {
-            //     $motivo = DB::table('motivo_isencao')->where('id', $motivoIsencaoId)->value('motivo');
-            // }
-
-            $subtotalBruto = $item['preco_custo'] * $item['quantidade'];
-
-            $desconto = 0;
-            if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
-                $desconto = $subtotalBruto * ($item['desconto_percent'] / 100);
-            } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
-                $desconto = $item['desconto_fixo'];
-            }
-
-            $subtotalLiquido = $subtotalBruto - $desconto;
-
-            // base e imposto atuais (por item)
-            $base = round($subtotalLiquido / (1 + ($taxaIva / 100)), 2);
-            $imposto = round($subtotalLiquido - $base, 2);
-
-            $chave = $taxaIva;
-
-            if (!isset($quadroImposto[$chave])) {
-                $quadroImposto[$chave] = [
-                    'taxa' => $taxaIva,
-                    'incidencia' => 0.0, // base
-                    'imposto' => 0.0,
-                    'liquido' => 0.0, // subtotal (com IVA) do grupo
-                ];
-            }
-
-            $quadroImposto[$chave]['incidencia'] += $base;
-            $quadroImposto[$chave]['imposto'] += $imposto;
-            $quadroImposto[$chave]['liquido'] += $subtotalLiquido;
-
-            $totalLiquido += $subtotalLiquido;
-            $totalBase += $base;
-            $subtotalBruto += $subtotalBruto;
-        }
-
-        $totalSemDesconto = 0;
-        $descontoItensTotal = 0;
-
-        // 1. Calcular total bruto e descontos por item
-        foreach ($request->itens as $item) {
-
-            $precoBruto = $item['preco_custo'] * $item['quantidade'];
-
-            // Desconto do item
-            $desconto = 0;
-            if ($item['desconto_percent'] !== null && $item['desconto_percent'] > 0) {
-                $desconto = $precoBruto * ($item['desconto_percent'] / 100);
-            } elseif ($item['desconto_fixo'] !== null && $item['desconto_fixo'] > 0) {
-                $desconto = $item['desconto_fixo'] * $item['quantidade'];
-            }
-
-            $subtotalComIva = $precoBruto - $desconto;
-
-            // Acumula totais gerais
-            $totalSemDesconto += $precoBruto;
-            $descontoItensTotal += $desconto;
-        }
-
-        // Desconto geral (se existir)
-        $descontoGeral = 0; //$request['desconto_total'] ?? 0;
-
-        if ($request['desconto_tipo'] === 'percentual') {
-            $descontoGeral = $totalSemDesconto * ($request['desconto_total'] / 100);
-        } elseif ($request['desconto_tipo'] === 'fixo') {
-            $descontoGeral = $request['desconto_total']; // decide se é total ou por unidade
-        }
-
-        if ($descontoGeral > 0 && $totalLiquido > 0) {
-            $totalLiquidoOriginal = $totalLiquido;
-
-            // para garantir soma exata do desconto distribuído (corrige residual de arredond.)
-            $groupKeys = array_keys($quadroImposto);
-            $lastKey = end($groupKeys);
-            $assigned = 0.0;
-
-            foreach ($groupKeys as $key) {
-                $linha = &$quadroImposto[$key];
-
-                // proporção segundo o liquido do grupo
-                $proporcao = $linha['liquido'] / $totalLiquidoOriginal;
-
-                if ($key !== $lastKey) {
-                    $descontoLinha = round($descontoGeral * $proporcao, 2);
-                    $assigned += $descontoLinha;
-                } else {
-                    // resto do desconto para o último grupo (evita erro de arredondamento)
-                    $descontoLinha = round($descontoGeral - $assigned, 2);
-                }
-
-                // aplica desconto ao liquido do grupo
-                $linha['liquido'] = round($linha['liquido'] - $descontoLinha, 2);
-
-                // recalcula base e imposto segundo a taxa daquele grupo
-                $linha['incidencia'] = round($linha['liquido'] / (1 + ($linha['taxa'] / 100)), 2);
-                $linha['imposto'] = round($linha['liquido'] - $linha['incidencia'], 2);
-
-                unset($linha); // bom hábito ao usar referência
-            }
-
-            // (opcional) Recalcule totais finais:
-            $totalLiquido = array_sum(array_column($quadroImposto, 'liquido'));
-            $totalBase = array_sum(array_column($quadroImposto, 'incidencia'));
-            $totalImposto = array_sum(array_column($quadroImposto, 'imposto'));
-        }
-
-        // 2. Aplicar desconto geral (apenas no final)
-        $totalComIvaFinal = ($totalSemDesconto - $descontoItensTotal) - $descontoGeral;
-
-        // 3. Calcular total final (já com todos descontos)
-        $totalFinal = $totalComIvaFinal;
-
-        $totalImpostos = array_sum(array_column($quadroImposto, 'imposto'));
-
-        $retencao = 0;
-        $troco = 0;
-*/
-
-        // === QUADRO DE IMPOSTOS (corrigido) ===
-        // Resultado: cada linha tem { taxa, incidencia, iva, total } igual ao quadro da fatura
-
-        $quadro = []; // [ '14.00' => ['taxa'=>'14.00', 'incidencia'=>..., 'iva'=>..., 'total'=>...] ]
-        $totalBaseAntesDescontoGeral = 0.0; // soma das bases (sem IVA) após descontos por item
-        $totalIvaAntesDescontoGeral  = 0.0;
-        $descontoItensTotal = 0;
-        $descontoGeral = 0;
-        $totalSemDesconto = 0;
-        // $totalImpostos = 0;
-
-
-        // 1) Agrupar por taxa com DESCONTOS DE ITEM aplicados (base SEM IVA)
-        foreach ($request->itens as $item) {
-            $qtd        = (float)($item['quantidade'] ?? 0);
-            $preco      = (float)($item['preco_custo'] ?? 0);
-            $taxaIva    = (float)($item['iva_percent'] ?? 0); // ex.: 14
-            $desPct     = isset($item['desconto_percent']) ? (float)$item['desconto_percent'] : 0.0;
-            $desFixo    = isset($item['desconto_fixo']) ? (float)$item['desconto_fixo'] : 0.0;
-
-            $precoBruto = $qtd * $preco;
-
-            // desconto do item
-            $descontoItem = 0.0;
-            if ($desPct > 0) {
-                $descontoItem = round($precoBruto * ($desPct / 100), 2);
-            } elseif ($desFixo > 0) {
-                $descontoItem = round($desFixo * $qtd, 2);
-            }
-
-            $descontoItensTotal += $descontoItem;
-
-            $totalSemDesconto += $precoBruto - $descontoItem;
-
-
-            // BASE SEM IVA do item (já com desconto do item)
-            $baseItem = max(0, round($precoBruto - $descontoItem, 2));
-            $ivaItem  = round($baseItem * ($taxaIva / 100), 2);
-            $totItem  = round($baseItem + $ivaItem, 2);
-
-            $k = number_format($taxaIva, 2, '.', ''); // "0.00", "14.00", etc.
-            if (!isset($quadro[$k])) {
-                $quadro[$k] = ['taxa' => $k, 'incidencia' => 0.0, 'iva' => 0.0, 'total' => 0.0];
-            }
-
-            $quadro[$k]['incidencia'] += $baseItem; // SEM IVA
-            $quadro[$k]['iva']        += $ivaItem;
-            $quadro[$k]['total']      += $totItem;
-
-            $totalBaseAntesDescontoGeral += $baseItem;
-            $totalIvaAntesDescontoGeral  += $ivaItem;
-        }
-
-        // 2) Aplicar DESCONTO GERAL corretamente
-        $descontoGeralTipo  = $request['desconto_tipo'] ?? null;    // 'percentual' | 'fixo' | null
-        $descontoGeralValor = (float)($request['desconto_total'] ?? 0);
-
-        // Total bruto COM IVA (antes do desconto geral)
-        $totalBrutoComIva = $totalBaseAntesDescontoGeral + $totalIvaAntesDescontoGeral;
-
-
-        // Percentual: reduzir a BASE de cada grupo pela mesma percentagem
-        if ($descontoGeralTipo === 'percentual' && $descontoGeralValor > 0) {
-            $p = $descontoGeralValor / 100;
-            //$descontoGeral = $totalSemDesconto * ($descontoGeralValor / 100);
-            $descontoGeral = round($totalBrutoComIva * ($descontoGeralValor / 100), 2);
-            foreach ($quadro as &$linha) {
-                // reduzir a incidência (SEM IVA)
-                $linha['incidencia'] = round($linha['incidencia'] * (1 - $p), 2);
-                // recalcular IVA e Total
-                $tx = (float)$linha['taxa'];
-                $linha['iva']   = round($linha['incidencia'] * ($tx / 100), 2);
-                $linha['total'] = round($linha['incidencia'] + $linha['iva'], 2);
-            }
-            unset($linha);
-        }
-        // Fixo: distribuir o valor do desconto pela BASE dos grupos proporcionalmente
-        elseif ($descontoGeralTipo === 'fixo' && $descontoGeralValor > 0) {
-            $descontoGeral = round($descontoGeralValor, 2);
-            $baseTotal = array_sum(array_column($quadro, 'incidencia'));
-            if ($baseTotal > 0) {
-                $keys = array_keys($quadro);
-                $last = end($keys);
-                $acum = 0.0;
-
-                foreach ($keys as $k) {
-                    $linha = &$quadro[$k];
-                    $parte = $descontoGeralValor * ($linha['incidencia'] / $baseTotal);
-                    if ($k !== $last) {
-                        $parte = round($parte, 2);
-                        $acum += $parte;
-                    } else {
-                        // corrige resíduos de arredondamento
-                        $parte = round($descontoGeralValor - $acum, 2);
-                    }
-
-                    $linha['incidencia'] = max(0, round($linha['incidencia'] - $parte, 2));
-                    $tx = (float)$linha['taxa'];
-                    $linha['iva']   = round($linha['incidencia'] * ($tx / 100), 2);
-                    $linha['total'] = round($linha['incidencia'] + $linha['iva'], 2);
-
-                    unset($linha);
-                }
-            }
-        }
-
-        // 3) (Opcional) ordenar por taxa
-        uksort($quadro, fn($a, $b) => (float)$a <=> (float)$b);
-
-        // 4) Se quiseres devolver como LISTA (igual ao quadro da imagem)
-        $quadroImpostos = array_values(array_map(function ($l) {
-            return [
-                'taxa'       => $l['taxa'],
-                'incidencia' => $l['incidencia'],
-                'iva'        => $l['iva'],
-                'total'      => $l['total'],
-            ];
-        }, $quadro));
-
-
-        // IVA cheio (antes do desconto geral) — como aparece no resumo da fatura
-        $totalImpostos = $totalIvaAntesDescontoGeral;
-
-        // Desconto total (itens + desconto global aplicado sobre total com IVA)
-        $desconto_total = $descontoItensTotal + $descontoGeral;
-
-        $totalFinal = ($totalSemDesconto - $descontoItensTotal) - $descontoGeral;
-
-        $retencao = 0;
-        $troco = 0;
-
-
-        // Criação do documento
-        $documento = Documento::create([
-            'tipo_nome' => '',
-            'tipo_sigla' => '',
-            //'tipo_cor' => $request['tipo_cor'],
-
-            'num_fatura' => $request['num_fatura'],
-            'via' => 'original',
-
-            'empresa_id' => $request['empresa_id'],
-            'empresa_nome' => $request['empresa_nome'],
-            'empresa_nif' => $request['empresa_nif'],
-            'empresa_telefone' => $request['empresa_telefone'],
-            'empresa_email' => $request['empresa_email'],
-            'empresa_endereco' => $request['empresa_endereco'],
-
-            'cliente_id' => $request['cliente_id'] ?? null,
-            'cliente_nome' => $request['cliente_nome'],
-            'cliente_nif' => $request['cliente_nif'],
-            'cliente_telefone' => $request['cliente_telefone'],
-            'cliente_email' => $request['cliente_email'],
-            'cliente_endereco' => $request['cliente_endereco'],
-
-            'data_emissao' => $request['data_emissao'],
-            'data_vencimento' => $request['data_vencimento'],
-
-            'taxa_iva' => '0',
-            'valor_iva' => '0',
-            'retencao' => $retencao,
-
-            'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
-
-            'desconto_total' => $desconto_total,
-            'total_sem_desconto' => $totalSemDesconto,
-            'total_impostos' => $totalImpostos,
-            'total_geral' => $request['total_geral'], //$trotalFinal,
-            'troco' => $troco,
-
-            'utilizador_id' => $request['utilizador_id'],
-            'utilizador' => $request['utilizador'],
-
-            'local_entrega' => $request['local_entrega'],
-            'data_recepcao' => $request['data_recepcao'],
-            'observacoes' => $request['observacoes'],
-            'paga' => $request['paga']
-        ]);
-
-
-        foreach ($quadroImpostos as $value) {
-            $value['incidencia'] = round($value['incidencia'], 2);
-            $value['iva'] = round($value['iva'], 2);
-            //$value['liquido'] = round($value['liquido'], 2);
-
-            ImpostoDocumento::create([
-                'documento_id' => $documento->id,
-                'taxa' => $value['taxa'],
-                'incidencia' => $value['incidencia'],
-                'imposto' => $value['iva'],
-                //'liquido' => $value['liquido'],
-                'total' => $value['incidencia'] + $value['iva'],
-            ]);
-        }
-
-        // Criação dos itens
-        $itens = [];
-        foreach ($request['itens'] as $item) {
-
-            $taxaIva = $item['iva_percent'];
-
-            //$motivoIsencaoCodigo = null;
-            $motivoIsencaoDescricao = null;
-
-            // if ($codigoIva === 'ISENTO') {
-            //     $motivo = DB::table('motivo_isencao')
-            //         ->where('id', $item['motivo_isencao_id']) // <-- aqui
-            //         ->first();
-            //     if ($motivo) {
-            //         $codigoIva = $motivo->codigo;
-            //         $motivoIsencaoDescricao = $motivo->motivo;
-            //     }
-            // }
-
-            $desconto = 0;
-            if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
-                $desconto = $item['preco_venda'] * ($item['desconto_percent'] / 100);
-            } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
-                $desconto = $item['desconto_fixo'];
-            }
-
-            // Calcula o total do item (sem IVA)
-            $totalSemDesconto = $item['preco_custo'] * $item['quantidade'];
-            $totalItem = $totalSemDesconto - $desconto;
-
-            $itens[] = [
-                'documento_id' => $documento->id,
-                'produto_nome' => $item['produto_nome'],
-                'produto_codigo' => $item['codigo_produto'],
-                'preco_unitario' => $item['preco_custo'],
-                // 'descricao' => $item['descricao'],
-                'quantidade' => $item['quantidade'],
-                'desconto_percent' => $item['desconto_percent'],
-                'desconto_fixo' => $item['desconto_fixo'],
-                'iva_percent' => $taxaIva ?? 0,
-                // 'imposto_taxa_id' => $idImpostoTaxa,
-                // 'codigo_iva' => $codigoIva ?? '',
-                // 'motivo_isencao' => $motivoIsencaoDescricao,
-                'total_sem_desconto' => $totalSemDesconto,
-                'total' => $totalItem,
-                // Adicione outros campos conforme necessário
-            ];
-        }
-
-        $documento->itens()->createMany($itens);
-
-        return response()->json([
-            'message' => 'Documento de compra criado com sucesso.',
-            'documento' => $documento->load('itens')
         ], 201);
     }
 
@@ -1594,6 +1237,7 @@ class DocumentoController extends Controller
         }, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'Inline; filename=' . $filename . '.pdf',
+            'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
 
@@ -1703,6 +1347,7 @@ class DocumentoController extends Controller
         }, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'Inline; filename=' . $filename . '.pdf',
+            'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
 
@@ -1773,6 +1418,151 @@ class DocumentoController extends Controller
         }, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'Inline; filename=fatura-recibo.pdf',
+            'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
+        ]);
+    }
+
+    public function pdfRelatorioDocumento(Request $request)
+    {
+
+        $search = $request->query('search');
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $status = $request->query('status'); // pago, por_pagar, vencido
+        $entidadeId = $request->query('entidade_id'); // cliente
+        $valorMin = $request->query('valor_min');
+        $valorMax = $request->query('valor_max');
+
+        $documentoQuery = Documento::query();
+
+        // 🔍 Pesquisa por número da fatura
+        if ($search) {
+            $documentoQuery->where(function ($q) use ($search) {
+                $q->where('num_fatura', 'like', '%' . $search . '%')
+                    ->orWhere('cliente_nome', 'like', '%' . $search . '%')
+                    ->orWhere('utilizador', 'like', '%' . $search . '%')
+                    ->orWhere('total_geral', 'like', '%' . $search . '%');
+            });
+        }
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn('tipo_sigla', $tipo)
+                        ->orWhereIn('tipo_nome', $tipo);
+                });
+            } else {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->where('tipo_sigla', $tipo)
+                        ->orWhere('tipo_nome', $tipo);
+                });
+            }
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        // 👤 Filtrar por cliente/entidade
+        if ($entidadeId) {
+            $documentoQuery->where('entidade_id', $entidadeId);
+        }
+
+        // 💰 Filtro por valor
+        if ($valorMin && $valorMax) {
+            $documentoQuery->whereBetween('total_geral', [$valorMin, $valorMax]);
+        } elseif ($valorMin) {
+            $documentoQuery->where('total_geral', '>=', $valorMin);
+        } elseif ($valorMax) {
+            $documentoQuery->where('total_geral', '<=', $valorMax);
+        }
+
+        // Filtrar por status 
+        /*  if ($status) {
+            $documentoQuery->where(function ($query) use ($status) {
+                if ($status === 'pago') {
+                    $query->whereColumn('total_pago', '>=', 'total_geral');
+                } elseif ($status === 'por_pagar') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '>=', now());
+                } elseif ($status === 'vencido') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '<', now());
+                }
+            });
+        } */
+
+        //$documentoQuery->whereNot('tipo_documento', 'fatura-compra');
+
+        $documentos = $documentoQuery
+            ->with([
+                'itens',
+                'impostosDocumento',
+                'documentosRelacionados', // documentos que este documento referencia
+                'relacionadoEm',          // documentos que referenciam este documento
+            ])
+            ->orderByDesc('id')
+            ->get();
+
+        //return response()->json($documentos);
+
+        $totalGeral = $documentos->sum('total_geral');
+
+        $pdf = Pdf::loadView('pdf.relatorio-documento', compact(['documentos', 'totalGeral']))
+            ->setPaper('A4', 'portrait')
+            ->setOptions([
+                'defaultFont' => 'Helvetica',
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => true,
+                'isPhpEnabled' => true,
+                'dpi' => 96,
+                'debugPng' => false,
+                'debugKeepTemp' => false,
+                'debugCss' => false,
+            ]);
+
+        $pdf->getDomPDF()->get_canvas()->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "Conteúdo do rodapé";
+            $text2 = "Página $pageNumber / $pageCount";
+            $font = $fontMetrics->get_font('Helvetica', 'normal');
+            $size = 10;
+
+            // Posição inicial à esquerda, com margem de 40px
+            $x = 40;
+            $y1 = $canvas->get_height() - 50;
+            $y2 = $y1 + 12; // 12px abaixo do texto1
+
+            // Desenha uma linha horizontal acima do rodapé
+            $lineY = $y1 - 5; // 5px acima do primeiro texto
+            $canvas->line(
+                $x,
+                $lineY,
+                $canvas->get_width() - $x,
+                $lineY,
+                [0, 0, 0], // cor
+                1          // espessura
+            );
+
+
+            $canvas->text($x, $y1, $text1, $font, $size);
+            $canvas->text($x, $y2, $text2, $font, $size);
+        });
+
+        $filename = 'relatorio'; //str_replace([' ', '/'], '_', $documento['num_fatura']);
+
+        return new StreamedResponse(function () use ($pdf) {
+            echo $pdf->stream();
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'Inline; filename=' . $filename . '.pdf',
+            'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
 
