@@ -11,6 +11,12 @@
             box-sizing: border-box;
         }
 
+        @page {
+            margin-bottom: 80px;
+            /* reserva espaço para o rodapé */
+        }
+
+
         body {
             margin: 20 20 20 50px;
             /* margem esquerda maior */
@@ -182,63 +188,76 @@
             {{ $documento->observacoes ?? 'Documento emitido para fins de Formação. Não tem validade fiscal.' }}</p>
     </div>
 
-    <div class="section"
-        style="border: 1px solid #000; min-height: 400px; max-height: 400px; padding: 10px; margin-top: 20px;">
-        <table class="table-main">
-            <thead>
-                <tr>
-                    <th style="width: 20%;">Código</th>
-                    <th style="width: 30%;">Descrição</th>
-                    <th style="width: 15%;">Preço Uni.</th>
-                    <th style="width: 7%;">Uni.</th>
-                    <th style="width: 7%;">Qtd.</th>
-                    <th style="width: 7%;">IVA</th>
-                    <th style="width: 15%;">Desc.</th>
-                    <th style="width: 16%; text-align: right;">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{-- @for ($i = 1; $i <= 7; $i++) --}}
-                @foreach ($documento->itens as $item)
-                    <tr>
-                        <td>{{ $item->produto_codigo ?? '' }}</td>
-                        <td>{{ $item->produto_nome ?? '' }}</td>
-                        <td>{{ number_format($item->preco_unitario, 2, ',', '.') }} Kz</td>
-                        <td>Uni</td>
-                        <td>{{ $item->quantidade ?? '' }}</td>
-                        <td>{{ $item->iva_percent ?? '' }}%</td>
-                        <td>
-                            @if ($item->desconto_percent != 0)
-                                {{ (int) $item->desconto_percent }}%
-                            @elseif ($item->desconto_fixo != 0)
-                                {{ number_format($item->desconto_fixo, 2, ',', '.') }} Kz
-                            @endif
-                        </td>
-                        <td class="right" style="line-height: 1; padding: 0;">
-                            <span style="display: block;">
-                                {{ number_format($item->total, 2, ',', '.') }} Kz
-                            </span>
-                            @if ($item->desconto_percent != 0 || $item->desconto_fixo != 0)
-                                <span
-                                    style="display: block; font-size: 9px; color: #888; text-decoration: line-through; margin-top: -3px;">
-                                    {{ number_format($item->total_sem_desconto, 2, ',', '.') }} Kz
-                                </span>
-                            @endif
-                        </td>
-                    </tr>
-                    {{-- @if (!$documento->descricao !== '') --}}
-                        <tr class="borderless">
-                            <td colspan="4" style="font-size: 10px; color: #555;">
-                                <em style="font-size:8px; line-height:8px; margin:0; padding:0; display:block;">
-                                    {{ $item->descricao }}
-                                </em>
-                            </td>
+    <div class="section" style="border: 1px solid #000; min-height: 400px; padding: 10px; margin-top: 20px;">
+
+        @foreach ($paginas as $i => $pagina)
+            <div class="page">
+                {{-- Valor Transportado (se não for a primeira página) --}}
+                @if ($pagina['valor_transportado'] > 0)
+                    <div style="text-align: right; font-weight: bold; margin-bottom: 5px;">
+                        Valor Transportado: {{ number_format($pagina['valor_transportado'], 2, ',', '.') }}
+                    </div>
+                @endif
+
+                <table class="table-main">
+                    <thead>
+                        <tr>
+                            <th style="width: 20%;">Código</th>
+                            <th style="width: 30%;">Descrição</th>
+                            <th style="width: 15%;">Preço Uni.</th>
+                            <th style="width: 7%;">Uni.</th>
+                            <th style="width: 7%;">Qtd.</th>
+                            <th style="width: 7%;">IVA</th>
+                            <th style="width: 15%;">Desc.</th>
+                            <th style="width: 16%; text-align: right;">Total</th>
                         </tr>
-                    {{-- @endif --}}
-                @endforeach
-                {{-- @endfor --}}
-            </tbody>
-        </table>
+                    </thead>
+                    <tbody>
+                        @foreach ($pagina['itens'] as $item)
+                            <tr>
+                                <td>{{ $item->produto_codigo ?? '' }}</td>
+                                <td>{{ $item->produto_nome ?? '' }}</td>
+                                <td>{{ number_format($item->preco_unitario, 2, ',', '.') }} Kz</td>
+                                <td>Uni</td>
+                                <td>{{ $item->quantidade ?? '' }}</td>
+                                <td>{{ $item->iva_percent ?? '' }}%</td>
+                                <td>
+                                    @if ($item->desconto_percent != 0)
+                                        {{ (int) $item->desconto_percent }}%
+                                    @elseif ($item->desconto_fixo != 0)
+                                        {{ number_format($item->desconto_fixo, 2, ',', '.') }} Kz
+                                    @endif
+                                </td>
+                                <td class="right">{{ number_format($item->total, 2, ',', '.') }} Kz</td>
+                            </tr>
+
+                            {{-- Descrição do item --}}
+                            @if (!empty($item->descricao))
+                                <tr class="borderless">
+                                    <td colspan="8" style="font-size: 10px; color: #555;">
+                                        <em style="font-size:8px; line-height:8px; margin:0; padding:0; display:block;">
+                                            {{ $item->descricao }}
+                                        </em>
+                                    </td>
+                                </tr>
+                            @endif
+                        @endforeach
+                    </tbody>
+                </table>
+
+                {{-- Valor a Transportar (sempre aparece excepto na ultima pagina) --}}
+                @if (!$loop->last)
+                    <div style="text-align: right; font-weight: bold; margin-top: 5px;">
+                        Valor a Transportar: {{ number_format($pagina['valor_transportar'], 2, ',', '.') }}
+                    </div>
+                @endif
+
+                {{-- Quebra de página, exceto na última --}}
+                @if (!$loop->last)
+                    <div style="page-break-after: always;"></div>
+                @endif
+            </div>
+        @endforeach
     </div>
 
     <div class="section row" style="width: 100%;">
@@ -288,7 +307,8 @@
                 </tbody>
             </table>
 
-            <table class="table-meio-pag" style="width: 420px;">
+            @if($documento->tipo_sigla !== 'PP' )
+                <table class="table-meio-pag" style="width: 420px;">
                 <tr style="border-top: 1px solid #000;">
                     <th class="text-align: left;">Meio de Pagamento</th>
                     <th></th>
@@ -301,6 +321,7 @@
                     </tr>
                 @endforeach
             </table>
+            @endif
 
             @if (!empty($bancos) && count($bancos) > 0)
                 <table class="table-banco" style="margin-top: 10px; width: 420px;">
@@ -329,7 +350,7 @@
             <table
                 style="width: 100%; border-collapse: collapse; border-top: 1px solid #000; border-bottom: 1px solid #000;">
                 <tr>
-                    <td style="text-align: left; padding: 2px;">Subtotal<< /td>
+                    <td style="text-align: left; padding: 2px;">Subtotal</td>
                     <td style="text-align: right; padding: 2px;">
                         {{ number_format($documento->total_sem_desconto, 2, ',', '.') }}
                     </td>

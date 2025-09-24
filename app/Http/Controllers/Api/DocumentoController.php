@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
 class DocumentoController extends Controller
 {
@@ -198,6 +200,99 @@ class DocumentoController extends Controller
                 'impostosDocumento',
                 'documentosRelacionados', // documentos que este documento referencia
                 'relacionadoEm',          // documentos que referenciam este documento
+            ])
+            ->orderByDesc('id')
+            ->paginate($per_page);
+
+        return response()->json($documentos);
+    }
+
+    public function listFaturaProforma(Request $request)
+    {
+
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $status = $request->query('status'); // pago, por_pagar, vencido
+        $entidadeId = $request->query('entidade_id'); // cliente
+        $valorMin = $request->query('valor_min');
+        $valorMax = $request->query('valor_max');
+
+        $documentoQuery = Documento::query();
+
+        // 🔍 Pesquisa por número da fatura
+        if ($search) {
+            $documentoQuery->where('num_fatura', 'like', '%' . $search . '%')
+                ->orWhere('cliente_nome', 'like', '%' . $search . '%')
+                ->orWhere('utilizador', 'like', '%' . $search . '%')
+                ->orWhere('total_geral', 'like', '%' . $search . '%');
+        }
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn('tipo_sigla', $tipo)
+                        ->orWhereIn('tipo_nome', $tipo);
+                });
+            } else {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->where('tipo_sigla', $tipo)
+                        ->orWhere('tipo_nome', $tipo);
+                });
+            }
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        // 👤 Filtrar por cliente/entidade
+        if ($entidadeId) {
+            $documentoQuery->where('entidade_id', $entidadeId);
+        }
+
+        // 💰 Filtro por valor
+        if ($valorMin && $valorMax) {
+            $documentoQuery->whereBetween('total_geral', [$valorMin, $valorMax]);
+        } elseif ($valorMin) {
+            $documentoQuery->where('total_geral', '>=', $valorMin);
+        } elseif ($valorMax) {
+            $documentoQuery->where('total_geral', '<=', $valorMax);
+        }
+
+        // Filtrar por status 
+        /*  if ($status) {
+            $documentoQuery->where(function ($query) use ($status) {
+                if ($status === 'pago') {
+                    $query->whereColumn('total_pago', '>=', 'total_geral');
+                } elseif ($status === 'por_pagar') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '>=', now());
+                } elseif ($status === 'vencido') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '<', now());
+                }
+            });
+        } */
+
+        $documentoQuery->where('tipo_sigla', 'PP');
+
+        $documentos = $documentoQuery
+            ->with([
+                'itens',
+                'meiosPagamento',
+                'impostosDocumento',
+                'documentosRelacionados', 
+                'relacionadoEm',         
             ])
             ->orderByDesc('id')
             ->paginate($per_page);
@@ -1187,44 +1282,60 @@ class DocumentoController extends Controller
             return (float)$b['taxa'] <=> (float)$a['taxa']; // decrescente
         });
 
+        $itens = collect($documento->itens);
+        $maxLinhas = 25; // número de linhas por página
+        $paginas = [];
+        $subtotalTransportar = 0;
 
-        //  return $quadroImpostoAgrupado;
+        foreach ($itens->chunk($maxLinhas) as $chunk) {
+            $pagina = [];
+            $pagina['itens'] = $chunk;
+            $pagina['valor_transportado'] = $subtotalTransportar;
 
-        $pdf = Pdf::loadView('pdf.documento', compact(['documento', 'quadroImpostoAgrupado', 'bancos', 'meiosPagamento']))
-            ->setPaper('A4', 'portrait')
-            ->setOptions([
-                'defaultFont' => 'Helvetica',
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'isPhpEnabled' => true,
-                'dpi' => 96,
-                'debugPng' => false,
-                'debugKeepTemp' => false,
-                'debugCss' => false,
-            ]);
+            $subtotalPagina = $chunk->sum('total');
+            $subtotalTransportar += $subtotalPagina;
 
-        $pdf->getDomPDF()->get_canvas()->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
-            $text1 = "Conteúdo do rodapé";
+            $pagina['valor_transportar'] = $subtotalTransportar;
+
+            $paginas[] = $pagina;
+        }
+
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+
+        $dompdf = new Dompdf($options);
+
+        $html = view('pdf.documento', compact(['documento', 'paginas', 'quadroImpostoAgrupado', 'bancos', 'meiosPagamento']))->render();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // Pegamos o canvas atualizado
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+
+        // Aqui aplicamos o script para todas as páginas
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
             $text2 = "Página $pageNumber / $pageCount";
             $font = $fontMetrics->get_font('Helvetica', 'normal');
             $size = 10;
 
-            // Posição inicial à esquerda, com margem de 40px
             $x = 40;
             $y1 = $canvas->get_height() - 50;
-            $y2 = $y1 + 12; // 12px abaixo do texto1
+            $y2 = $y1 + 12;
 
-            // Desenha uma linha horizontal acima do rodapé
-            $lineY = $y1 - 5; // 5px acima do primeiro texto
+            $lineY = $y1 - 5;
             $canvas->line(
                 $x,
                 $lineY,
                 $canvas->get_width() - $x,
                 $lineY,
-                [0, 0, 0], // cor
-                1          // espessura
+                [0, 0, 0],
+                1
             );
-
 
             $canvas->text($x, $y1, $text1, $font, $size);
             $canvas->text($x, $y2, $text2, $font, $size);
@@ -1232,11 +1343,12 @@ class DocumentoController extends Controller
 
         $filename = str_replace([' ', '/'], '_', $documento['num_fatura']);
 
-        return new StreamedResponse(function () use ($pdf) {
-            echo $pdf->stream();
+        //Usa StreamedResponse com o dompdf direto
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
         }, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'Inline; filename=' . $filename . '.pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
             'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
@@ -1300,41 +1412,41 @@ class DocumentoController extends Controller
 
         //  return $quadroImpostoAgrupado;
 
-        $pdf = Pdf::loadView('pdf.documento-compra', compact(['documento', 'quadroImpostoAgrupado', 'bancos', 'meiosPagamento']))
-            ->setPaper('A4', 'portrait')
-            ->setOptions([
-                'defaultFont' => 'Helvetica',
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'isPhpEnabled' => true,
-                'dpi' => 96,
-                'debugPng' => false,
-                'debugKeepTemp' => false,
-                'debugCss' => false,
-            ]);
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
 
-        $pdf->getDomPDF()->get_canvas()->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
-            $text1 = "Conteúdo do rodapé";
+        $dompdf = new Dompdf($options);
+
+        $html = view('pdf.documento-compra', compact(['documento', 'quadroImpostoAgrupado', 'bancos', 'meiosPagamento']))->render();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // Pegamos o canvas atualizado
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+
+        // Aqui aplicamos o script para todas as páginas
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
             $text2 = "Página $pageNumber / $pageCount";
             $font = $fontMetrics->get_font('Helvetica', 'normal');
             $size = 10;
 
-            // Posição inicial à esquerda, com margem de 40px
             $x = 40;
             $y1 = $canvas->get_height() - 50;
-            $y2 = $y1 + 12; // 12px abaixo do texto1
+            $y2 = $y1 + 12;
 
-            // Desenha uma linha horizontal acima do rodapé
-            $lineY = $y1 - 5; // 5px acima do primeiro texto
+            $lineY = $y1 - 5;
             $canvas->line(
                 $x,
                 $lineY,
                 $canvas->get_width() - $x,
                 $lineY,
-                [0, 0, 0], // cor
-                1          // espessura
+                [0, 0, 0],
+                1
             );
-
 
             $canvas->text($x, $y1, $text1, $font, $size);
             $canvas->text($x, $y2, $text2, $font, $size);
@@ -1342,11 +1454,12 @@ class DocumentoController extends Controller
 
         $filename = str_replace([' ', '/'], '_', $documento['num_fatura']);
 
-        return new StreamedResponse(function () use ($pdf) {
-            echo $pdf->stream();
+        //Usa StreamedResponse com o dompdf direto
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
         }, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'Inline; filename=' . $filename . '.pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
             'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
@@ -1373,51 +1486,54 @@ class DocumentoController extends Controller
 
         $meiosPagamento = MeioPagamentoDocumento::where('documento_id', $id)->get();
 
-        $pdf = Pdf::loadView('pdf.recibo', compact(['documento', 'docRelacionado', 'bancos', 'meiosPagamento', 'valorPago']))
-            ->setPaper('A4', 'portrait')
-            ->setOptions([
-                'defaultFont' => 'Helvetica',
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'isPhpEnabled' => true,
-                'dpi' => 96,
-                'debugPng' => false,
-                'debugKeepTemp' => false,
-                'debugCss' => false,
-            ]);
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
 
-        $pdf->getDomPDF()->get_canvas()->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
-            $text1 = "Conteúdo do rodapé";
+        $dompdf = new Dompdf($options);
+
+        $html = view('pdf.recibo', compact(['documento', 'docRelacionado', 'bancos', 'meiosPagamento', 'valorPago']))->render();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // Pegamos o canvas atualizado
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+
+        // Aqui aplicamos o script para todas as páginas
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
             $text2 = "Página $pageNumber / $pageCount";
             $font = $fontMetrics->get_font('Helvetica', 'normal');
             $size = 10;
 
-            // Posição inicial à esquerda, com margem de 40px
             $x = 40;
             $y1 = $canvas->get_height() - 50;
-            $y2 = $y1 + 12; // 12px abaixo do texto1
+            $y2 = $y1 + 12;
 
-            // Desenha uma linha horizontal acima do rodapé
-            $lineY = $y1 - 5; // 5px acima do primeiro texto
+            $lineY = $y1 - 5;
             $canvas->line(
                 $x,
                 $lineY,
                 $canvas->get_width() - $x,
                 $lineY,
-                [0, 0, 0], // cor
-                1          // espessura
+                [0, 0, 0],
+                1
             );
-
 
             $canvas->text($x, $y1, $text1, $font, $size);
             $canvas->text($x, $y2, $text2, $font, $size);
         });
 
-        return new StreamedResponse(function () use ($pdf) {
-            echo $pdf->stream();
+        $filename = str_replace([' ', '/'], '_', $documento['num_fatura']);
+
+        //Usa StreamedResponse com o dompdf direto
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
         }, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'Inline; filename=fatura-recibo.pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
             'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
@@ -1515,53 +1631,54 @@ class DocumentoController extends Controller
 
         $totalGeral = $documentos->sum('total_geral');
 
-        $pdf = Pdf::loadView('pdf.relatorio-documento', compact(['documentos', 'totalGeral']))
-            ->setPaper('A4', 'portrait')
-            ->setOptions([
-                'defaultFont' => 'Helvetica',
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'isPhpEnabled' => true,
-                'dpi' => 96,
-                'debugPng' => false,
-                'debugKeepTemp' => false,
-                'debugCss' => false,
-            ]);
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
 
-        $pdf->getDomPDF()->get_canvas()->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
-            $text1 = "Conteúdo do rodapé";
+        $dompdf = new Dompdf($options);
+
+        $html = view('pdf.relatorio-documento', compact(['documentos', 'totalGeral']))->render();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // Pegamos o canvas atualizado
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+
+        // Aqui aplicamos o script para todas as páginas
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
             $text2 = "Página $pageNumber / $pageCount";
             $font = $fontMetrics->get_font('Helvetica', 'normal');
             $size = 10;
 
-            // Posição inicial à esquerda, com margem de 40px
             $x = 40;
             $y1 = $canvas->get_height() - 50;
-            $y2 = $y1 + 12; // 12px abaixo do texto1
+            $y2 = $y1 + 12;
 
-            // Desenha uma linha horizontal acima do rodapé
-            $lineY = $y1 - 5; // 5px acima do primeiro texto
+            $lineY = $y1 - 5;
             $canvas->line(
                 $x,
                 $lineY,
                 $canvas->get_width() - $x,
                 $lineY,
-                [0, 0, 0], // cor
-                1          // espessura
+                [0, 0, 0],
+                1
             );
-
 
             $canvas->text($x, $y1, $text1, $font, $size);
             $canvas->text($x, $y2, $text2, $font, $size);
         });
 
-        $filename = 'relatorio'; //str_replace([' ', '/'], '_', $documento['num_fatura']);
+        $filename = "relatorio"; //str_replace([' ', '/'], '_', $documento['num_fatura']);
 
-        return new StreamedResponse(function () use ($pdf) {
-            echo $pdf->stream();
+        //Usa StreamedResponse com o dompdf direto
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
         }, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'Inline; filename=' . $filename . '.pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
             'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
@@ -1616,5 +1733,20 @@ class DocumentoController extends Controller
     public function destroy(string $id)
     {
         //
+    }
+
+    public function NumLastDoc(Request $request)
+    {
+
+        $tipo = $request->query('tipo');
+
+        $lastDoc = $this->gerarNumeroDocumento(
+            $tipo,
+            $request->empresa_id ?? '1'
+        );
+
+        return response()->json([
+            'num_fatura' => $lastDoc,
+        ]);
     }
 }
