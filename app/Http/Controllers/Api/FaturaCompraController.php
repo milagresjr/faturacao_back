@@ -415,4 +415,15 @@ class FaturaCompraController extends Controller
             'documento' => $documento->load('itens')
         ], 201);
     }
+
+    public function show($id)
+    {
+        $documento = DocumentoCompra::with(['itens', 'impostosDocumento'])->find($id);
+
+        if (!$documento) {
+            return response()->json(['message' => 'Documento não encontrado.'], 404);
+        }
+
+        return response()->json($documento);
+    }
 }

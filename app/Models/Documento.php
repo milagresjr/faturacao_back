@@ -67,7 +67,9 @@ class Documento extends Model
         'paga',
         'valor_pago',
 
-        'tipo_documento'
+        'tipo_documento',
+
+        'info_guia_id'
     ];
 
     public function itens(): HasMany
@@ -83,6 +85,11 @@ class Documento extends Model
     public function impostosDocumento(): HasMany
     {
         return $this->hasMany(ImpostoDocumento::class, 'documento_id', 'id');
+    }
+
+    public function infoGuia()
+    {
+        return $this->belongsTo(InfoGuia::class, 'info_guia_id');
     }
 
     /**

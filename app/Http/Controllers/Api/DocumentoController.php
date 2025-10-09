@@ -8,6 +8,7 @@ use App\Models\BancoDocumento;
 use App\Models\Conta;
 use App\Models\Documento;
 use App\Models\ImpostoDocumento;
+use App\Models\InfoGuia;
 use App\Models\MeioPagamentoDocumento;
 use App\Models\TipoTaxaIva;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -284,15 +285,201 @@ class DocumentoController extends Controller
             });
         } */
 
-        $documentoQuery->where('tipo_sigla', 'PP');
+        $documentoQuery->whereIn('tipo_sigla', ['PP', 'EC', 'OR', 'OT']);
 
         $documentos = $documentoQuery
             ->with([
                 'itens',
                 'meiosPagamento',
                 'impostosDocumento',
-                'documentosRelacionados', 
-                'relacionadoEm',         
+                'documentosRelacionados',
+                'relacionadoEm',
+            ])
+            ->orderByDesc('id')
+            ->paginate($per_page);
+
+        return response()->json($documentos);
+    }
+
+    public function listGuias(Request $request)
+    {
+
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $status = $request->query('status'); // pago, por_pagar, vencido
+        $entidadeId = $request->query('entidade_id'); // cliente
+        $valorMin = $request->query('valor_min');
+        $valorMax = $request->query('valor_max');
+
+        $documentoQuery = Documento::query();
+
+        // 🔍 Pesquisa por número da fatura
+        if ($search) {
+            $documentoQuery->where('num_fatura', 'like', '%' . $search . '%')
+                ->orWhere('cliente_nome', 'like', '%' . $search . '%')
+                ->orWhere('utilizador', 'like', '%' . $search . '%')
+                ->orWhere('total_geral', 'like', '%' . $search . '%');
+        }
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn('tipo_sigla', $tipo)
+                        ->orWhereIn('tipo_nome', $tipo);
+                });
+            } else {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->where('tipo_sigla', $tipo)
+                        ->orWhere('tipo_nome', $tipo);
+                });
+            }
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        // 👤 Filtrar por cliente/entidade
+        if ($entidadeId) {
+            $documentoQuery->where('entidade_id', $entidadeId);
+        }
+
+        // 💰 Filtro por valor
+        if ($valorMin && $valorMax) {
+            $documentoQuery->whereBetween('total_geral', [$valorMin, $valorMax]);
+        } elseif ($valorMin) {
+            $documentoQuery->where('total_geral', '>=', $valorMin);
+        } elseif ($valorMax) {
+            $documentoQuery->where('total_geral', '<=', $valorMax);
+        }
+
+        // Filtrar por status 
+        /*  if ($status) {
+            $documentoQuery->where(function ($query) use ($status) {
+                if ($status === 'pago') {
+                    $query->whereColumn('total_pago', '>=', 'total_geral');
+                } elseif ($status === 'por_pagar') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '>=', now());
+                } elseif ($status === 'vencido') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '<', now());
+                }
+            });
+        } */
+
+        $documentoQuery->whereIn('tipo_sigla', ['GR', 'GT']);
+
+        $documentos = $documentoQuery
+            ->with([
+                'itens',
+                'meiosPagamento',
+                'impostosDocumento',
+                'documentosRelacionados',
+                'relacionadoEm',
+            ])
+            ->orderByDesc('id')
+            ->paginate($per_page);
+
+        return response()->json($documentos);
+    }
+
+    public function listNotaCredito(Request $request)
+    {
+
+        $per_page = $request->input('per_page', 10);
+
+        $search = $request->query('search');
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $status = $request->query('status'); // pago, por_pagar, vencido
+        $entidadeId = $request->query('entidade_id'); // cliente
+        $valorMin = $request->query('valor_min');
+        $valorMax = $request->query('valor_max');
+
+        $documentoQuery = Documento::query();
+
+        // 🔍 Pesquisa por número da fatura
+        if ($search) {
+            $documentoQuery->where('num_fatura', 'like', '%' . $search . '%')
+                ->orWhere('cliente_nome', 'like', '%' . $search . '%')
+                ->orWhere('utilizador', 'like', '%' . $search . '%')
+                ->orWhere('total_geral', 'like', '%' . $search . '%');
+        }
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn('tipo_sigla', $tipo)
+                        ->orWhereIn('tipo_nome', $tipo);
+                });
+            } else {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->where('tipo_sigla', $tipo)
+                        ->orWhere('tipo_nome', $tipo);
+                });
+            }
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        // 👤 Filtrar por cliente/entidade
+        if ($entidadeId) {
+            $documentoQuery->where('entidade_id', $entidadeId);
+        }
+
+        // 💰 Filtro por valor
+        if ($valorMin && $valorMax) {
+            $documentoQuery->whereBetween('total_geral', [$valorMin, $valorMax]);
+        } elseif ($valorMin) {
+            $documentoQuery->where('total_geral', '>=', $valorMin);
+        } elseif ($valorMax) {
+            $documentoQuery->where('total_geral', '<=', $valorMax);
+        }
+
+        // Filtrar por status 
+        /*  if ($status) {
+            $documentoQuery->where(function ($query) use ($status) {
+                if ($status === 'pago') {
+                    $query->whereColumn('total_pago', '>=', 'total_geral');
+                } elseif ($status === 'por_pagar') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '>=', now());
+                } elseif ($status === 'vencido') {
+                    $query->whereColumn('total_pago', '<', 'total_geral')
+                        ->whereDate('data_vencimento', '<', now());
+                }
+            });
+        } */
+
+        $documentoQuery->where('tipo_sigla', 'NC');
+
+        $documentos = $documentoQuery
+            ->with([
+                'itens',
+                'meiosPagamento',
+                'impostosDocumento',
+                'documentosRelacionados',
+                'relacionadoEm',
             ])
             ->orderByDesc('id')
             ->paginate($per_page);
@@ -350,6 +537,13 @@ class DocumentoController extends Controller
             'meiosPagamento' => 'nullable|array',
             'meiosPagamento.*.descricao' => 'nullable|string',
             'meiosPagamento.*.valor' => 'nullable|numeric',
+
+            'marca' => 'nullable|string',
+            'matricula' => 'nullable|string',
+            'local_origem' => 'nullable|string',
+            'local_destino' => 'nullable|string',
+            'data_origem' => 'nullable|date',
+            'data_destino' => 'nullable|date',
 
             // Itens do documento
             'itens' => 'required|array|min:1',
@@ -537,148 +731,177 @@ class DocumentoController extends Controller
         }
 
 
-        // Criação do documento
-        $documento = Documento::create([
-            'tipo_nome' => $request['tipo_fatura'],
-            'tipo_sigla' => $request['sigla_fatura'],
-            //'tipo_cor' => $request['tipo_cor'],
+        try {
+            DB::beginTransaction();
 
-            'num_fatura' => $numFatura,
-            'via' => 'original',
+            $infoGuiaId = null;
 
-            'empresa_id' => $request['empresa_id'],
-            'empresa_nome' => $request['empresa_nome'],
-            'empresa_nif' => $request['empresa_nif'],
-            'empresa_telefone' => $request['empresa_telefone'],
-            'empresa_email' => $request['empresa_email'],
-            'empresa_endereco' => $request['empresa_endereco'],
-
-            'cliente_id' => $request['cliente_id'] ?? null,
-            'cliente_nome' => $request['cliente_nome'],
-            'cliente_nif' => $request['cliente_nif'],
-            'cliente_telefone' => $request['cliente_telefone'],
-            'cliente_email' => $request['cliente_email'],
-            'cliente_endereco' => $request['cliente_endereco'],
-
-            'caixa' => $request['caixa'],
-            'data_emissao' => $request['data_emissao'],
-            'data_vencimento' => $request['data_vencimento'],
-            'forma_pagamento' => $request['forma_pagamento'],
-            'movimenta_stock' => $request['movimenta_stock'],
-
-            'taxa_iva' => '0',
-            'valor_iva' => '0',
-            'retencao' => $retencao,
-
-            'estado' => 'emitido',
-
-            'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
-
-            'desconto_total' => $descontoItensTotal + $descontoGeral,
-            'valor_transporte' => $request['valor_transporte'],
-            'total_sem_desconto' => $totalSemDesconto,
-            'total_impostos' => $totalImpostos,
-            'total_geral' => $totalFinal,
-            'troco' => $troco,
-
-            'utilizador_id' => $request['utilizador_id'],
-            'utilizador' => $request['utilizador']
-        ]);
-
-
-        $bancos = Conta::with('banco')
-            ->where('empresa_id', $request->input('empresa_id'))
-            ->where('estado', true)
-            ->get();
-
-        foreach ($bancos as $banco) {
-            DB::table('bancos_documento')->insert([
-                'documento_id' => $documento->id,
-                'sigla' => $banco['banco']->sigla,
-                'descricao' => $banco['banco']->descricao,
-                'numero_conta' => $banco->numero_conta,
-                'iban' => $banco->iban,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
-
-        foreach ($request->input('meiosPagamento') as $meioPagamento) {
-            MeioPagamentoDocumento::create([
-                'documento_id' => $documento->id,
-                'descricao' => $meioPagamento['descricao'],
-                'valor' => $meioPagamento['valor'],
-            ]);
-        }
-
-        foreach ($quadroImposto as $value) {
-            $value['incidencia'] = round($value['incidencia'], 2);
-            $value['imposto'] = round($value['imposto'], 2);
-            $value['liquido'] = round($value['liquido'], 2);
-
-            ImpostoDocumento::create([
-                'documento_id' => $documento->id,
-                'taxa' => $value['taxa'],
-                'codigo' => $value['codigo'],
-                'isento' => $value['codigo'] === 'ISENTO' ? 1 : 0,
-                'motivo_isencao' => $value['motivo_isencao'],
-                'incidencia' => $value['incidencia'],
-                'imposto' => $value['imposto'],
-                //'liquido' => $value['liquido'],
-                'total' => $value['incidencia'] + $value['imposto'],
-            ]);
-        }
-
-        // Criação dos itens
-        $itens = [];
-        foreach ($request['itens'] as $item) {
-            $idImpostoTaxa = $item['iva_percent'];
-            $taxaIva = TipoTaxaIva::find($idImpostoTaxa)->taxa;
-            $codigoIva = TipoTaxaIva::find($idImpostoTaxa)->codigo;
-            //$motivoIsencaoCodigo = null;
-            $motivoIsencaoDescricao = null;
-
-            if ($codigoIva === 'ISENTO') {
-                $motivo = DB::table('motivo_isencao')
-                    ->where('id', $item['motivo_isencao_id']) // <-- aqui
-                    ->first();
-                if ($motivo) {
-                    $codigoIva = $motivo->codigo;
-                    $motivoIsencaoDescricao = $motivo->motivo;
-                }
+            if ($request['sigla_fatura'] === 'GT' || $request['sigla_fatura'] === 'GR') {
+                $infoGuiaId = DB::table('info_guias')->insertGetId([
+                    'marca' => $request->input('marca'),
+                    'matricula' => $request->input('matricula'),
+                    'local_origem' => $request->input('local_origem'),
+                    'local_destino' => $request->input('local_destino'),
+                    'data_origem' => $request->input('data_origem'),
+                    'data_destino' => $request->input('data_destino'),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
             }
 
-            $desconto = 0;
-            if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
-                $desconto = $item['preco_venda'] * ($item['desconto_percent'] / 100);
-            } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
-                $desconto = $item['desconto_fixo'];
-            }
+            // Criação do documento
+            $documento = Documento::create([
+                'tipo_nome' => $request['tipo_fatura'],
+                'tipo_sigla' => $request['sigla_fatura'],
+                //'tipo_cor' => $request['tipo_cor'],
 
-            // Calcula o total do item (sem IVA)
-            $totalSemDesconto = $item['preco_venda'] * $item['quantidade'];
-            $totalItem = $totalSemDesconto - $desconto;
+                'num_fatura' => $numFatura,
+                'via' => 'original',
 
-            $itens[] = [
-                'documento_id' => $documento->id,
-                'produto_nome' => $item['produto_nome'],
-                'produto_codigo' => $item['codigo_produto'],
-                'preco_unitario' => $item['preco_venda'],
-                'descricao' => $item['descricao'],
-                'quantidade' => $item['quantidade'],
-                'desconto_percent' => $item['desconto_percent'],
-                'desconto_fixo' => $item['desconto_fixo'],
-                'iva_percent' => $taxaIva ?? 0,
-                'imposto_taxa_id' => $idImpostoTaxa,
-                'codigo_iva' => $codigoIva ?? '',
-                'motivo_isencao' => $motivoIsencaoDescricao,
+                'empresa_id' => $request['empresa_id'],
+                'empresa_nome' => $request['empresa_nome'],
+                'empresa_nif' => $request['empresa_nif'],
+                'empresa_telefone' => $request['empresa_telefone'],
+                'empresa_email' => $request['empresa_email'],
+                'empresa_endereco' => $request['empresa_endereco'],
+
+                'cliente_id' => $request['cliente_id'] ?? null,
+                'cliente_nome' => $request['cliente_nome'],
+                'cliente_nif' => $request['cliente_nif'],
+                'cliente_telefone' => $request['cliente_telefone'],
+                'cliente_email' => $request['cliente_email'],
+                'cliente_endereco' => $request['cliente_endereco'],
+
+                'caixa' => $request['caixa'],
+                'data_emissao' => $request['data_emissao'],
+                'data_vencimento' => $request['data_vencimento'],
+                'forma_pagamento' => $request['forma_pagamento'],
+                'movimenta_stock' => $request['movimenta_stock'],
+
+                'taxa_iva' => '0',
+                'valor_iva' => '0',
+                'retencao' => $retencao,
+
+                'estado' => 'emitido',
+
+                'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
+
+                'desconto_total' => $descontoItensTotal + $descontoGeral,
+                'valor_transporte' => $request['valor_transporte'],
                 'total_sem_desconto' => $totalSemDesconto,
-                'total' => $totalItem,
-                // Adicione outros campos conforme necessário
-            ];
-        }
+                'total_impostos' => $totalImpostos,
+                'total_geral' => $totalFinal,
+                'troco' => $troco,
 
-        $documento->itens()->createMany($itens);
+                'utilizador_id' => $request['utilizador_id'],
+                'utilizador' => $request['utilizador'],
+
+                'info_guia_id' => $infoGuiaId
+            ]);
+
+
+            $bancos = Conta::with('banco')
+                ->where('empresa_id', $request->input('empresa_id'))
+                ->where('estado', true)
+                ->get();
+
+            foreach ($bancos as $banco) {
+                DB::table('bancos_documento')->insert([
+                    'documento_id' => $documento->id,
+                    'sigla' => $banco['banco']->sigla,
+                    'descricao' => $banco['banco']->descricao,
+                    'numero_conta' => $banco->numero_conta,
+                    'iban' => $banco->iban,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            foreach ($request->input('meiosPagamento') as $meioPagamento) {
+                MeioPagamentoDocumento::create([
+                    'documento_id' => $documento->id,
+                    'descricao' => $meioPagamento['descricao'],
+                    'valor' => $meioPagamento['valor'],
+                ]);
+            }
+
+            foreach ($quadroImposto as $value) {
+                $value['incidencia'] = round($value['incidencia'], 2);
+                $value['imposto'] = round($value['imposto'], 2);
+                $value['liquido'] = round($value['liquido'], 2);
+
+                ImpostoDocumento::create([
+                    'documento_id' => $documento->id,
+                    'taxa' => $value['taxa'],
+                    'codigo' => $value['codigo'],
+                    'isento' => $value['codigo'] === 'ISENTO' ? 1 : 0,
+                    'motivo_isencao' => $value['motivo_isencao'],
+                    'incidencia' => $value['incidencia'],
+                    'imposto' => $value['imposto'],
+                    //'liquido' => $value['liquido'],
+                    'total' => $value['incidencia'] + $value['imposto'],
+                ]);
+            }
+
+            // Criação dos itens
+            $itens = [];
+            foreach ($request['itens'] as $item) {
+                $idImpostoTaxa = $item['iva_percent'];
+                $taxaIva = TipoTaxaIva::find($idImpostoTaxa)->taxa;
+                $codigoIva = TipoTaxaIva::find($idImpostoTaxa)->codigo;
+                //$motivoIsencaoCodigo = null;
+                $motivoIsencaoDescricao = null;
+
+                if ($codigoIva === 'ISENTO') {
+                    $motivo = DB::table('motivo_isencao')
+                        ->where('id', $item['motivo_isencao_id']) // <-- aqui
+                        ->first();
+                    if ($motivo) {
+                        $codigoIva = $motivo->codigo;
+                        $motivoIsencaoDescricao = $motivo->motivo;
+                    }
+                }
+
+                $desconto = 0;
+                if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
+                    $desconto = $item['preco_venda'] * ($item['desconto_percent'] / 100);
+                } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
+                    $desconto = $item['desconto_fixo'];
+                }
+
+                // Calcula o total do item (sem IVA)
+                $totalSemDesconto = $item['preco_venda'] * $item['quantidade'];
+                $totalItem = $totalSemDesconto - $desconto;
+
+                $itens[] = [
+                    'documento_id' => $documento->id,
+                    'produto_nome' => $item['produto_nome'],
+                    'produto_codigo' => $item['codigo_produto'],
+                    'preco_unitario' => $item['preco_venda'],
+                    'descricao' => $item['descricao'],
+                    'quantidade' => $item['quantidade'],
+                    'desconto_percent' => $item['desconto_percent'],
+                    'desconto_fixo' => $item['desconto_fixo'],
+                    'iva_percent' => $taxaIva ?? 0,
+                    'imposto_taxa_id' => $idImpostoTaxa,
+                    'codigo_iva' => $codigoIva ?? '',
+                    'motivo_isencao' => $motivoIsencaoDescricao,
+                    'total_sem_desconto' => $totalSemDesconto,
+                    'total' => $totalItem,
+                    // Adicione outros campos conforme necessário
+                ];
+            }
+
+            $documento->itens()->createMany($itens);
+
+            DB::commit();
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Erro ao criar o documento.',
+                'error' => $th->getMessage()
+            ], 500);
+        }
 
         // Criar Recibo caso o tipo de vencimento for a prazo
         if ($request->has('is_apronto') && $request->input('is_apronto') === '1') {
@@ -1241,6 +1464,13 @@ class DocumentoController extends Controller
 
         $bancos = BancoDocumento::where('documento_id', $id)->get();
 
+        $infoGuia = InfoGuia::where('id', $documento->info_guia_id)->first();
+
+        if ($infoGuia) {
+            $infoGuia->data_origem = Carbon::parse($infoGuia->data_origem)->format('Y-m-d - H:i');
+            $infoGuia->data_destino = Carbon::parse($infoGuia->data_destino)->format('Y-m-d - H:i');
+        }
+
         $meiosPagamento = MeioPagamentoDocumento::where('documento_id', $id)->get();
 
         $quadroImposto = ImpostoDocumento::where('documento_id', $id)
@@ -1307,7 +1537,7 @@ class DocumentoController extends Controller
 
         $dompdf = new Dompdf($options);
 
-        $html = view('pdf.documento', compact(['documento', 'paginas', 'quadroImpostoAgrupado', 'bancos', 'meiosPagamento']))->render();
+        $html = view('pdf.documento', compact(['documento', 'paginas', 'quadroImpostoAgrupado', 'bancos', 'meiosPagamento', 'infoGuia']))->render();
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
@@ -1541,26 +1771,11 @@ class DocumentoController extends Controller
     public function pdfRelatorioDocumento(Request $request)
     {
 
-        $search = $request->query('search');
         $tipo = $request->query('tipo'); // Tipo de documento
         $dataInicial = $request->query('data_inicial');
         $dataFinal = $request->query('data_final');
-        $status = $request->query('status'); // pago, por_pagar, vencido
-        $entidadeId = $request->query('entidade_id'); // cliente
-        $valorMin = $request->query('valor_min');
-        $valorMax = $request->query('valor_max');
 
         $documentoQuery = Documento::query();
-
-        // 🔍 Pesquisa por número da fatura
-        if ($search) {
-            $documentoQuery->where(function ($q) use ($search) {
-                $q->where('num_fatura', 'like', '%' . $search . '%')
-                    ->orWhere('cliente_nome', 'like', '%' . $search . '%')
-                    ->orWhere('utilizador', 'like', '%' . $search . '%')
-                    ->orWhere('total_geral', 'like', '%' . $search . '%');
-            });
-        }
 
         // 📄 Filtrar por tipo de documento
         if ($tipo) {
@@ -1575,6 +1790,8 @@ class DocumentoController extends Controller
                         ->orWhere('tipo_nome', $tipo);
                 });
             }
+        } else {
+            $documentoQuery->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR']);
         }
 
         // 📅 Filtrar por intervalo de datas
@@ -1586,43 +1803,12 @@ class DocumentoController extends Controller
             $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
         }
 
-        // 👤 Filtrar por cliente/entidade
-        if ($entidadeId) {
-            $documentoQuery->where('entidade_id', $entidadeId);
-        }
-
-        // 💰 Filtro por valor
-        if ($valorMin && $valorMax) {
-            $documentoQuery->whereBetween('total_geral', [$valorMin, $valorMax]);
-        } elseif ($valorMin) {
-            $documentoQuery->where('total_geral', '>=', $valorMin);
-        } elseif ($valorMax) {
-            $documentoQuery->where('total_geral', '<=', $valorMax);
-        }
-
-        // Filtrar por status 
-        /*  if ($status) {
-            $documentoQuery->where(function ($query) use ($status) {
-                if ($status === 'pago') {
-                    $query->whereColumn('total_pago', '>=', 'total_geral');
-                } elseif ($status === 'por_pagar') {
-                    $query->whereColumn('total_pago', '<', 'total_geral')
-                        ->whereDate('data_vencimento', '>=', now());
-                } elseif ($status === 'vencido') {
-                    $query->whereColumn('total_pago', '<', 'total_geral')
-                        ->whereDate('data_vencimento', '<', now());
-                }
-            });
-        } */
-
-        //$documentoQuery->whereNot('tipo_documento', 'fatura-compra');
-
         $documentos = $documentoQuery
             ->with([
                 'itens',
                 'impostosDocumento',
-                'documentosRelacionados', // documentos que este documento referencia
-                'relacionadoEm',          // documentos que referenciam este documento
+                'documentosRelacionados',
+                'relacionadoEm',
             ])
             ->orderByDesc('id')
             ->get();
@@ -1631,13 +1817,21 @@ class DocumentoController extends Controller
 
         $totalGeral = $documentos->sum('total_geral');
 
+        $dadosEmpresa = [
+            "nome" => "Softseven",
+            "endereco" => "Luanda, Camama",
+            "nif" => "999999999",
+            "telefone" => "941608052",
+            "email" => " geral@sofyseven.ao"
+        ];
+
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
 
         $dompdf = new Dompdf($options);
 
-        $html = view('pdf.relatorio-documento', compact(['documentos', 'totalGeral']))->render();
+        $html = view('pdf.relatorio-documento', compact(['documentos', 'dataInicial', 'dataFinal', 'totalGeral', 'dadosEmpresa']))->render();
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
@@ -1683,6 +1877,389 @@ class DocumentoController extends Controller
         ]);
     }
 
+    public function listFaturacaoPorItem2(Request $request)
+    {
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+
+        $documentoQuery = Documento::query();
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn('tipo_sigla', $tipo)
+                        ->orWhereIn('tipo_nome', $tipo);
+                });
+            } else {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->where('tipo_sigla', $tipo)
+                        ->orWhere('tipo_nome', $tipo);
+                });
+            }
+        } else {
+            $documentoQuery->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR']);
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        $documentos = $documentoQuery
+            ->with([
+                'itens',
+                'impostosDocumento',
+                'documentosRelacionados',
+                'relacionadoEm',
+            ])
+            ->orderByDesc('id')
+            ->get();
+
+        // após obter $documentos...
+        $itensAgrupadosArr = []; // array simples para agregar
+
+        foreach ($documentos as $doc) {
+            foreach ($doc->itens as $item) {
+                // Ajusta os nomes dos campos conforme o teu modelo:
+                $codigo = $item->codigo ?? $item->produto_codigo ?? $item->produto_id;
+                $descricao = $item->descricao ?? $item->produto_nome ?? '';
+
+                // Valores por linha (adapta se teu modelo usa nomes diferentes)
+                $valorLinha = (float) ($item->total_sem_desconto ?? 0); // total sem imposto da linha
+                $impostoLinha = (float) ($item->total_impostos ?? $item->imposto ?? 0);
+                $quantidadeLinha = (float) ($item->quantidade ?? $item->qty ?? 0);
+                $totalLinha = (float) ($item->total ?? 0);
+
+                if (!isset($itensAgrupadosArr[$codigo])) {
+                    $itensAgrupadosArr[$codigo] = [
+                        'codigo' => $codigo,
+                        'descricao' => $descricao,
+                        'quantidade' => 0.0,
+                        'valor' => 0.0,   // soma dos valores sem imposto
+                        'imposto' => 0.0, // soma dos impostos
+                        'total' => 0.0,
+                    ];
+                }
+
+                // Agora sim, modificamos o array (sem problema)
+                $itensAgrupadosArr[$codigo]['quantidade'] += $quantidadeLinha;
+                $itensAgrupadosArr[$codigo]['valor'] += $valorLinha;
+                $itensAgrupadosArr[$codigo]['imposto'] += $impostoLinha;
+                $itensAgrupadosArr[$codigo]['total'] += $totalLinha;
+            }
+        }
+
+        $itensAgrupados = DB::table('itens_documento')
+            ->select(
+                'produto_codigo as codigo',
+                DB::raw('SUM(quantidade) as quantidade'),
+                DB::raw('SUM(total_sem_desconto) as valor'),
+                DB::raw('SUM(total_impostos) as imposto'),
+                DB::raw('SUM(total) as total')
+            )
+            ->join('documentos', 'documentos.id', '=', 'itens_documento.documento_id')
+            ->whereBetween('documentos.data_emissao', [$dataInicial, $dataFinal])
+            ->groupBy('produto_codigo')
+            ->paginate(10);
+
+
+        // Converter para Collection (opcional) e recalcular totais
+        $itensAgrupados = collect(array_values($itensAgrupadosArr)); // reindexa numericamente
+
+        $totalQuantidade = $itensAgrupados->sum('quantidade');
+        $totalValor = $itensAgrupados->sum('valor');
+        $totalImposto = $itensAgrupados->sum('imposto');
+        $totalGeral = $totalValor + $totalImposto;
+
+        return response()->json([
+            'itens' => $itensAgrupados,
+            'totalQtd' => $totalQuantidade,
+            'totalVavlor' => $totalValor,
+            'totalImposto' => $totalImposto,
+            'totalGeral' => $totalGeral,
+        ]);
+    }
+
+
+    public function listFaturacaoPorItem(Request $request)
+    {
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $perPage = $request->query('per_page', 10);
+
+        $query = DB::table('itens_documento as di')
+            ->join('documentos as d', 'di.documento_id', '=', 'd.id')
+            ->select([
+                'di.produto_codigo as codigo',
+                'di.produto_nome as nome',
+                DB::raw('SUM(COALESCE(di.quantidade, 0)) as quantidade'),
+                DB::raw('SUM(COALESCE(di.total_sem_desconto, 0)) as valor'),
+                DB::raw('SUM(COALESCE(di.total, 0)) as total'),
+            ]);
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $query->where(function ($q) use ($tipo) {
+                    $q->whereIn('d.tipo_sigla', $tipo)
+                        ->orWhereIn('d.tipo_nome', $tipo);
+                });
+            } else {
+                $query->where(function ($q) use ($tipo) {
+                    $q->where('d.tipo_sigla', $tipo)
+                        ->orWhere('d.tipo_nome', $tipo);
+                });
+            }
+        } else {
+            $query->whereIn('d.tipo_sigla', ['FT', 'FA', 'FG', 'FR']);
+        }
+
+        // 📅 Filtro por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('d.data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $query->whereDate('d.data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $query->whereDate('d.data_emissao', '<=', $dataFinal);
+        }
+
+        // 🔢 Agrupar por produto
+        $query->groupBy('di.produto_codigo', 'di.produto_nome')
+            ->orderBy('di.produto_nome', 'asc');
+
+        // Paginação nativa do SQL
+        $itensAgrupados = $query->paginate($perPage);
+
+        // Totais globais (sem paginação)
+        $totais = DB::table('itens_documento as di')
+            ->join('documentos as d', 'di.documento_id', '=', 'd.id')
+            ->select([
+                DB::raw('SUM(COALESCE(di.quantidade, 0)) as totalQtd'),
+                DB::raw('SUM(COALESCE(di.total_sem_desconto, 0)) as totalValor'),
+                // DB::raw('SUM(COALESCE(di.total_impostos, di.imposto, 0)) as totalImposto')
+            ]);
+
+        // Reaplicar os mesmos filtros aos totais
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $totais->where(function ($q) use ($tipo) {
+                    $q->whereIn('d.tipo_sigla', $tipo)
+                        ->orWhereIn('d.tipo_nome', $tipo);
+                });
+            } else {
+                $totais->where(function ($q) use ($tipo) {
+                    $q->where('d.tipo_sigla', $tipo)
+                        ->orWhere('d.tipo_nome', $tipo);
+                });
+            }
+        } else {
+            $totais->whereIn('d.tipo_sigla', ['FT', 'FA', 'FG', 'FR']);
+        }
+
+        if ($dataInicial && $dataFinal) {
+            $totais->whereBetween('d.data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $totais->whereDate('d.data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $totais->whereDate('d.data_emissao', '<=', $dataFinal);
+        }
+
+        $totais = $totais->first();
+
+        $totalGeral = ($totais->totalValor ?? 0) + ($totais->totalImposto ?? 0);
+
+        return response()->json([
+            'data' => $itensAgrupados->items(),
+            'current_page' => $itensAgrupados->currentPage(),
+            'last_page' => $itensAgrupados->lastPage(),
+            'per_page' => $itensAgrupados->perPage(),
+            'total' => $itensAgrupados->total(),
+            'from' => $itensAgrupados->firstItem(),
+            'to' => $itensAgrupados->lastItem(),
+            'totais' => [
+                'totalQtd' => (float) ($totais->totalQtd ?? 0),
+                'totalValor' => (float) ($totais->totalValor ?? 0),
+                'totalImposto' => (float) ($totais->totalImposto ?? 0),
+                'totalGeral' => (float) $totalGeral,
+            ],
+        ]);
+    }
+
+
+    public function pdfRelatorioFaturacaoPorItem(Request $request)
+    {
+
+        $tipo = $request->query('tipo'); // Tipo de documento
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+
+        $documentoQuery = Documento::query();
+
+        // 📄 Filtrar por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn('tipo_sigla', $tipo)
+                        ->orWhereIn('tipo_nome', $tipo);
+                });
+            } else {
+                $documentoQuery->where(function ($q) use ($tipo) {
+                    $q->where('tipo_sigla', $tipo)
+                        ->orWhere('tipo_nome', $tipo);
+                });
+            }
+        } else {
+            $documentoQuery->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR']);
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        $documentos = $documentoQuery
+            ->with([
+                'itens',
+                'impostosDocumento',
+                'documentosRelacionados',
+                'relacionadoEm',
+            ])
+            ->orderByDesc('id')
+            ->get();
+
+        // após obter $documentos...
+        $itensAgrupadosArr = []; // array simples para agregar
+
+        foreach ($documentos as $doc) {
+            foreach ($doc->itens as $item) {
+                // Ajusta os nomes dos campos conforme o teu modelo:
+                $codigo = $item->codigo ?? $item->produto_codigo ?? $item->produto_id;
+                $nome = $item->produto_nome ?? '';
+                $descricao = $item->descricao ?? '';
+
+                // Valores por linha (adapta se teu modelo usa nomes diferentes)
+                $valorLinha = (float) ($item->total_sem_desconto ?? 0); // total sem imposto da linha
+                $impostoLinha = (float) ($item->total_impostos ?? 0);
+                $quantidadeLinha = (float) ($item->quantidade  ?? 0);
+                $totalLinha = (float) ($item->total ?? 0);
+
+                if (!isset($itensAgrupadosArr[$codigo])) {
+                    $itensAgrupadosArr[$codigo] = [
+                        'codigo' => $codigo,
+                        'nome' => $nome,
+                        'descricao' => $descricao,
+                        'quantidade' => 0.0,
+                        'valor' => 0.0,   // soma dos valores sem imposto
+                        'imposto' => 0.0, // soma dos impostos
+                        'total' => 0.0,
+                    ];
+                }
+
+                // Agora sim, modificamos o array (sem problema)
+                $itensAgrupadosArr[$codigo]['quantidade'] += $quantidadeLinha;
+                $itensAgrupadosArr[$codigo]['valor'] += $valorLinha;
+                $itensAgrupadosArr[$codigo]['imposto'] += $impostoLinha;
+                $itensAgrupadosArr[$codigo]['total'] += $totalLinha;
+            }
+        }
+
+        // Converter para Collection (opcional) e recalcular totais
+        $itensAgrupados = collect(array_values($itensAgrupadosArr)); // reindexa numericamente
+
+        $totalQuantidade = $itensAgrupados->sum('quantidade');
+        $totalValor = $itensAgrupados->sum('valor');
+        $totalImposto = $itensAgrupados->sum('imposto');
+        $totalGeral = $totalValor + $totalImposto;
+
+        // return response()->json([
+        //     'itens' => $itensAgrupados,
+        //     'totalQtd' => $totalQuantidade,
+        //     'totalValor' => $totalValor,
+        //     'totalImposto' => $totalImposto,
+        //     'totalGeral' => $totalGeral,
+        // ]);
+
+        $dadosEmpresa = [
+            "nome" => "Softseven",
+            "endereco" => "Luanda, Camama",
+            "nif" => "999999999",
+            "telefone" => "941608052",
+            "email" => " geral@sofyseven.ao"
+        ];
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+
+        $dompdf = new Dompdf($options);
+
+        $html = view('pdf.relatorio-faturacao-item', compact([
+            'itensAgrupados',
+            'dataInicial',
+            'dataFinal',
+            'totalGeral',
+            'totalQuantidade',
+            'totalValor',
+            'totalImposto',
+            'totalGeral',
+            'dadosEmpresa'
+        ]))->render();
+
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // Pegamos o canvas atualizado
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+
+        // Aqui aplicamos o script para todas as páginas
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
+            $text2 = "Página $pageNumber / $pageCount";
+            $font = $fontMetrics->get_font('Helvetica', 'normal');
+            $size = 10;
+
+            $x = 40;
+            $y1 = $canvas->get_height() - 50;
+            $y2 = $y1 + 12;
+
+            $lineY = $y1 - 5;
+            $canvas->line(
+                $x,
+                $lineY,
+                $canvas->get_width() - $x,
+                $lineY,
+                [0, 0, 0],
+                1
+            );
+
+            $canvas->text($x, $y1, $text1, $font, $size);
+            $canvas->text($x, $y2, $text2, $font, $size);
+        });
+
+        $filename = "relatorio"; //str_replace([' ', '/'], '_', $documento['num_fatura']);
+
+        //Usa StreamedResponse com o dompdf direto
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
+        ]);
+    }
 
     /**
      * Display the specified resource.

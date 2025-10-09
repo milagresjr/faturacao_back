@@ -188,6 +188,64 @@
             {{ $documento->observacoes ?? 'Documento emitido para fins de Formação. Não tem validade fiscal.' }}</p>
     </div>
 
+
+    @if ($documento->tipo_sigla === 'GT' || $documento->tipo_sigla === 'GR')
+        {{-- Guias --}}
+        <table width="100%" cellspacing="0" cellpadding="4" style="border-collapse: collapse; font-size: 12px;">
+            <tr>
+                <td colspan="2" style="border-bottom: 1px solid #000; font-weight: bold; padding: 6px;">
+                    Dados de Transporte
+                </td>
+            </tr>
+
+            <tr>
+                <!-- Coluna de carga -->
+                <td width="50%" valign="top" style="border-right: 1px solid #000; padding: 6px;">
+                    <strong>Origem</strong><br>
+                    {{ $infoGuia->data_origem }} <br>
+                    {{ $infoGuia->local_origem }}
+                </td>
+
+                <!-- Coluna de descarga -->
+                <td width="50%" valign="top" style="padding: 6px;">
+                    <strong>Destino</strong><br>
+                    {{ $infoGuia->data_destino }} <br>
+                    {{ $infoGuia->local_destino }}
+                </td>
+            </tr>
+        </table>
+
+        <br>
+
+        <!-- Assinaturas com float e underscores -->
+        <div style="width:100%; margin-top:10px; font-size:12px; overflow:visible;">
+
+            <!-- Assinatura esquerda -->
+            <div style="float:left; width:45%; text-align:left; font-family: monospace;">
+                <span style="display:block; text-align: center; white-space:nowrap; margin-bottom:8px;">
+                    _____________________________
+                </span>
+                <span style="display:block; text-align: center; font-family: sans-serif; margin-top:6px;">
+                    Entreguei (Assinatura)
+                </span>
+            </div>
+
+            <!-- Assinatura direita -->
+            <div style="float:right; width:45%; text-align:right; font-family: monospace;">
+                <span style="display:block; text-align: center; white-space:nowrap; margin-bottom:8px;">
+                    _____________________________
+                </span>
+                <span style="display:block; text-align: center; font-family: sans-serif; margin-top:6px;">
+                    Recebi (Assinatura)
+                </span>
+            </div>
+
+            <!-- Limpa os floats -->
+            <div style="clear:both;"></div>
+        </div>
+    @endif
+
+
     <div class="section" style="border: 1px solid #000; min-height: 400px; padding: 10px; margin-top: 20px;">
 
         @foreach ($paginas as $i => $pagina)
@@ -307,20 +365,20 @@
                 </tbody>
             </table>
 
-            @if($documento->tipo_sigla !== 'PP' )
+            @if (count($meiosPagamento) > 0)
                 <table class="table-meio-pag" style="width: 420px;">
-                <tr style="border-top: 1px solid #000;">
-                    <th class="text-align: left;">Meio de Pagamento</th>
-                    <th></th>
-                </tr>
-                @foreach ($meiosPagamento as $meioPagamento)
-                    <tr>
-                        <td style="font-size: 8pt;">{{ $meioPagamento->descricao }}</td>
-                        <td style="font-size: 8pt; text-align: right;">
-                            {{ number_format($meioPagamento->valor, 2, ',', '.') }} Kz</td>
+                    <tr style="border-top: 1px solid #000;">
+                        <th class="text-align: left;">Meio de Pagamento</th>
+                        <th></th>
                     </tr>
-                @endforeach
-            </table>
+                    @foreach ($meiosPagamento as $meioPagamento)
+                        <tr>
+                            <td style="font-size: 8pt;">{{ $meioPagamento->descricao }}</td>
+                            <td style="font-size: 8pt; text-align: right;">
+                                {{ number_format($meioPagamento->valor, 2, ',', '.') }} Kz</td>
+                        </tr>
+                    @endforeach
+                </table>
             @endif
 
             @if (!empty($bancos) && count($bancos) > 0)

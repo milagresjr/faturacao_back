@@ -111,7 +111,7 @@
     </header>
 
     {{-- Título do Relatório --}}
-    <h1>Relatório de Facturação</h1>
+    <h1>Relatório de facturação por itens</h1>
     @if ($dataInicial)
         <span class="intervalo">De {{ $dataInicial }} até {{ $dataFinal }}</span>
     @endif
@@ -120,23 +120,23 @@
     <table>
         <thead>
             <tr>
-                <th>Documento</th>
-                <th>Cliente</th>
-                <th>NIF</th>
-                <th>Data</th>
-                <th style="text-align:right;">Total S/IVA</th>
+                <th>Código</th>
+                <th>Nome</th>
+                <th>Quantidade</th>
+                <th>Valor S/Desc.</th>
+                <th style="text-align:right;">Total</th>
                 {{-- <th>Utilizador</th> --}}
             </tr>
         </thead>
         <tbody>
-            @if (count($documentos) > 0)
-                @foreach ($documentos as $item)
+            @if (count($itensAgrupados) > 0)
+                @foreach ($itensAgrupados as $item)
                     <tr>
-                        <td>{{ $item->num_fatura }}</td>
-                        <td>{{ $item->cliente_nome }}</td>
-                        <td>{{ $item->cliente_nif }}</td>
-                        <td>{{ $item->data_emissao }}</td>
-                        <td style="text-align:right;">{{ number_format($item->total_geral, 2, ',', '.') }}</td>
+                        <td>{{ $item['codigo'] }}</td>
+                        <td>{{ $item['nome'] }}</td>
+                        <td>{{ $item['quantidade'] }}</td>
+                        <td>{{ number_format($item['valor'], 2, ',', '.') }}</td>
+                        <td style="text-align:right;">{{ number_format($item['total'], 2, ',', '.') }}</td>
                         {{-- <td>{{ $item->utilizador }}</td> --}}
                     </tr>
                 @endforeach
@@ -151,16 +151,16 @@
     {{-- Tabela de Totais --}}
     <table class="totais">
         <tr>
-            <th>Subtotal</th>
-            <td>{{ number_format($totalGeral, 2, ',', '.') }}</td>
+            <th>Qtd Total</th>
+            <td>{{ $totalQuantidade }}</td>
         </tr>
         <tr>
-            <th>IVA</th>
-            <td>{{ number_format($totalGeral * 0.14, 2, ',', '.') }}</td> {{-- Exemplo IVA 14% --}}
+            <th>Total S/Desc</th>
+            <td>{{ number_format($totalValor, 2, ',', '.') }}</td> {{-- Exemplo IVA 14% --}}
         </tr>
         <tr>
             <th>Total Geral</th>
-            <td><strong>{{ number_format($totalGeral + $totalGeral * 0.14, 2, ',', '.') }}</strong></td>
+            <td><strong>{{ number_format($totalGeral, 2, ',', '.') }}</strong></td>
         </tr>
     </table>
 </body>
