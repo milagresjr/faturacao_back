@@ -183,6 +183,7 @@
                     <th style="width: 30%;">Documento</th>
                     <th style="width: 15%;">Facturado</th>
                     <th style="width: 16%;">Pago</th>
+                    <th style="width: 16%;">Dívida</th>
                 </tr>
             </thead>
             <tbody>
@@ -191,6 +192,7 @@
                     <td>{{ $docRelacionado->num_fatura }}</td>
                     <td >{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</td>
                     <td >{{ number_format($valorPago, 2, ',', '.') }} Kz</td>
+                    <td >{{ number_format($documento->total_geral - $valorPago, 2, ',', '.') }} Kz</td>
                 </tr>
             </tbody>
         </table>

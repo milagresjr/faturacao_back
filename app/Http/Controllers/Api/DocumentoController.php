@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Banco;
 use App\Models\BancoDocumento;
+use App\Models\Cliente;
 use App\Models\Conta;
 use App\Models\Documento;
 use App\Models\ImpostoDocumento;
@@ -1983,6 +1984,248 @@ class DocumentoController extends Controller
             'totalVavlor' => $totalValor,
             'totalImposto' => $totalImposto,
             'totalGeral' => $totalGeral,
+        ]);
+    }
+
+    public function listContaCorrenteCliente(Request $request, $clienteId)
+    {
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $perPage = $request->query('per_page', 10);
+
+        // ⚙️ Base da query
+        $query = DB::table('documentos')
+            ->where('cliente_id', $clienteId)
+            ->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR', 'NC', 'ND', 'RC','RG']) // Adiciona os tipos relevantes
+            ->select([
+                'id',
+                'tipo_nome',
+                'tipo_sigla',
+                'num_fatura',
+                'data_emissao',
+                'total_geral',
+                'estado',
+                // Campos calculados
+                DB::raw("
+                CASE 
+                    WHEN tipo_sigla IN ('FR','FT','FA','FG','ND') THEN total_geral
+                    ELSE 0 
+                END AS debito
+            "),
+                DB::raw("
+                CASE 
+                    WHEN tipo_sigla IN ('NC','RC','RG') THEN total_geral
+                    ELSE 0 
+                END AS credito
+            "),
+            ]);
+
+        // 📅 Filtro por datas
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $query->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $query->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        $query->orderBy('data_emissao', 'asc'); // ordem cronológica
+
+        // 🧾 Busca os documentos (paginação)
+        $documentos = $query->paginate($perPage);
+
+        // 💰 Calcular saldo acumulado
+        $saldo = 0;
+        $movimentos = [];
+
+        // return $documentos;
+
+        foreach ($documentos->items() as $doc) {
+            $saldo += ($doc->debito - $doc->credito);
+
+            $movimentos[] = [
+                'data' => date('d M Y', strtotime($doc->data_emissao)),
+                'documento' => $doc->num_fatura,
+                'debito' => (float) $doc->debito,
+                'credito' => (float) $doc->credito,
+                'saldo' => (float) $saldo,
+            ];
+        }
+
+        // 🔢 Totais gerais (sem paginação)
+        $totaisQuery = DB::table('documentos')
+            ->where('cliente_id', $clienteId)
+            ->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR', 'NC', 'ND', 'RC'])
+            ->select([
+                DB::raw("
+                SUM(CASE WHEN tipo_sigla IN ('FR','FT','FA','FG','ND') THEN total_geral ELSE 0 END) AS total_debito
+            "),
+                DB::raw("
+                SUM(CASE WHEN tipo_sigla IN ('NC','RC') THEN total_geral ELSE 0 END) AS total_credito
+            "),
+            ]);
+
+        if ($dataInicial && $dataFinal) {
+            $totaisQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $totaisQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $totaisQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        $totais = $totaisQuery->first();
+
+        $saldoFinal = ($totais->total_debito ?? 0) - ($totais->total_credito ?? 0);
+
+        // 📤 Retorno JSON
+        return response()->json([
+            'data' => $movimentos,
+            'current_page' => $documentos->currentPage(),
+            'last_page' => $documentos->lastPage(),
+            'per_page' => $documentos->perPage(),
+            'total' => $documentos->total(),
+            'from' => $documentos->firstItem(),
+            'to' => $documentos->lastItem(),
+            'links' => $documentos->links(),
+            'totais' => [
+                'total_debito' => (float) ($totais->total_debito ?? 0),
+                'total_credito' => (float) ($totais->total_credito ?? 0),
+                'saldo_final' => (float) $saldoFinal,
+            ],
+        ]);
+    }
+
+    public function pdfContaCorrenteCliente(Request $request, $clienteId)
+    {
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+
+        // ⚙️ Base da query
+        $query = DB::table('documentos')
+            ->where('cliente_id', $clienteId)
+            ->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR', 'NC', 'ND', 'RC','RG']) // Adiciona os tipos relevantes
+            ->select([
+                'id',
+                'tipo_nome',
+                'tipo_sigla',
+                'num_fatura',
+                'data_emissao',
+                'total_geral',
+                'estado',
+                // Campos calculados
+                DB::raw("
+                CASE 
+                    WHEN tipo_sigla IN ('FR','FT','FA','FG','ND') THEN total_geral
+                    ELSE 0 
+                END AS debito
+            "),
+                DB::raw("
+                CASE 
+                    WHEN tipo_sigla IN ('NC','RC','RG') THEN total_geral
+                    ELSE 0 
+                END AS credito
+            "),
+            ]);
+
+        // 📅 Filtro por datas
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $query->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $query->whereDate('data_emissao', '<=', $dataFinal);
+        }
+
+        $query->orderBy('data_emissao', 'asc'); // ordem cronológica
+
+        // 🧾 Busca os documentos (sem paginação para o PDF)
+        $documentos = $query->get();
+
+        // 💰 Calcular saldo acumulado
+        $saldo = 0;
+        $movimentos = [];
+
+        foreach ($documentos as $doc) {
+            $saldo += ($doc->debito - $doc->credito);
+
+            $movimentos[] = [
+                'data' => date('d M Y', strtotime($doc->data_emissao)),
+                'documento' => $doc->num_fatura,
+                'debito' => (float) $doc->debito,
+                'credito' => (float) $doc->credito,
+                'saldo' => (float) $saldo,
+            ];
+        }
+        // 🔢 Totais gerais
+        $totaisQuery = DB::table('documentos')
+            ->where('cliente_id', $clienteId)
+            ->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR', 'NC', 'ND', 'RC'])
+            ->select([
+                DB::raw("
+                SUM(CASE WHEN tipo_sigla IN ('FR','FT','FA','FG','ND') THEN total_geral ELSE 0 END) AS total_debito
+            "),
+                DB::raw("
+                SUM(CASE WHEN tipo_sigla IN ('NC','RC') THEN total_geral ELSE 0 END) AS total_credito
+            "),
+            ]);
+        if ($dataInicial && $dataFinal) {
+            $totaisQuery->whereBetween('data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $totaisQuery->whereDate('data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $totaisQuery->whereDate('data_emissao', '<=', $dataFinal);
+        }
+        $totais = $totaisQuery->first();
+        $saldoFinal = ($totais->total_debito ?? 0) - ($totais->total_credito ?? 0);
+        $cliente = Cliente::find($clienteId);
+        $dadosEmpresa = [
+            "nome" => "Softseven",
+            "endereco" => "Luanda, Camama",
+            "nif" => "999999999",
+            "telefone" => "941608052",
+            "email" => "",
+        ];
+       
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $dompdf = new Dompdf($options);
+        $html = view('pdf.relatorio-conta-corrente-cliente', compact(['movimentos', 'dataInicial', 'dataFinal', 'totais', 'saldoFinal', 'cliente', 'dadosEmpresa']))->render();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        // Pegamos o canvas atualizado
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+        // Aqui aplicamos o script para todas as páginas
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
+            $text2 = "Página $pageNumber / $pageCount";
+            $font = $fontMetrics->get_font('Helvetica', 'normal');
+            $size = 10;
+            $x = 40;
+            $y1 = $canvas->get_height() - 50;
+            $y2 = $y1 + 12;
+            $lineY = $y1 - 5;
+            $canvas->line(
+                $x,
+                $lineY,
+                $canvas->get_width() - $x,
+                $lineY,
+                [0, 0, 0],
+                1
+            );
+            $canvas->text($x, $y1, $text1, $font, $size);
+            $canvas->text($x, $y2, $text2, $font, $size);
+        });
+        $filename = "conta_corrente_" . ($cliente->nome ?? 'cliente'); //str_replace([' ', '/'], '_', $documento['num_fatura']);
+        //Usa StreamedResponse com o dompdf direto
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
 

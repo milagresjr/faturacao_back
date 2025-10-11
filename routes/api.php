@@ -80,6 +80,8 @@ Route::post('documentos/fatura-compra', [DocumentoController::class, 'storeFatur
 Route::post('documentos/{id}/anular', [DocumentoController::class, 'anularDocumento']);
 Route::get('documentos/relatorio',[DocumentoController::class,'pdfRelatorioDocumento']);
 Route::get('documentos/faturacao-item',[DocumentoController::class, 'listFaturacaoPorItem']);
+Route::get('documentos/conta-corrente-cliente/{clienteId}',[DocumentoController::class, 'listContaCorrenteCliente']);
+Route::get('documentos/relatorio-conta-corrente/{clienteId}',[DocumentoController::class,'pdfContaCorrenteCliente']);
 Route::get('documentos/relatorio-faturacao-item',[DocumentoController::class,'pdfRelatorioFaturacaoPorItem']);
 Route::apiResource('documentos', DocumentoController::class);
 Route::get('documentos/tipo/fatura',[DocumentoController::class,'listFaturas']);
