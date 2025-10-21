@@ -72,22 +72,22 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::apiResource('bancos', BancoController::class);
 
     Route::apiResource('caixas', CaixaController::class);
-
 });
 Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);
 Route::post('documentos/nota-credito', [DocumentoController::class, 'storeNotaCredito']);
 Route::post('documentos/fatura-compra', [DocumentoController::class, 'storeFaturaCompra']);
 Route::post('documentos/{id}/anular', [DocumentoController::class, 'anularDocumento']);
-Route::get('documentos/relatorio',[DocumentoController::class,'pdfRelatorioDocumento']);
-Route::get('documentos/faturacao-item',[DocumentoController::class, 'listFaturacaoPorItem']);
-Route::get('documentos/conta-corrente-cliente/{clienteId}',[DocumentoController::class, 'listContaCorrenteCliente']);
-Route::get('documentos/relatorio-conta-corrente/{clienteId}',[DocumentoController::class,'pdfContaCorrenteCliente']);
-Route::get('documentos/relatorio-faturacao-item',[DocumentoController::class,'pdfRelatorioFaturacaoPorItem']);
+Route::get('documentos/relatorio', [DocumentoController::class, 'pdfRelatorioDocumento']);
+Route::get('documentos/faturacao-item', [DocumentoController::class, 'listFaturacaoPorItem']);
+Route::get('documentos/conta-corrente-cliente/{clienteId}', [DocumentoController::class, 'listContaCorrenteCliente']);
+Route::get('documentos/relatorio-conta-corrente/{clienteId}', [DocumentoController::class, 'pdfContaCorrenteCliente']);
+Route::get('documentos/relatorio-faturacao-item', [DocumentoController::class, 'pdfRelatorioFaturacaoPorItem']);
 Route::apiResource('documentos', DocumentoController::class);
-Route::get('documentos/tipo/fatura',[DocumentoController::class,'listFaturas']);
-Route::get('documentos/tipo/fatura-proforma',[DocumentoController::class,'listFaturaProforma']);
-Route::get('documentos/tipo/guia',[DocumentoController::class,'listGuias']);
-Route::get('documentos/tipo/nota-credito',[DocumentoController::class,'listNotaCredito']);
+Route::post('/documentos/{id}/transformar', [DocumentoController::class, 'transformarDocumento']);
+Route::get('documentos/tipo/fatura', [DocumentoController::class, 'listFaturas']);
+Route::get('documentos/tipo/fatura-proforma', [DocumentoController::class, 'listFaturaProforma']);
+Route::get('documentos/tipo/guia', [DocumentoController::class, 'listGuias']);
+Route::get('documentos/tipo/nota-credito', [DocumentoController::class, 'listNotaCredito']);
 Route::apiResource('fatura-compra', FaturaCompraController::class);
 Route::get('caixas/armazem/{armazemId}', [CaixaController::class, 'getByArmazem']);
 Route::get('/documento/{id}/pdf', [DocumentoController::class, 'gerarPdf']);

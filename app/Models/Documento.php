@@ -69,7 +69,9 @@ class Documento extends Model
 
         'tipo_documento',
 
-        'info_guia_id'
+        'info_guia_id',
+
+        'documento_origem_id',
     ];
 
     public function itens(): HasMany
@@ -90,6 +92,11 @@ class Documento extends Model
     public function infoGuia()
     {
         return $this->belongsTo(InfoGuia::class, 'info_guia_id');
+    }
+
+    public function documentoOrigem()
+    {
+        return $this->belongsTo(Documento::class, 'documento_origem_id');
     }
 
     /**

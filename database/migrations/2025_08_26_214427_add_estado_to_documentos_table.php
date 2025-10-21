@@ -19,7 +19,9 @@ return new class extends Migration
                 'parcialmente_pago',
                 'anulado',
                 'regularizado',
-                'cancelado'
+                'cancelado',
+                'recuperado',
+                'transformado'
             ])->default('rascunho')->after('hash');
         });
     }

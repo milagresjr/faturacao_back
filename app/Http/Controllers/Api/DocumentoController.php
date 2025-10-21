@@ -947,6 +947,149 @@ class DocumentoController extends Controller
         ], 201);
     }
 
+    public function transformarDocumento(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            // 1️⃣ Buscar o documento original
+            $documentoOrigem = Documento::with(['itens', 'impostosDocumento', 'meiosPagamento'])
+                ->findOrFail($id);
+
+            // Verifica se já foi transformado
+            if ($documentoOrigem->estado === 'transformado') {
+                return response()->json([
+                    'message' => 'Este documento já foi transformado.'
+                ], 400);
+            }
+
+            // 2️⃣ Determinar tipo de destino (ex: FT)
+            $tipoDestino = $request->input('tipo_destino');
+            $tipoNomeDestino = $request->input('tipo_nome_destino');
+
+            // 3️⃣ Gerar número sequencial da nova faturas
+            $numFatura = $this->gerarNumeroDocumento(
+                $tipoDestino,
+                $documentoOrigem->empresa_id
+            );
+
+            // 4️⃣ Criar novo documento
+            $novoDocumento = Documento::create([
+                'tipo_nome' => $tipoNomeDestino,
+                'tipo_sigla' => $tipoDestino,
+                'num_fatura' => $numFatura,
+                'via' => 'original',
+
+                'empresa_id' => $documentoOrigem->empresa_id,
+                'empresa_nome' => $documentoOrigem->empresa_nome,
+                'empresa_nif' => $documentoOrigem->empresa_nif,
+                'empresa_telefone' => $documentoOrigem->empresa_telefone,
+                'empresa_email' => $documentoOrigem->empresa_email,
+                'empresa_endereco' => $documentoOrigem->empresa_endereco,
+
+                'cliente_id' => $documentoOrigem->cliente_id,
+                'cliente_nome' => $documentoOrigem->cliente_nome,
+                'cliente_nif' => $documentoOrigem->cliente_nif,
+                'cliente_telefone' => $documentoOrigem->cliente_telefone,
+                'cliente_email' => $documentoOrigem->cliente_email,
+                'cliente_endereco' => $documentoOrigem->cliente_endereco,
+
+                'caixa' => $documentoOrigem->caixa,
+                'data_emissao' => $request->input('data_emissao') ?? now(),
+                'data_vencimento' => $request->input('data_vencimento') ?? $documentoOrigem->data_vencimento,
+                'forma_pagamento' => $documentoOrigem->forma_pagamento,
+                'movimenta_stock' => $documentoOrigem->movimenta_stock,
+
+                'taxa_iva' => $documentoOrigem->taxa_iva,
+                'valor_iva' => $documentoOrigem->valor_iva,
+                'retencao' => $documentoOrigem->retencao,
+
+                'estado' => 'emitido',
+                'hash' => 'TRANSFORM-' . uniqid(),
+
+                'desconto_total' => $documentoOrigem->desconto_total,
+                'valor_transporte' => $documentoOrigem->valor_transporte,
+                'total_sem_desconto' => $documentoOrigem->total_sem_desconto,
+                'total_impostos' => $documentoOrigem->total_impostos,
+                'total_geral' => $documentoOrigem->total_geral,
+                'troco' => $documentoOrigem->troco,
+
+                'utilizador_id' => $documentoOrigem->utilizador_id,
+                'utilizador' => $documentoOrigem->utilizador,
+
+                'documento_origem_id' => $documentoOrigem->id, // 🔗 referência
+            ]);
+
+            // 5️⃣ Copiar impostos (quadro)
+            foreach ($documentoOrigem->impostosDocumento as $imp) {
+                ImpostoDocumento::create([
+                    'documento_id' => $novoDocumento->id,
+                    'taxa' => $imp->taxa,
+                    'codigo' => $imp->codigo,
+                    'isento' => $imp->isento,
+                    'motivo_isencao' => $imp->motivo_isencao,
+                    'incidencia' => $imp->incidencia,
+                    'imposto' => $imp->imposto,
+                    'total' => $imp->total,
+                ]);
+            }
+
+            // 6️⃣ Copiar itens
+            $itensCopia = [];
+            foreach ($documentoOrigem->itens as $item) {
+                $itensCopia[] = [
+                    'documento_id' => $novoDocumento->id,
+                    'produto_nome' => $item->produto_nome,
+                    'produto_codigo' => $item->produto_codigo,
+                    'preco_unitario' => $item->preco_unitario,
+                    'descricao' => $item->descricao,
+                    'quantidade' => $item->quantidade,
+                    'desconto_percent' => $item->desconto_percent,
+                    'desconto_fixo' => $item->desconto_fixo,
+                    'iva_percent' => $item->iva_percent,
+                    'imposto_taxa_id' => $item->imposto_taxa_id,
+                    'codigo_iva' => $item->codigo_iva,
+                    'motivo_isencao' => $item->motivo_isencao,
+                    'total_sem_desconto' => $item->total_sem_desconto,
+                    'total' => $item->total,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            $novoDocumento->itens()->createMany($itensCopia);
+
+            // 7️⃣ Copiar meios de pagamento (se quiser manter)
+            if ($documentoOrigem->meiosPagamento) {
+                foreach ($documentoOrigem->meiosPagamento as $mp) {
+                    MeioPagamentoDocumento::create([
+                        'documento_id' => $novoDocumento->id,
+                        'descricao' => $mp->descricao,
+                        'valor' => $mp->valor,
+                    ]);
+                }
+            }
+
+            // 8️⃣ Marcar documento de origem como transformado
+            $documentoOrigem->update(['estado' => 'transformado']);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => "Documento {$documentoOrigem->tipo_sigla} transformado em {$tipoDestino} com sucesso.",
+                'documento_origem' => $documentoOrigem,
+                'documento_novo' => $novoDocumento->load(['itens', 'impostosDocumento']),
+            ]);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Erro ao transformar documento.',
+                'error' => $th->getMessage()
+            ], 500);
+        }
+    }
+
+
     public function storeNotaCredito(Request $request)
     {
         $numFatura = $this->gerarNumeroDocumento(
@@ -1996,7 +2139,7 @@ class DocumentoController extends Controller
         // ⚙️ Base da query
         $query = DB::table('documentos')
             ->where('cliente_id', $clienteId)
-            ->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR', 'NC', 'ND', 'RC','RG']) // Adiciona os tipos relevantes
+            ->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR', 'NC', 'ND', 'RC', 'RG']) // Adiciona os tipos relevantes
             ->select([
                 'id',
                 'tipo_nome',
@@ -2103,7 +2246,7 @@ class DocumentoController extends Controller
         // ⚙️ Base da query
         $query = DB::table('documentos')
             ->where('cliente_id', $clienteId)
-            ->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR', 'NC', 'ND', 'RC','RG']) // Adiciona os tipos relevantes
+            ->whereIn('tipo_sigla', ['FT', 'FA', 'FG', 'FR', 'NC', 'ND', 'RC', 'RG']) // Adiciona os tipos relevantes
             ->select([
                 'id',
                 'tipo_nome',
@@ -2185,7 +2328,7 @@ class DocumentoController extends Controller
             "telefone" => "941608052",
             "email" => "",
         ];
-       
+
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
@@ -2517,7 +2660,7 @@ class DocumentoController extends Controller
         }
 
         // Return a list of all Caixa records
-        $doc = Documento::with(['itens', 'meiosPagamento', 'impostosDocumento', 'documentosRelacionados', 'relacionadoEm'])
+        $doc = Documento::with(['itens', 'meiosPagamento', 'impostosDocumento', 'documentoOrigem', 'documentosRelacionados', 'relacionadoEm'])
             ->where('id', $id)
             ->first();
 

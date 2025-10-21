@@ -69,6 +69,12 @@ return new class extends Migration
 
             $table->string('tipo_documento')->nullable();
 
+            $table->unsignedBigInteger('info_guia_id')->nullable();
+            $table->foreign('info_guia_id')->references('id')->on('info_guias')->onDelete('set null');
+
+            $table->unsignedBigInteger('documento_origem_id')->nullable();
+            $table->foreign('documento_origem_id')->references('id')->on('documentos')->onDelete('set null');
+
             $table->timestamps();
             $table->softDeletes();
         });
