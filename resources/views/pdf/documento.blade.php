@@ -16,7 +16,6 @@
             /* reserva espaço para o rodapé */
         }
 
-
         body {
             margin: 20 20 20 50px;
             /* margem esquerda maior */
@@ -431,12 +430,12 @@
                         {{ number_format($documento->retencao, 2, ',', '.') }}
                     </td>
                 </tr>
-                {{-- <tr>
-                    <td style="text-align: left; padding: 2px;">Subtotal</td>
+                <tr>
+                    <td style="text-align: left; padding: 2px;">Troco</td>
                     <td style="text-align: right; padding: 2px;">
-                        {{ number_format($documento->total_sem_desconto, 2, ',', '.') }}
+                        {{ number_format($documento->troco, 2, ',', '.') }}
                     </td>
-                </tr> --}}
+                </tr>
                 <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
                     <th style="text-align: left; padding: 2px;">Total (Kz)</th>
                     <td style="text-align: right; padding: 2px;">

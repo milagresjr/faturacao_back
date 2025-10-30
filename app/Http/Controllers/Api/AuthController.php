@@ -10,7 +10,7 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        
+
         $request->validate([
             'nome_pessoal' => 'required|string',
             'nome_de_utilizador' => 'required|string|max:255|unique:utilizadores,nome_de_utilizador',
@@ -19,7 +19,7 @@ class AuthController extends Controller
             'senha' => 'required|string|min:8',
             'empresa_id' => 'required|integer|exists:empresas,id',
             'perfil_id' => 'required|integer|exists:perfis,id',
-        ]);        
+        ]);
 
         $utilizador = Utilizador::create([
             'nome_pessoal' => $request->nome_pessoal,
@@ -32,7 +32,7 @@ class AuthController extends Controller
             'perfil_id' => $request->perfil_id,
         ]);
 
-        if(!$utilizador) {
+        if (!$utilizador) {
             return response()->json(['message' => 'User registration failed'], 500);
         }
 
@@ -46,8 +46,8 @@ class AuthController extends Controller
             'senha' => 'required|string',
         ]);
 
-        $utilizador = Utilizador::with(['empresa:id,nome,email,nif,telefone,morada','perfil:id,nome'])
-        ->where('nome_de_utilizador', $request->nome_de_utilizador)->first();
+        $utilizador = Utilizador::with(['empresa:id,nome,email,nif,telefone,morada', 'perfil:id,nome'])
+            ->whereRaw('BINARY nome_de_utilizador = ?', [$request->nome_de_utilizador])->first();
 
         if (!$utilizador || !password_verify($request->senha, $utilizador->senha)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
@@ -65,7 +65,7 @@ class AuthController extends Controller
             'token' => $token
         ], 200);
     }
-    
+
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();

@@ -81,7 +81,13 @@ Route::get('documentos/relatorio', [DocumentoController::class, 'pdfRelatorioDoc
 Route::get('documentos/faturacao-item', [DocumentoController::class, 'listFaturacaoPorItem']);
 Route::get('documentos/conta-corrente-cliente/{clienteId}', [DocumentoController::class, 'listContaCorrenteCliente']);
 Route::get('documentos/relatorio-conta-corrente/{clienteId}', [DocumentoController::class, 'pdfContaCorrenteCliente']);
+Route::get('documentos/pagamentos-em-falta', [DocumentoController::class, 'listPagamentosEmFalta']);
+Route::get('documentos/relatorio-pagamentos-em-falta', [DocumentoController::class, 'pdfPagamentosEmFalta']);
+Route::get('documentos/pagamentos-efetuados', [DocumentoController::class, 'listPagamentosEfetuados']);
+Route::get('documentos/relatorio-pagamentos-efetuados', [DocumentoController::class, 'pdfPagamentosEfetuados']);
 Route::get('documentos/relatorio-faturacao-item', [DocumentoController::class, 'pdfRelatorioFaturacaoPorItem']);
+Route::get('documentos/faturacao-por-colaborador/{utilizadorId}',[DocumentoController::class, 'listFaturacaoPorColaborador']);
+Route::get('documentos/relatorio-faturacao-por-colaborador', [DocumentoController::class, 'pdfRelatorioFaturacaoPorColaborador']);
 Route::apiResource('documentos', DocumentoController::class);
 Route::post('/documentos/{id}/transformar', [DocumentoController::class, 'transformarDocumento']);
 Route::get('documentos/tipo/fatura', [DocumentoController::class, 'listFaturas']);

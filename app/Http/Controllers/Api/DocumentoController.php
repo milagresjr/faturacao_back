@@ -2372,6 +2372,375 @@ class DocumentoController extends Controller
         ]);
     }
 
+    public function listPagamentosEmFalta(Request $request)
+    {
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $perPage = $request->query('per_page', 10);
+        $hoje = now()->toDateString();
+
+        // Base da query
+        $baseQuery = DB::table('documentos as d')
+            // 👇 Liga faturas aos recibos que as pagaram
+            ->leftJoin('documento_relacoes as dr', 'dr.documento_relacionado_id', '=', 'd.id')
+            // 👇 Join dos meios de pagamento dos recibos
+            ->leftJoin('meios_pagamento_documento as mp', 'mp.documento_id', '=', 'dr.documento_id')
+            ->select([
+                'd.id',
+                'd.num_fatura',
+                'd.tipo_sigla',
+                'd.cliente_id',
+                'd.cliente_nome',
+                'd.data_emissao',
+                'd.data_vencimento',
+                'd.total_geral',
+                DB::raw('COALESCE(SUM(mp.valor), 0) as total_pago'),
+                DB::raw('(d.total_geral - COALESCE(SUM(mp.valor), 0)) as valor_em_falta'),
+            ])
+            // Apenas documentos que geram dívida
+            ->whereIn('d.tipo_sigla', ['FT', 'FA', 'FG', 'ND'])
+            ->groupBy(
+                'd.id',
+                'd.num_fatura',
+                'd.tipo_sigla',
+                'd.cliente_id',
+                'd.cliente_nome',
+                'd.data_emissao',
+                'd.data_vencimento',
+                'd.total_geral'
+            )
+            // Somente documentos com saldo em aberto
+            ->havingRaw('(d.total_geral - COALESCE(SUM(mp.valor), 0)) > 0');
+
+
+        // 📅 Filtro por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $baseQuery->whereBetween('d.data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $baseQuery->whereDate('d.data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $baseQuery->whereDate('d.data_emissao', '<=', $dataFinal);
+        }
+
+        // 🔍 Filtro por cliente (opcional)
+        if ($request->filled('cliente_id')) {
+            $baseQuery->where('d.cliente_id', $request->cliente_id);
+        }
+
+        // 📊 Totais de valores vencidos e não vencidos
+        $totais = DB::table(DB::raw("({$baseQuery->toSql()}) as sub"))
+            ->mergeBindings($baseQuery)
+            ->selectRaw("
+            SUM(CASE WHEN data_vencimento >= ? THEN valor_em_falta ELSE 0 END) as total_nao_vencido,
+            SUM(CASE WHEN data_vencimento < ? THEN valor_em_falta ELSE 0 END) as total_vencido,
+            SUM(valor_em_falta) as total_geral
+        ", [$hoje, $hoje])
+            ->first();
+
+        // 🔹 Resultados paginados
+        $resultados = (clone $baseQuery)
+            ->orderBy('d.data_emissao', 'asc')
+            ->paginate($perPage);
+
+        // Retornar tudo junto
+        return response()->json([
+            'data' => $resultados->items(),
+            'current_page' => $resultados->currentPage(),
+            'last_page' => $resultados->lastPage(),
+            'per_page' => $resultados->perPage(),
+            'total' => $resultados->total(),
+            'from' => $resultados->firstItem(),
+            'to' => $resultados->lastItem(),
+            'links' => $resultados->links(),
+            'totais' => $totais,
+        ]);
+    }
+
+    public function pdfPagamentosEmFalta(Request $request)
+    {
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $hoje = now()->toDateString();
+
+        // 🔹 Query base (idêntica à da listagem)
+        $query = DB::table('documentos as d')
+            ->leftJoin('documento_relacoes as dr', 'dr.documento_relacionado_id', '=', 'd.id')
+            ->leftJoin('meios_pagamento_documento as mp', 'mp.documento_id', '=', 'dr.documento_id')
+            ->select([
+                'd.id',
+                'd.num_fatura',
+                'd.tipo_sigla',
+                'd.cliente_id',
+                'd.cliente_nome',
+                'd.data_emissao',
+                'd.data_vencimento',
+                'd.total_geral',
+                DB::raw('COALESCE(SUM(mp.valor), 0) as total_pago'),
+                DB::raw('(d.total_geral - COALESCE(SUM(mp.valor), 0)) as valor_em_falta'),
+            ])
+            ->whereIn('d.tipo_sigla', ['FT', 'FA', 'FG', 'ND'])
+            ->groupBy(
+                'd.id',
+                'd.num_fatura',
+                'd.tipo_sigla',
+                'd.cliente_id',
+                'd.cliente_nome',
+                'd.data_emissao',
+                'd.data_vencimento',
+                'd.total_geral'
+            )
+            ->havingRaw('(d.total_geral - COALESCE(SUM(mp.valor), 0)) > 0')
+            ->orderBy('d.data_emissao', 'asc');
+
+        // 📅 Filtro de datas
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('d.data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $query->whereDate('d.data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $query->whereDate('d.data_emissao', '<=', $dataFinal);
+        }
+
+        // 🔍 Filtro por cliente (opcional)
+        if ($request->filled('cliente_id')) {
+            $query->where('d.cliente_id', $request->cliente_id);
+        }
+
+        // 🔸 Executa a query
+        $resultados = $query->get();
+
+        // 📊 Totais (vencido / não vencido / geral)
+        $totais = DB::table(DB::raw("({$query->toSql()}) as sub"))
+            ->mergeBindings($query)
+            ->selectRaw("
+            SUM(CASE WHEN data_vencimento >= ? THEN valor_em_falta ELSE 0 END) as total_nao_vencido,
+            SUM(CASE WHEN data_vencimento < ? THEN valor_em_falta ELSE 0 END) as total_vencido,
+            SUM(valor_em_falta) as total_geral
+        ", [$hoje, $hoje])
+            ->first();
+
+        // 🏢 Dados da empresa (podes buscar da tabela empresa se quiser)
+        $dadosEmpresa = [
+            "nome" => "Softseven",
+            "endereco" => "Luanda, Camama",
+            "nif" => "999999999",
+            "telefone" => "941608052",
+            "email" => "",
+        ];
+
+        // ⚙️ Configuração DomPDF
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+
+        $dompdf = new Dompdf($options);
+
+        // 📄 Renderiza o HTML da view
+        $html = view('pdf.relatorio-pagamentos-em-falta', compact([
+            'resultados',
+            'dataInicial',
+            'dataFinal',
+            'dadosEmpresa',
+            'totais',
+        ]))->render();
+
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // 🖋️ Rodapé com número de página e assinatura
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf - Processado por programa validado n.º /AGT/2019";
+            $text2 = "Página $pageNumber / $pageCount";
+            $font = $fontMetrics->get_font('Helvetica', 'normal');
+            $size = 10;
+            $x = 40;
+            $y1 = $canvas->get_height() - 50;
+            $y2 = $y1 + 12;
+            $canvas->line($x, $y1 - 5, $canvas->get_width() - $x, $y1 - 5, [0, 0, 0], 1);
+            $canvas->text($x, $y1, $text1, $font, $size);
+            $canvas->text($x, $y2, $text2, $font, $size);
+        });
+
+        // 📁 Nome dinâmico
+        $filename = 'pagamentos_em_falta_' . now()->format('Y-m-d_His') . '.pdf';
+
+        // 📤 Retorna resposta com PDF inline
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    public function listPagamentosEfetuados(Request $request)
+    {
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $perPage = $request->query('per_page', 10);
+
+        $hoje = now()->toDateString();
+
+        // 🧾 Query principal: Recibos (RG, RC) e os documentos pagos
+        $query = DB::table('documentos as rg')
+            ->join('documento_relacoes as dr', 'dr.documento_id', '=', 'rg.id')
+            ->join('documentos as ft', 'ft.id', '=', 'dr.documento_relacionado_id')
+            ->leftJoin('meios_pagamento_documento as mp', 'mp.documento_id', '=', 'rg.id')
+            ->select([
+                'rg.id',
+                'rg.num_fatura as num_recibo',
+                'ft.num_fatura as num_fatura',
+                'rg.cliente_nome',
+                'ft.data_vencimento',
+                'rg.data_emissao',
+                DB::raw('COALESCE(SUM(mp.valor), 0) as valor_pago'),
+            ])
+            ->whereIn('rg.tipo_sigla', ['RG', 'RC']) // apenas Recibos
+            ->where('ft.tipo_sigla', '!=', 'NC') // exclui Notas de Crédito
+            ->groupBy('rg.id', 'rg.num_fatura', 'ft.num_fatura', 'rg.cliente_nome', 'ft.data_vencimento', 'rg.data_emissao')
+            ->orderBy('rg.data_emissao', 'asc');
+
+        // 📅 Filtros de data (data do recibo)
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('rg.data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $query->whereDate('rg.data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $query->whereDate('rg.data_emissao', '<=', $dataFinal);
+        }
+
+        // 🔍 Filtro por cliente (opcional)
+        if ($request->filled('cliente_id')) {
+            $query->where('ft.cliente_id', $request->cliente_id);
+        }
+
+        $resultados = $query->paginate($perPage);
+
+        // 🧮 Totais
+        $colecao = collect($resultados->items());
+
+        $totalVencidos = $colecao->where('data_vencimento', '<', $hoje)->sum('valor_pago');
+        $totalNaoVencidos = $colecao->where('data_vencimento', '>=', $hoje)->sum('valor_pago');
+        $totalGeral = $colecao->sum('valor_pago');
+
+        return response()->json([
+            'data' => $resultados->items(),
+            'current_page' => $resultados->currentPage(),
+            'last_page' => $resultados->lastPage(),
+            'per_page' => $resultados->perPage(),
+            'total' => $resultados->total(),
+            'from' => $resultados->firstItem(),
+            'to' => $resultados->lastItem(),
+            'links' => $resultados->links(),
+            'totais' => [
+                'total_vencido' => $totalVencidos,
+                'total_nao_vencido' => $totalNaoVencidos,
+                'total_geral' => $totalGeral,
+            ],
+        ], 200);
+    }
+
+    public function pdfPagamentosEfetuados(Request $request)
+    {
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+
+        // 🧾 Query principal: Recibos (RG) e os documentos pagos
+        $query = DB::table('documentos as rg')
+            ->join('documento_relacoes as dr', 'dr.documento_id', '=', 'rg.id')
+            ->join('documentos as ft', 'ft.id', '=', 'dr.documento_relacionado_id')
+            ->leftJoin('meios_pagamento_documento as mp', 'mp.documento_id', '=', 'rg.id')
+            ->select([
+                'rg.id',
+                'rg.num_fatura as num_recibo',
+                'ft.num_fatura as num_fatura',
+                'rg.cliente_nome',
+                'ft.data_vencimento',
+                DB::raw('COALESCE(SUM(mp.valor), 0) as valor_pago'),
+            ])
+            ->whereIn('rg.tipo_sigla', ['RG', 'RC']) // apenas Recibos
+            ->where('ft.tipo_sigla', '!=', 'NC') // exclui Notas de Crédito
+            ->groupBy('rg.id', 'rg.num_fatura', 'ft.num_fatura', 'rg.cliente_nome', 'ft.data_vencimento')
+            ->orderBy('rg.data_emissao', 'asc');
+
+        // 📅 Filtro de intervalo de datas (data do Recibo)
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('rg.data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $query->whereDate('rg.data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $query->whereDate('rg.data_emissao', '<=', $dataFinal);
+        }
+
+        // 🔍 Filtro por cliente (opcional)
+        if ($request->filled('cliente_id')) {
+            $query->where('ft.cliente_id', $request->cliente_id);
+        }
+
+        $resultados = $query->get();
+
+        // 🧮 Totais
+        $totalGeral = $resultados->sum('valor_pago');
+
+        $dadosEmpresa = [
+            "nome" => "Softseven",
+            "endereco" => "Luanda, Camama",
+            "nif" => "999999999",
+            "telefone" => "941608052",
+            "email" => "info@softseven.ao",
+        ];
+
+        // ⚙️ Configuração do DOMPDF
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $dompdf = new Dompdf($options);
+
+        $dataAtual = now()->format('d \d\e F \d\e Y');
+
+        $html = view('pdf.relatorio-pagamentos-efetuados', compact(
+            'resultados',
+            'dataInicial',
+            'dataFinal',
+            'dataAtual',
+            'dadosEmpresa',
+            'totalGeral'
+        ))->render();
+
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // 🧾 Rodapé (numeração e texto fixo)
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf - Processado por programa validado n.º /AGT/2019";
+            $text2 = "Página $pageNumber / $pageCount";
+            $font = $fontMetrics->get_font('Helvetica', 'normal');
+            $size = 9;
+            $x = 40;
+            $y1 = $canvas->get_height() - 45;
+            $y2 = $y1 + 10;
+            $lineY = $y1 - 5;
+            $canvas->line($x, $lineY, $canvas->get_width() - $x, $lineY, [0, 0, 0], 1);
+            $canvas->text($x, $y1, $text1, $font, $size);
+            $canvas->text($x, $y2, $text2, $font, $size);
+        });
+
+        $filename = "pagamentos_efetuados";
+
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Access-Control-Allow-Origin' => '*',
+        ]);
+    }
 
     public function listFaturacaoPorItem(Request $request)
     {
@@ -2646,6 +3015,221 @@ class DocumentoController extends Controller
             'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
         ]);
     }
+
+    public function listFaturacaoPorColaborador(Request $request)
+    {
+        $tipo = $request->query('tipo'); // Tipo de documento (FT, FR, etc)
+        $colaboradorId = $request->query('colaborador_id'); // Filtro opcional por colaborador
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+        $perPage = $request->query('per_page', 10);
+
+        // 📄 Query principal
+        $query = DB::table('documentos as d')
+            ->join('utilizadores as u', 'd.utilizador_id', '=', 'u.id')
+            ->select([
+                'd.id',
+                'd.tipo_sigla',
+                'd.tipo_nome',
+                'd.num_fatura',
+                'd.data_emissao',
+                'd.total_sem_desconto',
+                'd.total_geral',
+                'd.cliente_nome',
+                'u.id as colaborador_id',
+                'u.nome_pessoal as colaborador_nome',
+            ]);
+
+        // 🔍 Filtro por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $query->where(function ($q) use ($tipo) {
+                    $q->whereIn('d.tipo_sigla', $tipo)
+                        ->orWhereIn('d.tipo_nome', $tipo);
+                });
+            } else {
+                $query->where(function ($q) use ($tipo) {
+                    $q->where('d.tipo_sigla', $tipo)
+                        ->orWhere('d.tipo_nome', $tipo);
+                });
+            }
+        } else {
+            // Tipos padrão considerados "de faturação"
+            $query->whereIn('d.tipo_sigla', ['FT', 'FA', 'FG', 'FR']);
+        }
+
+        // 👨‍💼 Filtro por colaborador específico
+        if ($colaboradorId) {
+            $query->where('u.id', $colaboradorId);
+        }
+
+        // 📅 Filtro por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('d.data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $query->whereDate('d.data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $query->whereDate('d.data_emissao', '<=', $dataFinal);
+        }
+
+        // 🔢 Paginação
+        $documentos = $query
+            ->orderBy('u.nome_pessoal', 'asc')
+            ->orderBy('d.data_emissao', 'desc')
+            ->paginate($perPage);
+
+        // 📊 Totais globais (para o rodapé do relatório)
+        $totais = (clone $query)->select([
+            DB::raw('SUM(COALESCE(d.total_sem_desconto, 0)) as totalSemDesconto'),
+            DB::raw('SUM(COALESCE(d.total_geral, 0)) as totalFaturado'),
+            DB::raw('COUNT(d.id) as totalDocs')
+        ])->first();
+
+        // 🧾 Retorno final
+        return response()->json([
+            'data' => $documentos->items(),
+            'pagination' => [
+                'current_page' => $documentos->currentPage(),
+                'last_page' => $documentos->lastPage(),
+                'per_page' => $documentos->perPage(),
+                'total' => $documentos->total(),
+                'from' => $documentos->firstItem(),
+                'to' => $documentos->lastItem(),
+            ],
+            'totais' => [
+                'totalDocs' => (float) ($totais->totalDocs ?? 0),
+                'totalSemDesconto' => (float) ($totais->totalSemDesconto ?? 0),
+                'totalFaturado' => (float) ($totais->totalFaturado ?? 0),
+            ],
+        ]);
+    }
+
+    public function pdfRelatorioFaturacaoPorColaborador(Request $request)
+    {
+        $tipo = $request->query('tipo');
+        $colaboradorId = $request->query('colaborador_id');
+        $dataInicial = $request->query('data_inicial');
+        $dataFinal = $request->query('data_final');
+
+        $query = DB::table('documentos as d')
+            ->join('utilizadores as u', 'd.utilizador_id', '=', 'u.id')
+            ->select([
+                'd.id',
+                'd.tipo_sigla',
+                'd.tipo_nome',
+                'd.num_fatura',
+                'd.data_emissao',
+                'd.total_sem_desconto',
+                'd.total_geral',
+                'u.id as colaborador_id',
+                'u.nome_pessoal as colaborador_nome',
+            ]);
+
+        // 📄 Filtro por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $query->where(function ($q) use ($tipo) {
+                    $q->whereIn('d.tipo_sigla', $tipo)
+                        ->orWhereIn('d.tipo_nome', $tipo);
+                });
+            } else {
+                $query->where(function ($q) use ($tipo) {
+                    $q->where('d.tipo_sigla', $tipo)
+                        ->orWhere('d.tipo_nome', $tipo);
+                });
+            }
+        } else {
+            $query->whereIn('d.tipo_sigla', ['FT', 'FA', 'FG', 'FR']);
+        }
+
+        // 👨‍💼 Filtro por colaborador
+        if ($colaboradorId) {
+            $query->where('u.id', $colaboradorId);
+        }
+
+        // 📅 Filtro por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('d.data_emissao', [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $query->whereDate('d.data_emissao', '>=', $dataInicial);
+        } elseif ($dataFinal) {
+            $query->whereDate('d.data_emissao', '<=', $dataFinal);
+        }
+
+        // 🔢 Ordenação
+        $query->orderBy('u.nome_pessoal', 'asc')->orderBy('d.data_emissao', 'desc');
+
+        $documentos = $query->get();
+
+        // 📊 Totais gerais
+        $totalDocs = $documentos->count();
+        $totalSemDesconto = $documentos->sum('total_sem_desconto');
+        $totalFaturado = $documentos->sum('total_geral');
+
+        // 📋 Dados da empresa
+        $dadosEmpresa = [
+            "nome" => "Softseven",
+            "endereco" => "Luanda, Camama",
+            "nif" => "999999999",
+            "telefone" => "941608052",
+            "email" => "geral@softseven.ao"
+        ];
+
+        // 🧾 Agrupar documentos por colaborador
+        $documentosPorColaborador = $documentos->groupBy('colaborador_nome');
+
+        // 🖨️ Gerar o PDF
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+
+        $dompdf = new Dompdf($options);
+
+        $html = view('pdf.relatorio-faturacao-colaborador', compact([
+            'documentosPorColaborador',
+            'dataInicial',
+            'dataFinal',
+            'totalDocs',
+            'totalSemDesconto',
+            'totalFaturado',
+            'dadosEmpresa'
+        ]))->render();
+
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // Rodapé com paginação e mensagem legal
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $text1 = "FzBf - Processado por programa validado n. /AGT/2019";
+            $text2 = "Página $pageNumber / $pageCount";
+            $font = $fontMetrics->get_font('Helvetica', 'normal');
+            $size = 10;
+
+            $x = 40;
+            $y1 = $canvas->get_height() - 50;
+            $y2 = $y1 + 12;
+
+            $lineY = $y1 - 5;
+            $canvas->line($x, $lineY, $canvas->get_width() - $x, $lineY, [0, 0, 0], 1);
+
+            $canvas->text($x, $y1, $text1, $font, $size);
+            $canvas->text($x, $y2, $text2, $font, $size);
+        });
+
+        $filename = "relatorio_faturacao_colaborador.pdf";
+
+        return new StreamedResponse(function () use ($dompdf, $filename) {
+            echo $dompdf->stream($filename, ["Attachment" => false]);
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Access-Control-Allow-Origin' => 'https://softseven-faturacao-front.vercel.app',
+        ]);
+    }
+
 
     /**
      * Display the specified resource.
