@@ -64,12 +64,12 @@ class ProdutoController extends Controller
             'preco_final' => 'required|numeric',
             'margem_lucro' => 'required|numeric',
             'valor_iva' => 'required|numeric',
-            'stock_min' => 'required|integer',
-            'stock_max' => 'required|integer',
-            'stock_ideial' => 'required|integer',
+            'stock_min' => 'nullable|integer',
+            'stock_max' => 'nullable|integer',
+            'stock_ideial' => 'nullable|integer',
             'modelo' => 'nullable|string|max:255',
             'imagem' => 'nullable|file|image|max:2048',
-            'movimenta_stock' => 'required|boolean',
+            'movimenta_stock' => 'nullable|boolean',
             'codigo_produto' => 'nullable|string|max:255',
             'codigo_barra' => 'nullable|string|max:255',
             'data_validade' => 'nullable|date',
@@ -79,7 +79,7 @@ class ProdutoController extends Controller
             'tipo_stock_id' => 'required|integer|exists:tipo_stock,id',
             'marca_id' => 'nullable|integer|exists:marcas,id',
             'tipo_id' => 'required|integer|exists:tipo_produtos,id',
-            'armazem_id' => 'required|integer|exists:armazens,id',
+            'armazem_id' => 'nullable|integer|exists:armazens,id',
             'categoria_id' => 'nullable|integer|exists:categorias,id',
             'sub_categoria_id' => 'nullable|integer|exists:sub_categorias,id',
             'empresa_id' => 'required|integer|exists:empresas,id',
@@ -117,7 +117,8 @@ class ProdutoController extends Controller
         }
 
         $produto = Produto::create($data);
-        return response()->json($produto, 201);
+
+        return response()->json($produto->load(['marca', 'categoria', 'subCategoria', 'armazem', 'tipoIva', 'motivoIsencao', 'fornecedor', 'movimentosStock']), 201);
     }
 
 

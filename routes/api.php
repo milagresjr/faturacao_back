@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\MotivoIsencaoController;
 use App\Http\Controllers\Api\MovimentoStockController;
 use App\Http\Controllers\Api\TipoStockController;
 use App\Http\Controllers\Api\TipoTaxaIvaController;
+use App\Http\Controllers\Api\UnidadeController;
 use App\Http\Middleware\AuthenticateWithRememberToken;
 
 // Route::get('/user', function (Request $request) {
@@ -49,7 +50,6 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
 
     // Add your protected routes here
-    Route::apiResource('empresas', EmpresaController::class);
     Route::apiResource('marcas', MarcaController::class);
     Route::apiResource('tipo-produtos', TipoProdutoController::class);
     Route::apiResource('categoria-produtos', CategoriaProdutoController::class);
@@ -63,16 +63,19 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::get('motivo-isencao', [MotivoIsencaoController::class, 'index']);
     Route::apiResource('tipo-stock', TipoStockController::class);
     Route::apiResource('movimento-stock', MovimentoStockController::class);
-
+    
     //Route::apiResource('utilizadores', UtilizadorController::class);
-
+    
     Route::apiResource('tipos-taxa-iva', TipoTaxaIvaController::class);
-
+    
     Route::apiResource('contas', ContaController::class);
     Route::apiResource('bancos', BancoController::class);
-
+    
     Route::apiResource('caixas', CaixaController::class);
 });
+Route::apiResource('unidades', UnidadeController::class);
+Route::patch('/unidades/{id}/definir-predefinida', [UnidadeController::class, 'definirComoPredefinida']);
+Route::apiResource('empresas', EmpresaController::class);
 Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);
 Route::post('documentos/nota-credito', [DocumentoController::class, 'storeNotaCredito']);
 Route::post('documentos/fatura-compra', [DocumentoController::class, 'storeFaturaCompra']);

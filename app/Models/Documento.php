@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\EstadoDocumento;
+use App\Enums\EstadoPagamento;
+use App\Enums\EstadoVencimento;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -13,6 +16,10 @@ class Documento extends Model
         'tipo_nome',
         'tipo_sigla',
         'tipo_cor',
+
+        'estado_documento',
+        'estado_pagamento',
+        'estado_vencimento',
 
         'num_fatura',
         'via',
@@ -74,6 +81,12 @@ class Documento extends Model
         'documento_origem_id',
     ];
 
+    protected $casts = [
+        'estado_documento' => EstadoDocumento::class,
+        'estado_pagamento' => EstadoPagamento::class,
+        'estado_vencimento' => EstadoVencimento::class
+    ];
+
     public function itens(): HasMany
     {
         return $this->hasMany(ItemDocumento::class, 'documento_id', 'id');
@@ -131,4 +144,6 @@ class Documento extends Model
     {
         return $this->belongsTo(Empresa::class, 'empresa_id', 'id');
     }
+
+    
 }

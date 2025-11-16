@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EstadoPagamento;
+use App\Enums\EstadoVencimento;
 use App\Http\Controllers\Controller;
 use App\Models\Banco;
 use App\Models\BancoDocumento;
@@ -506,6 +508,10 @@ class DocumentoController extends Controller
             'sigla_fatura' => 'required|string',
             'tipo_cor' => 'nullable|string',
 
+            'estado_documento' => 'nullable|string',
+            'estado_pagamento' => 'nullable|string',
+            'estado_vencimento' => 'nullable|string',
+
             'empresa_id' => 'nullable|integer',
             'empresa_nome' => 'required|string',
             'empresa_nif' => 'required|integer',
@@ -750,13 +756,26 @@ class DocumentoController extends Controller
                 ]);
             }
 
+            //verifica o estado de pagamento
+            if ($totalFinal - $totalEntregue <= 0) {
+                $request['estado_pagamento'] = EstadoPagamento::PAGO;
+            } elseif ($totalEntregue > 0 && $totalFinal - $totalEntregue > 0) {
+                $request['estado_pagamento'] = EstadoPagamento::PARCIALMENTE_PAGO;
+            } else {
+                $request['estado_pagamento'] = EstadoPagamento::NAO_PAGO;
+            }
+
             // Criação do documento
             $documento = Documento::create([
                 'tipo_nome' => $request['tipo_fatura'],
                 'tipo_sigla' => $request['sigla_fatura'],
                 //'tipo_cor' => $request['tipo_cor'],
 
-                'num_fatura' => $numFatura,
+                'estado_documento' => $request['estado_documento'] ?? 'emitido',
+                'estado_pagamento' => $request['estado_pagamento'] ?? 'por_pagar',
+                'estado_vencimento' => $request['estado_vencimento'] ?? 'no_prazo',
+
+                'num_fatura' => $request['estado_documento'] === 'rascunho' ? '' : $numFatura,
                 'via' => 'original',
 
                 'empresa_id' => $request['empresa_id'],
@@ -906,18 +925,18 @@ class DocumentoController extends Controller
 
         // Criar Recibo caso o tipo de vencimento for a prazo
         if ($request->has('is_apronto') && $request->input('is_apronto') === '1') {
-            // return "hgfthft";
+
             // Se for um APRONTO, relaciona com o documento relacionado
             $request->merge([
                 'tipo_nome' => 'Recibo',
-                'tipo_sigla' => 'RG',
+                'tipo_sigla' => 'RC',
                 'total_geral' => $totalFinal,
                 'documento_relacionado_id' => $documento->id,
             ]);
 
             $data = [
                 'tipo_fatura' => 'Recibo', // "RECIBO"
-                'sigla_fatura' => "RG",
+                'sigla_fatura' => "RC",
                 'total_geral' => $totalFinal,
                 'documento_relacionado_id' => $documento->id,
                 'empresa_id' => $documento->empresa_id,
@@ -1416,7 +1435,7 @@ class DocumentoController extends Controller
                 'produto_nome' => $item['produto_nome'],
                 'produto_codigo' => $item['codigo_produto'],
                 'preco_unitario' => $item['preco_venda'],
-                'descricao' => $item['descricao'],
+                'descricao' => $item['descricao'] ?? "",
                 'quantidade' => $item['quantidade'],
                 'desconto_percent' => $item['desconto_percent'],
                 'desconto_fixo' => $item['desconto_fixo'],
