@@ -92,6 +92,8 @@ Route::get('documentos/relatorio-faturacao-item', [DocumentoController::class, '
 Route::get('documentos/faturacao-por-colaborador/{utilizadorId}',[DocumentoController::class, 'listFaturacaoPorColaborador']);
 Route::get('documentos/relatorio-faturacao-por-colaborador', [DocumentoController::class, 'pdfRelatorioFaturacaoPorColaborador']);
 Route::apiResource('documentos', DocumentoController::class);
+Route::patch('documentos/{id}/finalizar', [DocumentoController::class, 'finalizarDocRascunho']);
+Route::delete('documentos/{id}/delete-rascunho',[DocumentoController::class, 'destroyDocRascunho']);
 Route::post('/documentos/{id}/transformar', [DocumentoController::class, 'transformarDocumento']);
 Route::get('documentos/tipo/fatura', [DocumentoController::class, 'listFaturas']);
 Route::get('documentos/tipo/fatura-proforma', [DocumentoController::class, 'listFaturaProforma']);

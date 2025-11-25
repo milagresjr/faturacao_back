@@ -51,6 +51,7 @@ class Documento extends Model
         'valor_iva',
         'retencao',
 
+        'desconto_tipo',
         'desconto_total',
         'valor_transporte',
 
