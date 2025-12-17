@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Armazem;
+use App\Models\Documento;
+use App\Models\Empresa;
 use App\Models\MovimentoStock;
 use App\Models\Produto;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -48,15 +52,23 @@ class MovimentoStockController extends Controller
     {
         $data = $request->all();
 
-        // Validação do array de objetos
         $validator = Validator::make($data, [
-            '*.produto_id' => ['required', 'exists:produtos,id'],
-            '*.armazem_id' => ['required', 'exists:armazens,id'],
-            '*.quantidade' => ['required', 'integer'],
-            '*.operacao' => ['required', Rule::in(['entrada', 'saida', 'ajuste'])],
-            '*.observacao' => ['nullable', 'string'],
-            '*.origem_movimento' => ['nullable', 'string'],
-            '*.utilizador_id' => ['nullable', 'exists:utilizadores,id'],
+            'tipo_movimento' => ['required', Rule::in([
+                'entrada',
+                'saida',
+                'transferencia',
+                'nota_quebra',
+                'entrada_inventario',
+                'saida_inventario'
+            ])],
+            'armazem_id' => ['nullable', 'exists:armazens,id'],
+            'utilizador_id' => ['nullable', 'exists:utilizadores,id'],
+            'itens' => ['nullable', 'array'],
+            'itens.*.produto_id' => ['required', 'exists:produtos,id'],
+            'itens.*.quantidade' => ['required', 'integer'],
+            'itens.*.observacao' => ['nullable', 'string'],
+            'itens.*.armazem_origem_id' => ['nullable', 'exists:armazens,id'],
+            'itens.*.armazem_destino_id' => ['nullable', 'exists:armazens,id'],
         ]);
 
         if ($validator->fails()) {
@@ -66,66 +78,354 @@ class MovimentoStockController extends Controller
             ], 422);
         }
 
-        $movimentos = collect($data)->flatMap(function ($item) {
-            // Se for AJUSTE, então insere dois movimentos: saída do stock atual e entrada do novo valor
+        DB::beginTransaction();
 
-            if (strtolower($item['operacao']) === 'saida') {
-                // Calcular stock atual no armazém
-                $stockAtual = MovimentoStock::where('produto_id', $item['produto_id'])
-                    ->where('armazem_id', $item['armazem_id'])
-                    ->get()
-                    ->sum(function ($mov) {
-                        return in_array(strtolower($mov->operacao), ['saida', 'ajuste negativo']) ? -$mov->quantidade : $mov->quantidade;
-                    });
+        try {
 
-                if ($item['quantidade'] > $stockAtual) {
-                    $produtoNome = optional(Produto::find($item['produto_id']))->nome ?? 'Produto desconhecido';
-                    throw new \Exception("A quantidade de saída ({$item['quantidade']}) excede o stock disponível ({$stockAtual}) para o produto '{$produtoNome}'.");
-                    return;
-                }
-            }
+            $result = null;
 
-            if (strtolower($item['operacao']) === 'ajuste') {
-                // Calcular stock atual no armazém
-                $stockAtual = MovimentoStock::where('produto_id', $item['produto_id'])
-                    ->where('armazem_id', $item['armazem_id'])
-                    ->get()
-                    ->sum(function ($mov) {
-                        return in_array(strtolower($mov->operacao), ['saida', 'ajuste negativo']) ? -$mov->quantidade : $mov->quantidade;
-                    });
+            if ($data['tipo_movimento'] === 'nota_quebra') {
 
-                return [
-                    MovimentoStock::create([
+                $documento = $this->storeDocumentNotaDeQuebra($request);
+                $movimentos = [];
+
+                foreach ($data['itens'] as $item) {
+                    $movimentos[] = MovimentoStock::create([
+                        'armazem_id' => $data['armazem_id'],
                         'produto_id' => $item['produto_id'],
-                        'armazem_id' => $item['armazem_id'],
-                        'quantidade' => -$stockAtual,
-                        'operacao' => 'ajuste',
-                        'observacao' => $item['observacao'],
-                        'origem_movimento' => $item['origem_movimento'],
-                        'utilizador_id' => $item['utilizador_id'],
-                    ]),
-                    MovimentoStock::create([
-                        'produto_id' => $item['produto_id'],
-                        'armazem_id' => $item['armazem_id'],
                         'quantidade' => $item['quantidade'],
-                        'operacao' => 'ajuste',
-                        'observacao' => $item['observacao'],
-                        'origem_movimento' => $item['origem_movimento'],
-                        'utilizador_id' => $item['utilizador_id'],
-                    ]),
+                        'operacao' => 'nota_quebra',
+                        'observacao' => $item['observacao'] ?? null,
+                        'utilizador_id' => $data['utilizador_id'] ?? null,
+                        'origem_movimento' => $documento->num_fatura,
+                        'documento_relacionado_id' => $documento->id,
+                    ]);
+                }
+
+                $result = [
+                    'message' => 'Movimentos de stock para Nota de Quebra registrados com sucesso',
+                    'data' => $movimentos
+                ];
+            } elseif ($data['tipo_movimento'] === 'transferencia') {
+
+                $movimentos = [];
+
+                foreach ($data['itens'] as $item) {
+
+                    $movimentos[] = MovimentoStock::create([
+                        'armazem_id' => $item['armazem_origem_id'],
+                        'produto_id' => $item['produto_id'],
+                        'quantidade' => $item['quantidade'],
+                        'operacao' => 'saida',
+                        'observacao' => $item['observacao'] ?? null,
+                        'utilizador_id' => $data['utilizador_id'] ?? null,
+                    ]);
+
+                    $movimentos[] = MovimentoStock::create([
+                        'armazem_id' => $item['armazem_destino_id'],
+                        'produto_id' => $item['produto_id'],
+                        'quantidade' => $item['quantidade'],
+                        'operacao' => 'entrada',
+                        'observacao' => $item['observacao'] ?? null,
+                        'utilizador_id' => $data['utilizador_id'] ?? null,
+                    ]);
+                }
+
+                $result = [
+                    'message' => 'Transferência realizada com sucesso',
+                    'data' => $movimentos
+                ];
+            } elseif ($data['tipo_movimento'] === 'saida_inventario' || $data['tipo_movimento'] === 'entrada_inventario') {
+
+                $documento = $this->storeDocumentInventario($request, $data['tipo_movimento']);
+
+                $movimentos = [];
+
+                foreach ($data['itens'] as $item) {
+                    $movimentos[] = MovimentoStock::create([
+                        'armazem_id' => $data['armazem_id'],
+                        'produto_id' => $item['produto_id'],
+                        'quantidade' => $item['quantidade'],
+                        'operacao' => $data['tipo_movimento'],
+                        'observacao' => $item['observacao'] ?? null,
+                        'origem_movimento' => $documento->num_fatura,
+                        'utilizador_id' => $data['utilizador_id'] ?? null,
+                        'documento_relacionado_id' => $documento->id,
+                    ]);
+                }
+
+                $result = [
+                    'message' => 'Movimentação registrada com sucesso',
+                    'data' => $movimentos
+                ];
+            } else {
+                $movimentos = [];
+
+                foreach ($data['itens'] as $item) {
+                    $movimentos[] = MovimentoStock::create([
+                        'armazem_id' => $data['armazem_id'],
+                        'produto_id' => $item['produto_id'],
+                        'quantidade' => $item['quantidade'],
+                        'operacao' => $data['tipo_movimento'],
+                        'observacao' => $item['observacao'] ?? null,
+                        'utilizador_id' => $data['utilizador_id'] ?? null,
+                        'origem_movimento' => 'Manual',
+                        'documento_relacionado_id' => null,
+                    ]);
+                }
+
+                $result = [
+                    'message' => 'Movimentação registrada com sucesso',
+                    'data' => $movimentos
                 ];
             }
 
-            // Caso contrário (entrada ou saída normal)
-            return [MovimentoStock::create($item)];
-        });
+            DB::commit();
 
-        return response()->json([
-            'message' => 'Movimentações registradas com sucesso',
-            'data' => $movimentos,
-        ], 201);
+            return response()->json($result, 201);
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Erro ao processar movimentação de stock',
+                'error'   => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+            ], 500);
+        }
     }
 
+    function resolveOperacao(string $tipo): string
+    {
+        return in_array($tipo, [
+            'saida',
+            'saida_inventario',
+            'nota_quebra'
+        ]) ? '-' : '+';
+    }
+
+    public function storeDocumentNotaDeQuebra(Request $request)
+    {
+
+        $numFatura = app(DocumentoController::class)->gerarNumeroDocumento(
+            'NQ',
+            $request->input("empresa_id"),
+        );
+
+        $data = $request->all();
+
+        $itens = $data['itens'] ?? [];
+
+        $totalGeral = 0;
+        foreach ($itens as $item) {
+            $totalItem = ($item['preco_custo'] * $item['quantidade']);
+            $totalGeral += $totalItem;
+        }
+
+        $empresa = Empresa::find($request->input("empresa_id"));
+
+        try {
+
+            DB::beginTransaction();
+
+            $documento = Documento::create([
+                'tipo_nome' => 'Nota de Quebra',
+                'tipo_sigla' => 'NQ',
+                'estado_documento' => 'emitido',
+                'num_fatura' => $numFatura,
+                'via' => 'original',
+
+                "empresa_id" => $empresa->id,
+                "empresa_nome" => $empresa->nome,
+                "empresa_nif" => $empresa->nif,
+                "empresa_telefone" => $empresa->telefone,
+                "empresa_email" => $empresa->email,
+                "empresa_endereco" => $empresa->endereco,
+
+                "cliente_id" => "0",
+                "cliente_nome" => "",
+                "cliente_nif" => "",
+                "cliente_telefone" => "",
+                "cliente_email" => "",
+                "cliente_endereco" => "",
+
+                "data_emissao" => now(),
+
+                "taxa_iva" => "0",
+                "valor_iva" => "0",
+                "retencao" => "0",
+
+                "estado" => "emitido",
+
+                "hash" => "",
+
+                "desconto_tipo" => "0",
+                "desconto_total" => "0",
+                "valor_transporte" => "0",
+                "total_sem_desconto" => "0",
+                "total_impostos" => "0",
+                "total_geral" => $totalGeral,
+                "troco" => "0",
+
+                "utilizador_id" => $request["utilizador_id"],
+                "utilizador" => $request["utilizador"],
+
+            ]);
+
+            // Criação dos itens
+            $itens = [];
+            foreach ($request["itens"] as $item) {
+
+                $totalItem = ($item["preco_custo"] * $item["quantidade"]);
+                $produto = Produto::find($item["produto_id"]);
+
+                $itens[] = [
+                    "documento_id" => $documento->id,
+                    "produto_nome" => $produto->nome,
+                    "produto_codigo" => $produto->codigo_produto,
+                    "preco_unitario" => $item["preco_custo"],
+                    "descricao" => $produto->descricao,
+                    "quantidade" => $item["quantidade"],
+                    "desconto_percent" => 0,
+                    "desconto_fixo" => 0,
+                    "iva_percent" => 0,
+                    "imposto_taxa_id" => null,
+                    "codigo_iva" => null,
+                    "tipo_id" => $produto->tipo_id,
+                    "motivo_isencao" => null,
+                    "total_sem_desconto" => 0,
+                    "total" => $totalItem,
+                    // Adicione outros campos conforme necessário
+                ];
+            }
+
+            $documento->itens()->createMany($itens);
+
+            DB::commit();
+
+            return $documento;
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Erro ao criar documento de nota de quebra',
+                'error' => $th->getMessage(),
+                'file' => $th->getFile(),
+                'line' => $th->getLine(),
+            ], 500);
+        }
+    }
+
+    public function storeDocumentInventario(Request $request, string $tipo)
+    {
+
+        $numFatura = app(DocumentoController::class)->gerarNumeroDocumento(
+            $tipo === 'entrada_inventario' ? 'EI' : 'SI',
+            $request->input("empresa_id"),
+        );
+
+        $data = $request->all();
+
+        $itens = $data['itens'] ?? [];
+
+        $totalGeral = 0;
+        foreach ($itens as $item) {
+            $totalItem = ($item['preco_custo'] * $item['quantidade']);
+            $totalGeral += $totalItem;
+        }
+
+        $empresa = Empresa::find($request->input("empresa_id"));
+
+        try {
+
+            DB::beginTransaction();
+
+            $documento = Documento::create([
+                'tipo_nome' => $tipo === 'entrada_inventario' ? 'Entrada de Inventário' : 'Saída de Inventário',
+                'tipo_sigla' => $tipo === 'entrada_inventario' ? 'EI' : 'SI',
+                'estado_documento' => 'emitido',
+                'num_fatura' => $numFatura,
+                'via' => 'original',
+
+                "empresa_id" => $empresa->id,
+                "empresa_nome" => $empresa->nome,
+                "empresa_nif" => $empresa->nif,
+                "empresa_telefone" => $empresa->telefone,
+                "empresa_email" => $empresa->email,
+                "empresa_endereco" => $empresa->endereco,
+
+                "cliente_id" => "0",
+                "cliente_nome" => "",
+                "cliente_nif" => "",
+                "cliente_telefone" => "",
+                "cliente_email" => "",
+                "cliente_endereco" => "",
+
+                "data_emissao" => now(),
+
+                "taxa_iva" => "0",
+                "valor_iva" => "0",
+                "retencao" => "0",
+
+                "estado" => "emitido",
+
+                "hash" => "",
+
+                "desconto_tipo" => "0",
+                "desconto_total" => "0",
+                "valor_transporte" => "0",
+                "total_sem_desconto" => "0",
+                "total_impostos" => "0",
+                "total_geral" => $totalGeral,
+                "troco" => "0",
+
+                "utilizador_id" => $request["utilizador_id"],
+                "utilizador" => $request["utilizador"],
+
+            ]);
+
+            // Criação dos itens
+            $itens = [];
+            foreach ($request["itens"] as $item) {
+
+                $totalItem = ($item["preco_custo"] * $item["quantidade"]);
+                $produto = Produto::find($item["produto_id"]);
+
+                $itens[] = [
+                    "documento_id" => $documento->id,
+                    "produto_nome" => $produto->nome,
+                    "produto_codigo" => $produto->codigo_produto,
+                    "preco_unitario" => $item["preco_custo"],
+                    "descricao" => $produto->descricao,
+                    "quantidade" => $item["quantidade"],
+                    "desconto_percent" => 0,
+                    "desconto_fixo" => 0,
+                    "iva_percent" => 0,
+                    "imposto_taxa_id" => null,
+                    "codigo_iva" => null,
+                    "tipo_id" => $produto->tipo_id,
+                    "motivo_isencao" => null,
+                    "total_sem_desconto" => 0,
+                    "total" => $totalItem,
+                    // Adicione outros campos conforme necessário
+                ];
+            }
+
+            $documento->itens()->createMany($itens);
+
+            DB::commit();
+
+            return $documento;
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Erro ao criar documento de inventário',
+                'error' => $th->getMessage(),
+                'file' => $th->getFile(),
+                'line' => $th->getLine(),
+            ], 500);
+        }
+    }
 
     /**
      * Display the specified resource.

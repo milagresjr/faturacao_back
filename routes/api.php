@@ -62,16 +62,16 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     //Route::apiResource('produtos', ProdutoController::class);
     Route::get('motivo-isencao', [MotivoIsencaoController::class, 'index']);
     Route::apiResource('tipo-stock', TipoStockController::class);
-    Route::apiResource('movimento-stock', MovimentoStockController::class);
-    
+
     //Route::apiResource('utilizadores', UtilizadorController::class);
-    
+
     Route::apiResource('tipos-taxa-iva', TipoTaxaIvaController::class);
-    
+
     Route::apiResource('contas', ContaController::class);
     Route::apiResource('bancos', BancoController::class);
-    
+
     Route::apiResource('caixas', CaixaController::class);
+    Route::apiResource('movimento-stock', MovimentoStockController::class);
 });
 Route::apiResource('unidades', UnidadeController::class);
 Route::patch('/unidades/{id}/definir-predefinida', [UnidadeController::class, 'definirComoPredefinida']);
@@ -89,11 +89,11 @@ Route::get('documentos/relatorio-pagamentos-em-falta', [DocumentoController::cla
 Route::get('documentos/pagamentos-efetuados', [DocumentoController::class, 'listPagamentosEfetuados']);
 Route::get('documentos/relatorio-pagamentos-efetuados', [DocumentoController::class, 'pdfPagamentosEfetuados']);
 Route::get('documentos/relatorio-faturacao-item', [DocumentoController::class, 'pdfRelatorioFaturacaoPorItem']);
-Route::get('documentos/faturacao-por-colaborador/{utilizadorId}',[DocumentoController::class, 'listFaturacaoPorColaborador']);
+Route::get('documentos/faturacao-por-colaborador/{utilizadorId?}', [DocumentoController::class, 'listFaturacaoPorColaborador']);
 Route::get('documentos/relatorio-faturacao-por-colaborador', [DocumentoController::class, 'pdfRelatorioFaturacaoPorColaborador']);
 Route::apiResource('documentos', DocumentoController::class);
 Route::patch('documentos/{id}/finalizar', [DocumentoController::class, 'finalizarDocRascunho']);
-Route::delete('documentos/{id}/delete-rascunho',[DocumentoController::class, 'destroyDocRascunho']);
+Route::delete('documentos/{id}/delete-rascunho', [DocumentoController::class, 'destroyDocRascunho']);
 Route::post('/documentos/{id}/transformar', [DocumentoController::class, 'transformarDocumento']);
 Route::get('documentos/tipo/fatura', [DocumentoController::class, 'listFaturas']);
 Route::get('documentos/tipo/fatura-proforma', [DocumentoController::class, 'listFaturaProforma']);

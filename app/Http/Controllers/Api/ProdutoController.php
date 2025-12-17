@@ -27,7 +27,7 @@ class ProdutoController extends Controller
         }
 
         $produtos = $produtoQuery
-           // ->where('empresa_id', $request->empresa_id) // Filtra por empresa_id
+            // ->where('empresa_id', $request->empresa_id) // Filtra por empresa_id
             ->with(['marca', 'categoria', 'subCategoria', 'armazem', 'tipoIva', 'motivoIsencao', 'fornecedor', 'movimentosStock'])
             ->orderByDesc('id')
             ->paginate($per_page);
@@ -94,8 +94,8 @@ class ProdutoController extends Controller
         $data = $request->all();
 
         $codigoProduto = $this->gerarCodigoProduto($request->nome, $request->tipo_id == 1 ? 'P' : 'S', $request->empresa_id);
-        
-        if(empty($data['codigo_produto'])) {
+
+        if (empty($data['codigo_produto'])) {
             $data['codigo_produto'] = $codigoProduto; // Gera o código se não for fornecido
         } else {
             // Verifica se o código já existe
@@ -125,7 +125,7 @@ class ProdutoController extends Controller
     function gerarCodigoProduto(string $nomeProduto, string $tipo, string $empresaId): string
     {
         $prefixoMarca = strtoupper(Str::substr(Str::slug($nomeProduto, ''), 0, 3)); // Ex: "Asus x8" → "ASU"
-        $prefixo =  $tipo == 'P' ? 'P'. $prefixoMarca : 'S' . $prefixoMarca; // Ex: 'VASU'
+        $prefixo =  $tipo == 'P' ? 'P' . $prefixoMarca : 'S' . $prefixoMarca; // Ex: 'VASU'
 
         $data = Carbon::now()->format('ymd'); // Ex: 250708
 
@@ -133,28 +133,39 @@ class ProdutoController extends Controller
         $hoje = Carbon::today();
 
         $ultimoProduto = Produto::where('empresa_id', $empresaId)
-        ->orderByDesc('id')->first();
+            ->orderByDesc('id')->first();
 
         $ultimoId = $ultimoProduto ? $ultimoProduto->id : 0;
 
-       /* $sequencia = Produto::where('codigo_produto', 'like', "{$prefixo}-{$data}%")
+        /* $sequencia = Produto::where('codigo_produto', 'like', "{$prefixo}-{$data}%")
             ->whereDate('created_at', $hoje)
             ->count() + 1; */
 
         $nextId = $ultimoId + 1; // Incrementa o ID do último produto
 
-        $codigo = "{$prefixo}".str_pad($nextId, 2, '0', STR_PAD_LEFT)."-{$data}";
-    
+        $codigo = "{$prefixo}" . str_pad($nextId, 2, '0', STR_PAD_LEFT) . "-{$data}";
+
         return $codigo;
     }
 
     public function show($id)
     {
-        $produto = Produto::find($id);
+        $produto = Produto::with('movimentosStock')->findOrFail($id);
 
-        if (!$produto) {
-            return response()->json(['message' => 'Produto not found'], 404);
-        }
+        // Cálculo do stock por armazém (mesma lógica do index)
+        $quantidades = $produto->movimentosStock
+            ->groupBy('armazem_id')
+            ->map(function ($movimentos) {
+                return $movimentos->sum(function ($movimento) {
+                    if (in_array(strtolower($movimento->operacao), ['saida', 'ajuste negativo'])) {
+                        return -$movimento->quantidade;
+                    } else {
+                        return $movimento->quantidade;
+                    }
+                });
+            });
+
+        $produto->quantidades = $quantidades;
 
         return response()->json($produto);
     }

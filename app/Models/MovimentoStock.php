@@ -17,6 +17,9 @@ class MovimentoStock extends Model
         'observacao',
         'utilizador_id',
         'origem_movimento',
+        'armazem_origem_id',
+        'armazem_destino_id',
+        'documento_relacionado_id',
     ];
 
     /**

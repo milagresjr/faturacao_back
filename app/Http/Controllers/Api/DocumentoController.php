@@ -14,6 +14,7 @@ use App\Models\ImpostoDocumento;
 use App\Models\InfoGuia;
 use App\Models\MeioPagamentoDocumento;
 use App\Models\TipoTaxaIva;
+use App\Services\DocumentoService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -111,6 +112,9 @@ class DocumentoController extends Controller
                 }
             });
         } */
+
+        //Nao trazer NQ, EI e SI
+        $documentoQuery->whereNotIn("tipo_sigla", ["NQ", "EI", "SI"]);
 
         $documentos = $documentoQuery
             ->with([
@@ -529,7 +533,7 @@ class DocumentoController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, DocumentoService $documentoService)
     {
         $numFatura = $this->gerarNumeroDocumento(
             $request->input("sigla_fatura"),
@@ -1054,6 +1058,11 @@ class DocumentoController extends Controller
             );
         }
 
+        //Se movimentar stock for true, atualiza o stock
+        if ($request->input("movimenta_stock")) {
+            $documentoService->updateStock($documento);
+        }
+
         return response()->json(
             [
                 "message" => "Documento criado com sucesso.",
@@ -1065,14 +1074,14 @@ class DocumentoController extends Controller
 
     public function destroyDocRascunho(string $id)
     {
-        $documento = Documento::where("estado_documento","rascunho")->find($id);
+        $documento = Documento::where("estado_documento", "rascunho")->find($id);
         if (!$documento) {
             return response()->json(["message" => "Document not found!"], 404);
         }
 
         $delete = $documento->delete();
 
-        if(!$delete) {
+        if (!$delete) {
             response()->json([
                 'message' => 'Erro ao deletar'
             ]);
@@ -1087,9 +1096,254 @@ class DocumentoController extends Controller
 
     public function transformarDocumento(Request $request, $id)
     {
-        DB::beginTransaction();
+        $validated = Validator::make(
+            $request->all(),
+            [
+                "tipo_destino" => "required|string",
+                "tipo_nome_destino" => "required|string",
+
+                "caixa" => "required|string",
+                "data_emissao" => "nullable|date",
+                "data_vencimento" => "nullable|date",
+                "is_apronto" => "nullable|boolean",
+                "movimenta_stock" => "required|boolean",
+
+                "desconto_total" => "nullable|numeric",
+                "valor_transporte" => "nullable|numeric",
+                "total_sem_desconto" => "nullable|numeric",
+                "total_impostos" => "nullable|numeric",
+                "total_geral" => "nullable|numeric",
+
+                "meiosPagamento" => "nullable|array",
+                "meiosPagamento.*.descricao" => "nullable|string",
+                "meiosPagamento.*.valor" => "nullable|numeric",
+
+                "marca" => "nullable|string",
+                "matricula" => "nullable|string",
+                "local_origem" => "nullable|string",
+                "local_destino" => "nullable|string",
+                "data_origem" => "nullable|date",
+                "data_destino" => "nullable|date",
+
+                "itens" => "nullable|array",
+                "itens.*.produto_nome" => "required|string",
+                "itens.*.codigo_produto" => "required|string",
+                "itens.*.preco_venda" => "required|numeric",
+                "itens.*.descricao" => "nullable|string",
+                "itens.*.quantidade" => "required|integer",
+                "itens.*.desconto_percent" => "required|numeric",
+                "itens.*.desconto_fixo" => "required|numeric",
+                "itens.*.iva_percent" => "nullable|numeric",
+            ],
+            [
+                // Mensagens personalizadas de validação
+                "required" => "O campo :attribute é obrigatório.",
+                "string" => "O campo :attribute deve ser uma string.",
+                "integer" => "O campo :attribute deve ser um número inteiro.",
+                "numeric" => "O campo :attribute deve ser um número.",
+                "email" => "O campo :attribute deve ser um email válido.",
+                "date" => "O campo :attribute deve ser uma data válida.",
+                "array" => "O campo :attribute deve ser uma lista.",
+                "min" => [
+                    "array" =>
+                    "O campo :attribute deve ter pelo menos :min item(ns).",
+                ],
+            ],
+        );
+
+        if ($validated->fails()) {
+            return response()->json(
+                [
+                    "message" => "Erro de validação.",
+                    "errors" => $validated->errors(),
+                ],
+                422,
+            );
+        }
+
+        // Construção do quadro por taxas (mantendo também o 'liquido' por grupo)
+        $quadroImposto = [];
+        $totalLiquido = 0;
+        $totalBase = 0;
+        $subtotalBruto = 0;
+
+        foreach ($request->itens as $item) {
+            $tipo = TipoTaxaIva::find($item["iva_percent"]);
+            $taxaIva = $tipo->taxa;
+            $codigo = $tipo->codigo;
+            $motivoIsencaoId = $item["motivo_isencao_id"] ?? "";
+            $motivo = "";
+
+            if ($codigo === "ISENTO" && $motivoIsencaoId) {
+                $motivo = DB::table("motivo_isencao")
+                    ->where("id", $motivoIsencaoId)
+                    ->value("motivo");
+            }
+
+            $subtotalBruto = $item["preco_venda"] * $item["quantidade"];
+
+            $desconto = 0;
+            if (
+                isset($item["desconto_percent"]) &&
+                $item["desconto_percent"] > 0
+            ) {
+                $desconto = $subtotalBruto * ($item["desconto_percent"] / 100);
+            } elseif (
+                isset($item["desconto_fixo"]) &&
+                $item["desconto_fixo"] > 0
+            ) {
+                $desconto = $item["desconto_fixo"];
+            }
+
+            $subtotalLiquido = $subtotalBruto - $desconto;
+
+            // base e imposto atuais (por item)
+            $base = round($subtotalLiquido / (1 + $taxaIva / 100), 2);
+            $imposto = round($subtotalLiquido - $base, 2);
+
+            $chave = $taxaIva . "|" . $motivoIsencaoId;
+
+            if (!isset($quadroImposto[$chave])) {
+                $quadroImposto[$chave] = [
+                    "taxa" => $taxaIva,
+                    "codigo" => $codigo,
+                    "motivo_isencao" => $motivo,
+                    "incidencia" => 0.0, // base
+                    "imposto" => 0.0,
+                    "liquido" => 0.0, // subtotal (com IVA) do grupo
+                ];
+            }
+
+            $quadroImposto[$chave]["incidencia"] += $base;
+            $quadroImposto[$chave]["imposto"] += $imposto;
+            $quadroImposto[$chave]["liquido"] += $subtotalLiquido;
+
+            $totalLiquido += $subtotalLiquido;
+            $totalBase += $base;
+            $subtotalBruto += $subtotalBruto;
+        }
+
+        $totalSemDesconto = 0;
+        $descontoItensTotal = 0;
+        // 1. Calcular total bruto e descontos por item
+        foreach ($request->itens as $item) {
+            $precoBruto = $item["preco_venda"] * $item["quantidade"];
+
+            // Desconto do item
+            $desconto = 0;
+            if (
+                $item["desconto_percent"] !== null &&
+                $item["desconto_percent"] > 0
+            ) {
+                $desconto = $precoBruto * ($item["desconto_percent"] / 100);
+            } elseif (
+                $item["desconto_fixo"] !== null &&
+                $item["desconto_fixo"] > 0
+            ) {
+                $desconto = $item["desconto_fixo"] * $item["quantidade"];
+            }
+
+            $subtotalComIva = $precoBruto - $desconto;
+
+            // Acumula totais gerais
+            $totalSemDesconto += $precoBruto;
+            $descontoItensTotal += $desconto;
+        }
+
+        // Desconto geral (se existir)
+        $descontoGeral = 0; //$request['desconto_total'] ?? 0;
+
+        if ($request["desconto_tipo"] === "percentual") {
+            $descontoGeral =
+                $totalSemDesconto * ($request["desconto_total"] / 100);
+        } elseif ($request["desconto_tipo"] === "fixo") {
+            $descontoGeral = $request["desconto_total"]; // decide se é total ou por unidade
+        }
+
+        if ($descontoGeral > 0 && $totalLiquido > 0) {
+            $totalLiquidoOriginal = $totalLiquido;
+
+            // para garantir soma exata do desconto distribuído (corrige residual de arredond.)
+            $groupKeys = array_keys($quadroImposto);
+            $lastKey = end($groupKeys);
+            $assigned = 0.0;
+
+            foreach ($groupKeys as $key) {
+                $linha = &$quadroImposto[$key];
+
+                // proporção segundo o liquido do grupo
+                $proporcao = $linha["liquido"] / $totalLiquidoOriginal;
+
+                if ($key !== $lastKey) {
+                    $descontoLinha = round($descontoGeral * $proporcao, 2);
+                    $assigned += $descontoLinha;
+                } else {
+                    // resto do desconto para o último grupo (evita erro de arredondamento)
+                    $descontoLinha = round($descontoGeral - $assigned, 2);
+                }
+
+                // aplica desconto ao liquido do grupo
+                $linha["liquido"] = round(
+                    $linha["liquido"] - $descontoLinha,
+                    2,
+                );
+
+                // recalcula base e imposto segundo a taxa daquele grupo
+                $linha["incidencia"] = round(
+                    $linha["liquido"] / (1 + $linha["taxa"] / 100),
+                    2,
+                );
+                $linha["imposto"] = round(
+                    $linha["liquido"] - $linha["incidencia"],
+                    2,
+                );
+
+                unset($linha); // bom hábito ao usar referência
+            }
+
+            // (opcional) Recalcule totais finais:
+            $totalLiquido = array_sum(array_column($quadroImposto, "liquido"));
+            $totalBase = array_sum(array_column($quadroImposto, "incidencia"));
+            $totalImposto = array_sum(array_column($quadroImposto, "imposto"));
+        }
+
+        // 2. Aplicar desconto geral (apenas no final)
+        $totalComIvaFinal =
+            $totalSemDesconto - $descontoItensTotal - $descontoGeral;
+
+        // 3. Calcular total final (já com todos descontos)
+        $totalFinal = $totalComIvaFinal;
+
+        $totalImpostos = array_sum(array_column($quadroImposto, "imposto"));
+
+        $retencao = 0;
+        //Calcular retencao na fonte nos servicos
+        foreach ($request["itens"] as $item) {
+            if (isset($item["tipo_produto"]) && $item["tipo_produto"] === "S") {
+                if ($item["preco_venda"] > 20000) {
+                    $retencao += $item["preco_venda"] * 0.06; // 5% de retenção
+                }
+            }
+        }
+
+        $totalEntregue = 0;
+
+        foreach ($request->input("meiosPagamento") as $meioPagamento) {
+            $totalEntregue += (float) $meioPagamento["valor"];
+        }
+
+        $troco = $totalEntregue - $totalFinal;
+
+        // garantir que não dá troco negativo
+        if ($troco < 0) {
+            $troco = 0;
+        }
+
 
         try {
+
+            DB::beginTransaction();
+
             // 1️⃣ Buscar o documento original
             $documentoOrigem = Documento::with([
                 "itens",
@@ -1107,6 +1361,36 @@ class DocumentoController extends Controller
                 );
             }
 
+            $infoGuiaId = null;
+
+            if (
+                $request["sigla_fatura"] === "GT" ||
+                $request["sigla_fatura"] === "GR"
+            ) {
+                $infoGuiaId = DB::table("info_guias")->insertGetId([
+                    "marca" => $request->input("marca"),
+                    "matricula" => $request->input("matricula"),
+                    "local_origem" => $request->input("local_origem"),
+                    "local_destino" => $request->input("local_destino"),
+                    "data_origem" => $request->input("data_origem"),
+                    "data_destino" => $request->input("data_destino"),
+                    "created_at" => now(),
+                    "updated_at" => now(),
+                ]);
+            }
+
+            //verifica o estado de pagamento
+            if ($totalFinal - $totalEntregue <= 0) {
+                $request["estado_pagamento"] = EstadoPagamento::PAGO->value;
+            } elseif ($totalEntregue > 0 && $totalFinal - $totalEntregue > 0) {
+                $request["estado_pagamento"] =
+                    EstadoPagamento::PARCIALMENTE_PAGO->value;
+            } else {
+                $request["estado_pagamento"] = EstadoPagamento::NAO_PAGO->value;
+            }
+
+
+
             // 2️⃣ Determinar tipo de destino (ex: FT)
             $tipoDestino = $request->input("tipo_destino");
             $tipoNomeDestino = $request->input("tipo_nome_destino");
@@ -1121,6 +1405,13 @@ class DocumentoController extends Controller
             $novoDocumento = Documento::create([
                 "tipo_nome" => $tipoNomeDestino,
                 "tipo_sigla" => $tipoDestino,
+
+                "estado_documento" => $request["estado_documento"] ?? "emitido",
+                "estado_pagamento" =>
+                $request["estado_pagamento"] ?? "por_pagar",
+                "estado_vencimento" =>
+                $request["estado_vencimento"] ?? "no_prazo",
+
                 "num_fatura" => $numFatura,
                 "via" => "original",
 
@@ -1138,21 +1429,22 @@ class DocumentoController extends Controller
                 "cliente_email" => $documentoOrigem->cliente_email,
                 "cliente_endereco" => $documentoOrigem->cliente_endereco,
 
-                "caixa" => $documentoOrigem->caixa,
+                "caixa" => $request["caixa"] ?? $documentoOrigem->caixa,
                 "data_emissao" => $request->input("data_emissao") ?? now(),
                 "data_vencimento" =>
                 $request->input("data_vencimento") ??
                     $documentoOrigem->data_vencimento,
-                "forma_pagamento" => $documentoOrigem->forma_pagamento,
-                "movimenta_stock" => $documentoOrigem->movimenta_stock,
+                "forma_pagamento" => $request["forma_pagamento"] ?? $documentoOrigem->forma_pagamento,
+                "movimenta_stock" => $request["movimenta_stock"] ?? $documentoOrigem->movimenta_stock,
 
                 "taxa_iva" => $documentoOrigem->taxa_iva,
                 "valor_iva" => $documentoOrigem->valor_iva,
-                "retencao" => $documentoOrigem->retencao,
+                "retencao" => $retencao,
 
                 "estado" => "emitido",
                 "hash" => "TRANSFORM-" . uniqid(),
 
+                "desconto_tipo" => $request["desconto_tipo"] ?? $documentoOrigem->desconto_tipo,
                 "desconto_total" => $documentoOrigem->desconto_total,
                 "valor_transporte" => $documentoOrigem->valor_transporte,
                 "total_sem_desconto" => $documentoOrigem->total_sem_desconto,
@@ -1160,64 +1452,126 @@ class DocumentoController extends Controller
                 "total_geral" => $documentoOrigem->total_geral,
                 "troco" => $documentoOrigem->troco,
 
-                "utilizador_id" => $documentoOrigem->utilizador_id,
-                "utilizador" => $documentoOrigem->utilizador,
+                "utilizador_id" => $request["utilizador_id"] ?? $documentoOrigem->utilizador_id,
+                "utilizador" => $request["utilizador"] ?? $documentoOrigem->utilizador,
 
+                "info_guia_id" => $infoGuiaId,
                 "documento_origem_id" => $documentoOrigem->id, // 🔗 referência
             ]);
 
+            foreach ($request->input("meiosPagamento") as $meioPagamento) {
+                MeioPagamentoDocumento::create([
+                    "documento_id" => $novoDocumento->id,
+                    "descricao" => $meioPagamento["descricao"],
+                    "valor" => $meioPagamento["valor"],
+                ]);
+            }
+
             // 5️⃣ Copiar impostos (quadro)
-            foreach ($documentoOrigem->impostosDocumento as $imp) {
+            // foreach ($documentoOrigem->impostosDocumento as $imp) {
+            //     ImpostoDocumento::create([
+            //         "documento_id" => $novoDocumento->id,
+            //         "taxa" => $imp->taxa,
+            //         "codigo" => $imp->codigo,
+            //         "isento" => $imp->isento,
+            //         "motivo_isencao" => $imp->motivo_isencao,
+            //         "incidencia" => $imp->incidencia,
+            //         "imposto" => $imp->imposto,
+            //         "total" => $imp->total,
+            //     ]);
+            // }
+
+            foreach ($quadroImposto as $value) {
+                $value["incidencia"] = round($value["incidencia"], 2);
+                $value["imposto"] = round($value["imposto"], 2);
+                $value["liquido"] = round($value["liquido"], 2);
+
                 ImpostoDocumento::create([
                     "documento_id" => $novoDocumento->id,
-                    "taxa" => $imp->taxa,
-                    "codigo" => $imp->codigo,
-                    "isento" => $imp->isento,
-                    "motivo_isencao" => $imp->motivo_isencao,
-                    "incidencia" => $imp->incidencia,
-                    "imposto" => $imp->imposto,
-                    "total" => $imp->total,
+                    "taxa" => $value["taxa"],
+                    "codigo" => $value["codigo"],
+                    "isento" => $value["codigo"] === "ISENTO" ? 1 : 0,
+                    "motivo_isencao" => $value["motivo_isencao"],
+                    "incidencia" => $value["incidencia"],
+                    "imposto" => $value["imposto"],
+                    //'liquido' => $value['liquido'],
+                    "total" => $value["incidencia"] + $value["imposto"],
                 ]);
             }
 
             // 6️⃣ Copiar itens
-            $itensCopia = [];
-            foreach ($documentoOrigem->itens as $item) {
-                $itensCopia[] = [
+            $itens = [];
+            foreach ($request["itens"] as $item) {
+                $idImpostoTaxa = $item["iva_percent"];
+                $taxaIva = TipoTaxaIva::find($idImpostoTaxa)->taxa;
+                $codigoIva = TipoTaxaIva::find($idImpostoTaxa)->codigo;
+                //$motivoIsencaoCodigo = null;
+                $motivoIsencaoDescricao = null;
+
+                if ($codigoIva === "ISENTO") {
+                    $motivo = DB::table("motivo_isencao")
+                        ->where("id", $item["motivo_isencao_id"]) // <-- aqui
+                        ->first();
+                    if ($motivo) {
+                        $codigoIva = $motivo->codigo;
+                        $motivoIsencaoDescricao = $motivo->motivo;
+                    }
+                }
+
+                $desconto = 0;
+                if (
+                    isset($item["desconto_percent"]) &&
+                    $item["desconto_percent"] > 0
+                ) {
+                    $desconto =
+                        $item["preco_venda"] *
+                        ($item["desconto_percent"] / 100);
+                } elseif (
+                    isset($item["desconto_fixo"]) &&
+                    $item["desconto_fixo"] > 0
+                ) {
+                    $desconto = $item["desconto_fixo"];
+                }
+
+                // Calcula o total do item (sem IVA)
+                $totalSemDesconto = $item["preco_venda"] * $item["quantidade"];
+                $totalItem = $totalSemDesconto - $desconto;
+
+                $itens[] = [
                     "documento_id" => $novoDocumento->id,
-                    "produto_nome" => $item->produto_nome,
-                    "produto_codigo" => $item->produto_codigo,
-                    "preco_unitario" => $item->preco_unitario,
-                    "descricao" => $item->descricao,
-                    "quantidade" => $item->quantidade,
-                    "desconto_percent" => $item->desconto_percent,
-                    "desconto_fixo" => $item->desconto_fixo,
-                    "iva_percent" => $item->iva_percent,
-                    "imposto_taxa_id" => $item->imposto_taxa_id,
-                    "codigo_iva" => $item->codigo_iva,
-                    "motivo_isencao" => $item->motivo_isencao,
-                    "total_sem_desconto" => $item->total_sem_desconto,
-                    "total" => $item->total,
-                    "created_at" => now(),
-                    "updated_at" => now(),
+                    "produto_nome" => $item["produto_nome"],
+                    "produto_codigo" => $item["codigo_produto"],
+                    "preco_unitario" => $item["preco_venda"],
+                    "descricao" => $item["descricao"],
+                    "quantidade" => $item["quantidade"],
+                    "desconto_percent" => $item["desconto_percent"],
+                    "desconto_fixo" => $item["desconto_fixo"],
+                    "iva_percent" => $taxaIva ?? 0,
+                    "imposto_taxa_id" => $idImpostoTaxa,
+                    "codigo_iva" => $codigoIva ?? "",
+                    "tipo_id" => $item["tipo_id"],
+                    "motivo_isencao" => $motivoIsencaoDescricao,
+                    "total_sem_desconto" => $totalSemDesconto,
+                    "total" => $totalItem,
+                    // Adicione outros campos conforme necessário
                 ];
             }
 
-            $novoDocumento->itens()->createMany($itensCopia);
+            $novoDocumento->itens()->createMany($itens);
 
             // 7️⃣ Copiar meios de pagamento (se quiser manter)
-            if ($documentoOrigem->meiosPagamento) {
-                foreach ($documentoOrigem->meiosPagamento as $mp) {
-                    MeioPagamentoDocumento::create([
-                        "documento_id" => $novoDocumento->id,
-                        "descricao" => $mp->descricao,
-                        "valor" => $mp->valor,
-                    ]);
-                }
-            }
+            // if ($documentoOrigem->meiosPagamento) {
+            //     foreach ($documentoOrigem->meiosPagamento as $mp) {
+            //         MeioPagamentoDocumento::create([
+            //             "documento_id" => $novoDocumento->id,
+            //             "descricao" => $mp->descricao,
+            //             "valor" => $mp->valor,
+            //         ]);
+            //     }
+            // }
 
             // 8️⃣ Marcar documento de origem como transformado
-            $documentoOrigem->update(["estado" => "transformado"]);
+            $documentoOrigem->update(["estado_documento" => "transformado"]);
 
             DB::commit();
 
@@ -3528,17 +3882,58 @@ class DocumentoController extends Controller
         );
     }
 
-    public function listFaturacaoPorColaborador(Request $request)
+    public function listFaturacaoPorColaborador(Request $request, string $utilizadorId)
     {
-        $tipo = $request->query("tipo"); // Tipo de documento (FT, FR, etc)
-        $colaboradorId = $request->query("colaborador_id"); // Filtro opcional por colaborador
+        $tipo = $request->query("tipo");
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
         $perPage = $request->query("per_page", 10);
 
-        // 📄 Query principal
-        $query = DB::table("documentos as d")
-            ->join("utilizadores as u", "d.utilizador_id", "=", "u.id")
+        /*
+    |--------------------------------------------------------------------------
+    | QUERY BASE (SEM SELECT)
+    |--------------------------------------------------------------------------
+    */
+        $baseQuery = DB::table("documentos as d")
+            ->join("utilizadores as u", "d.utilizador_id", "=", "u.id");
+
+        // 🔍 Filtro por tipo de documento
+        if ($tipo) {
+            if (is_array($tipo)) {
+                $baseQuery->where(function ($q) use ($tipo) {
+                    $q->whereIn("d.tipo_sigla", $tipo)
+                        ->orWhereIn("d.tipo_nome", $tipo);
+                });
+            } else {
+                $baseQuery->where(function ($q) use ($tipo) {
+                    $q->where("d.tipo_sigla", $tipo)
+                        ->orWhere("d.tipo_nome", $tipo);
+                });
+            }
+        } else {
+            $baseQuery->whereIn("d.tipo_sigla", ["FT", "FA", "FG", "FR"]);
+        }
+
+        // 👨‍💼 Filtro por colaborador
+        if ($utilizadorId) {
+            $baseQuery->where("u.id", $utilizadorId);
+        }
+
+        // 📅 Filtro por datas
+        if ($dataInicial && $dataFinal) {
+            $baseQuery->whereBetween("d.data_emissao", [$dataInicial, $dataFinal]);
+        } elseif ($dataInicial) {
+            $baseQuery->whereDate("d.data_emissao", ">=", $dataInicial);
+        } elseif ($dataFinal) {
+            $baseQuery->whereDate("d.data_emissao", "<=", $dataFinal);
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | LISTAGEM (COM SELECT NORMAL)
+    |--------------------------------------------------------------------------
+    */
+        $documentos = (clone $baseQuery)
             ->select([
                 "d.id",
                 "d.tipo_sigla",
@@ -3550,62 +3945,29 @@ class DocumentoController extends Controller
                 "d.cliente_nome",
                 "u.id as colaborador_id",
                 "u.nome_pessoal as colaborador_nome",
-            ]);
-
-        // 🔍 Filtro por tipo de documento
-        if ($tipo) {
-            if (is_array($tipo)) {
-                $query->where(function ($q) use ($tipo) {
-                    $q->whereIn("d.tipo_sigla", $tipo)->orWhereIn(
-                        "d.tipo_nome",
-                        $tipo,
-                    );
-                });
-            } else {
-                $query->where(function ($q) use ($tipo) {
-                    $q->where("d.tipo_sigla", $tipo)->orWhere(
-                        "d.tipo_nome",
-                        $tipo,
-                    );
-                });
-            }
-        } else {
-            // Tipos padrão considerados "de faturação"
-            $query->whereIn("d.tipo_sigla", ["FT", "FA", "FG", "FR"]);
-        }
-
-        // 👨‍💼 Filtro por colaborador específico
-        if ($colaboradorId) {
-            $query->where("u.id", $colaboradorId);
-        }
-
-        // 📅 Filtro por intervalo de datas
-        if ($dataInicial && $dataFinal) {
-            $query->whereBetween("d.data_emissao", [$dataInicial, $dataFinal]);
-        } elseif ($dataInicial) {
-            $query->whereDate("d.data_emissao", ">=", $dataInicial);
-        } elseif ($dataFinal) {
-            $query->whereDate("d.data_emissao", "<=", $dataFinal);
-        }
-
-        // 🔢 Paginação
-        $documentos = $query
+            ])
             ->orderBy("u.nome_pessoal", "asc")
             ->orderBy("d.data_emissao", "desc")
             ->paginate($perPage);
 
-        // 📊 Totais globais (para o rodapé do relatório)
-        $totais = (clone $query)
-            ->select([
-                DB::raw(
-                    "SUM(COALESCE(d.total_sem_desconto, 0)) as totalSemDesconto",
-                ),
-                DB::raw("SUM(COALESCE(d.total_geral, 0)) as totalFaturado"),
-                DB::raw("COUNT(d.id) as totalDocs"),
-            ])
+        /*
+    |--------------------------------------------------------------------------
+    | TOTAIS (APENAS AGREGAÇÕES)
+    |--------------------------------------------------------------------------
+    */
+        $totais = (clone $baseQuery)
+            ->selectRaw("
+            COUNT(d.id) as totalDocs,
+            SUM(COALESCE(d.total_sem_desconto, 0)) as totalSemDesconto,
+            SUM(COALESCE(d.total_geral, 0)) as totalFaturado
+        ")
             ->first();
 
-        // 🧾 Retorno final
+        /*
+    |--------------------------------------------------------------------------
+    | RESPONSE
+    |--------------------------------------------------------------------------
+    */
         return response()->json([
             "data" => $documentos->items(),
             "pagination" => [
@@ -3617,17 +3979,18 @@ class DocumentoController extends Controller
                 "to" => $documentos->lastItem(),
             ],
             "totais" => [
-                "totalDocs" => (float) ($totais->totalDocs ?? 0),
+                "totalDocs" => (int) ($totais->totalDocs ?? 0),
                 "totalSemDesconto" => (float) ($totais->totalSemDesconto ?? 0),
                 "totalFaturado" => (float) ($totais->totalFaturado ?? 0),
             ],
         ]);
     }
 
+
     public function pdfRelatorioFaturacaoPorColaborador(Request $request)
     {
         $tipo = $request->query("tipo");
-        $colaboradorId = $request->query("colaborador_id");
+        $utilizadorId = $request->query("colaborador_id");
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
 
@@ -3667,8 +4030,8 @@ class DocumentoController extends Controller
         }
 
         // 👨‍💼 Filtro por colaborador
-        if ($colaboradorId) {
-            $query->where("u.id", $colaboradorId);
+        if ($utilizadorId) {
+            $query->where("u.id", $utilizadorId);
         }
 
         // 📅 Filtro por intervalo de datas
