@@ -11,6 +11,7 @@ class ItemDocumentoCompra extends Model
 
     protected $fillable = [
         'documento_compra_id',
+        'produto_id',
         'produto_nome',
         'produto_codigo',
         'preco_custo',
@@ -19,6 +20,9 @@ class ItemDocumentoCompra extends Model
         'desconto_percent',
         'desconto_fixo',
         'iva_percent',
+        'total_sem_desconto',
+        'total_sem_imposto',
+        'valor_imposto',
         'total'
     ];
 

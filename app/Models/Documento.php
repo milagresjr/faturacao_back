@@ -17,6 +17,8 @@ class Documento extends Model
         'tipo_sigla',
         'tipo_cor',
 
+        'armazem_id',
+
         'estado_documento',
         'estado_pagamento',
         'estado_vencimento',
@@ -141,10 +143,13 @@ class Documento extends Model
             ->withTimestamps();
     }
 
+    public function movimentosStock()
+    {
+        return $this->morphMany(MovimentoStock::class, 'documento');
+    }
+
     public function empresa()
     {
         return $this->belongsTo(Empresa::class, 'empresa_id', 'id');
     }
-
-    
 }

@@ -846,6 +846,8 @@ class DocumentoController extends Controller
                 "tipo_sigla" => $request["sigla_fatura"],
                 //'tipo_cor' => $request['tipo_cor'],
 
+                "armazem_id" => $request['armazem_id'],
+
                 "estado_documento" => $request["estado_documento"] ?? "emitido",
                 "estado_pagamento" =>
                 $request["estado_pagamento"] ?? "por_pagar",
@@ -984,6 +986,7 @@ class DocumentoController extends Controller
 
                 $itens[] = [
                     "documento_id" => $documento->id,
+                    "produto_id" => $item["produto_id"],
                     "produto_nome" => $item["produto_nome"],
                     "produto_codigo" => $item["codigo_produto"],
                     "preco_unitario" => $item["preco_venda"],
@@ -1004,6 +1007,53 @@ class DocumentoController extends Controller
 
             $documento->itens()->createMany($itens);
 
+            // Criar Recibo caso o tipo de vencimento for a prazo
+            if (
+                $request->has("is_apronto") &&
+                $request->input("is_apronto") === "1"
+            ) {
+                // Se for um APRONTO, relaciona com o documento relacionado
+                $request->merge([
+                    "tipo_nome" => "Recibo",
+                    "tipo_sigla" => "RC",
+                    "total_geral" => $totalFinal,
+                    "documento_relacionado_id" => $documento->id,
+                ]);
+
+                $data = [
+                    "tipo_fatura" => "Recibo", // "RECIBO"
+                    "sigla_fatura" => "RC",
+                    "total_geral" => $totalFinal,
+                    "documento_relacionado_id" => $documento->id,
+                    "empresa_id" => $documento->empresa_id,
+                    "empresa_nome" => $documento->empresa_nome,
+                    "cliente_id" => $documento->cliente_id,
+                    "cliente_nome" => $documento->cliente_nome,
+                    "meiosPagamento" => $request->input("meiosPagamento"),
+                    "utilizador_id" => $request->input("utilizador_id"),
+                    "utilizador" => $request->input("utilizador"),
+                    "caixa" => $documento->caixa,
+                    "data_emissao" => $documento->data_emissao,
+                    "data_vencimento" => $documento->data_vencimento,
+                ];
+
+                $recibo = $this->storeRecibo(new Request($data));
+
+                return response()->json(
+                    [
+                        "message" => "Factura e Recibo criados com sucesso.",
+                        "documento" => $documento->load("itens"),
+                        "documento_recibo" => $recibo->documento ?? "",
+                    ],
+                    201,
+                );
+            }
+
+            //Se movimentar stock for true, atualiza o stock
+            if ($request->boolean("movimenta_stock")) {
+                $documentoService->updateStock($documento->load("itens"));
+            }
+
             DB::commit();
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -1016,52 +1066,6 @@ class DocumentoController extends Controller
             );
         }
 
-        // Criar Recibo caso o tipo de vencimento for a prazo
-        if (
-            $request->has("is_apronto") &&
-            $request->input("is_apronto") === "1"
-        ) {
-            // Se for um APRONTO, relaciona com o documento relacionado
-            $request->merge([
-                "tipo_nome" => "Recibo",
-                "tipo_sigla" => "RC",
-                "total_geral" => $totalFinal,
-                "documento_relacionado_id" => $documento->id,
-            ]);
-
-            $data = [
-                "tipo_fatura" => "Recibo", // "RECIBO"
-                "sigla_fatura" => "RC",
-                "total_geral" => $totalFinal,
-                "documento_relacionado_id" => $documento->id,
-                "empresa_id" => $documento->empresa_id,
-                "empresa_nome" => $documento->empresa_nome,
-                "cliente_id" => $documento->cliente_id,
-                "cliente_nome" => $documento->cliente_nome,
-                "meiosPagamento" => $request->input("meiosPagamento"),
-                "utilizador_id" => $request->input("utilizador_id"),
-                "utilizador" => $request->input("utilizador"),
-                "caixa" => $documento->caixa,
-                "data_emissao" => $documento->data_emissao,
-                "data_vencimento" => $documento->data_vencimento,
-            ];
-
-            $recibo = $this->storeRecibo(new Request($data));
-
-            return response()->json(
-                [
-                    "message" => "Factura e Recibo criados com sucesso.",
-                    "documento" => $documento->load("itens"),
-                    "documento_recibo" => $recibo->documento ?? "",
-                ],
-                201,
-            );
-        }
-
-        //Se movimentar stock for true, atualiza o stock
-        if ($request->input("movimenta_stock")) {
-            $documentoService->updateStock($documento);
-        }
 
         return response()->json(
             [
@@ -3884,16 +3888,12 @@ class DocumentoController extends Controller
 
     public function listFaturacaoPorColaborador(Request $request, string $utilizadorId)
     {
+
         $tipo = $request->query("tipo");
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
         $perPage = $request->query("per_page", 10);
 
-        /*
-    |--------------------------------------------------------------------------
-    | QUERY BASE (SEM SELECT)
-    |--------------------------------------------------------------------------
-    */
         $baseQuery = DB::table("documentos as d")
             ->join("utilizadores as u", "d.utilizador_id", "=", "u.id");
 
@@ -3963,21 +3963,14 @@ class DocumentoController extends Controller
         ")
             ->first();
 
-        /*
-    |--------------------------------------------------------------------------
-    | RESPONSE
-    |--------------------------------------------------------------------------
-    */
         return response()->json([
             "data" => $documentos->items(),
-            "pagination" => [
-                "current_page" => $documentos->currentPage(),
-                "last_page" => $documentos->lastPage(),
-                "per_page" => $documentos->perPage(),
-                "total" => $documentos->total(),
-                "from" => $documentos->firstItem(),
-                "to" => $documentos->lastItem(),
-            ],
+            "current_page" => $documentos->currentPage(),
+            "last_page" => $documentos->lastPage(),
+            "per_page" => $documentos->perPage(),
+            "total" => $documentos->total(),
+            "from" => $documentos->firstItem(),
+            "to" => $documentos->lastItem(),
             "totais" => [
                 "totalDocs" => (int) ($totais->totalDocs ?? 0),
                 "totalSemDesconto" => (float) ($totais->totalSemDesconto ?? 0),

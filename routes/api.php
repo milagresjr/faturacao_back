@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\TipoClienteController;
 use App\Http\Controllers\Api\TipoProdutoController;
 use App\Http\Controllers\Api\MotivoIsencaoController;
 use App\Http\Controllers\Api\MovimentoStockController;
+use App\Http\Controllers\Api\PagamentoDocumentoCompraController;
 use App\Http\Controllers\Api\TipoStockController;
 use App\Http\Controllers\Api\TipoTaxaIvaController;
 use App\Http\Controllers\Api\UnidadeController;
@@ -71,8 +72,9 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::apiResource('bancos', BancoController::class);
 
     Route::apiResource('caixas', CaixaController::class);
-    Route::apiResource('movimento-stock', MovimentoStockController::class);
 });
+Route::apiResource('movimento-stock', MovimentoStockController::class);
+Route::apiResource('fatura-compra/pagamento', PagamentoDocumentoCompraController::class);
 Route::apiResource('unidades', UnidadeController::class);
 Route::patch('/unidades/{id}/definir-predefinida', [UnidadeController::class, 'definirComoPredefinida']);
 Route::apiResource('empresas', EmpresaController::class);

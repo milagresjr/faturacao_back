@@ -216,7 +216,7 @@ class ProdutoController extends Controller
             'motivo_isencao_id' => 'nullable|integer|exists:motivo_isencao,id',
             'tipo_stock_id' => 'nullable|integer|exists:tipo_stock,id',
             'tipo_id' => 'sometimes|required|integer|exists:tipo_produtos,id',
-            'armazem_id' => 'sometimes|required|integer|exists:armazens,id',
+            'armazem_id' => 'sometimes|nullable|integer|exists:armazens,id',
             'categoria_id' => 'sometimes|nullable|integer|exists:categorias,id',
             'sub_categoria_id' => 'nullable|integer|exists:sub_categorias,id',
             'empresa_id' => 'sometimes|required|integer|exists:empresas,id',

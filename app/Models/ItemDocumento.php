@@ -11,6 +11,7 @@ class ItemDocumento extends Model
 
     protected $fillable = [
         "documento_id",
+        "produto_id",
         "produto_nome",
         "produto_codigo",
         "preco_unitario",

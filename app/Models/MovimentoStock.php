@@ -8,6 +8,8 @@ class MovimentoStock extends Model
 {
     protected $table = 'movimentos_stock';
 
+    protected $appends = ['tipo_documento'];
+
     protected $fillable = [
         'id',
         'armazem_id',
@@ -19,8 +21,17 @@ class MovimentoStock extends Model
         'origem_movimento',
         'armazem_origem_id',
         'armazem_destino_id',
-        'documento_relacionado_id',
     ];
+
+    public function getTipoDocumentoAttribute()
+    {
+        return match ($this->documento_type) {
+            Documento::class => 'VENDA',
+            DocumentoCompra::class => 'COMPRA',
+            default => 'DESCONHECIDO',
+        };
+    }
+
 
     /**
      * Relacionamento com Produto
@@ -33,6 +44,11 @@ class MovimentoStock extends Model
     public function armazem()
     {
         return $this->belongsTo(Armazem::class);
+    }
+
+    public function documento()
+    {
+        return $this->morphTo();
     }
 
     /**

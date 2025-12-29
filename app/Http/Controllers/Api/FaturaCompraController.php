@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DocumentoCompra;
 use App\Models\ImpostoDocumentoCompra;
+use App\Services\DocumentoService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class FaturaCompraController extends Controller
@@ -92,8 +94,10 @@ class FaturaCompraController extends Controller
             ->with([
                 'itens',
                 'impostosDocumento',
-             //   'documentosRelacionados', // documentos que este documento referencia
-            //    'relacionadoEm',          // documentos que referenciam este documento
+                'otherItens',
+                'pagamentos.documento',
+                //   'documentosRelacionados', // documentos que este documento referencia
+                //    'relacionadoEm',          // documentos que referenciam este documento
             ])
             ->orderByDesc('id')
             ->paginate($per_page);
@@ -101,7 +105,7 @@ class FaturaCompraController extends Controller
         return response()->json($documentos);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, DocumentoService $documentoService)
     {
         // Validação dos dados recebidos
         $validated = Validator::make($request->all(), [
@@ -109,6 +113,8 @@ class FaturaCompraController extends Controller
             'tipo_fatura' => 'nullable|string',
             'sigla_fatura' => 'nullable|string',
             'tipo_cor' => 'nullable|string',
+
+            'armazem_id' => 'nullable|integer',
 
             'empresa_id' => 'nullable|integer',
             'empresa_nome' => 'required|string',
@@ -147,6 +153,7 @@ class FaturaCompraController extends Controller
 
             // Itens do documento
             'itens' => 'required|array|min:1',
+            'itens.*.produto_id' => 'required|integer',
             'itens.*.produto_nome' => 'required|string',
             'itens.*.codigo_produto' => 'nullable|string',
             'itens.*.preco_custo' => 'required|numeric',
@@ -156,6 +163,16 @@ class FaturaCompraController extends Controller
             'itens.*.desconto_percent' => 'nullable|numeric',
             'itens.*.desconto_fixo' => 'nullable|numeric',
             'itens.*.iva_percent' => 'nullable|numeric',
+
+            //Outros itens do documento
+            'other_itens' => 'nullable|array',
+            'other_itens.*.nome' => 'required|String',
+            'other_itens.*.descricao' => 'nullable|String',
+            'other_itens.*.preco_custo' => 'required|numeric',
+            'other_itens.*.quantidade' => 'nullable|integer',
+            'other_itens.*.desconto_percent' => 'nullable|numeric',
+            'other_itens.*.desconto_fixo' => 'nullable|numeric',
+            'other_itens.*.iva_percent' => 'nullable|numeric',
         ], [
             // Mensagens personalizadas de validação
             'required' => 'O campo :attribute é obrigatório.',
@@ -305,125 +322,195 @@ class FaturaCompraController extends Controller
         $troco = 0;
 
 
-        // Criação do documento
-        $documento = DocumentoCompra::create([
-            'tipo_nome' => '',
-            'tipo_sigla' => '',
-            //'tipo_cor' => $request['tipo_cor'],
+        try {
+            DB::beginTransaction();
 
-            'num_fatura' => $request['num_fatura'],
-            'via' => 'original',
+            // Criação do documento
+            $documento = DocumentoCompra::create([
+                'tipo_nome' => '',
+                'tipo_sigla' => '',
+                //'tipo_cor' => $request['tipo_cor'],
 
-            'empresa_id' => $request['empresa_id'],
-            'empresa_nome' => $request['empresa_nome'],
-            'empresa_nif' => $request['empresa_nif'],
-            'empresa_telefone' => $request['empresa_telefone'],
-            'empresa_email' => $request['empresa_email'],
-            'empresa_endereco' => $request['empresa_endereco'],
+                'armazem_id' => $request['armazem_id'],
 
-            'fornecedor_id' => $request['fornecedor_id'] ?? null,
-            'fornecedor_nome' => $request['fornecedor_nome'],
-            'fornecedor_nif' => $request['fornecedor_nif'],
-            'fornecedor_telefone' => $request['fornecedor_telefone'],
-            'fornecedor_email' => $request['fornecedor_email'],
-            'fornecedor_endereco' => $request['fornecedor_endereco'],
+                'num_fatura' => $request['num_fatura'],
+                'via' => 'original',
 
-            'data_fatura' => $request['data_fatura'],
-            'data_vencimento' => $request['data_vencimento'],
+                'empresa_id' => $request['empresa_id'],
+                'empresa_nome' => $request['empresa_nome'],
+                'empresa_nif' => $request['empresa_nif'],
+                'empresa_telefone' => $request['empresa_telefone'],
+                'empresa_email' => $request['empresa_email'],
+                'empresa_endereco' => $request['empresa_endereco'],
 
-            'obs_pagamento' => $request['obs_pagamento'],
+                'fornecedor_id' => $request['fornecedor_id'] ?? null,
+                'fornecedor_nome' => $request['fornecedor_nome'],
+                'fornecedor_nif' => $request['fornecedor_nif'],
+                'fornecedor_telefone' => $request['fornecedor_telefone'],
+                'fornecedor_email' => $request['fornecedor_email'],
+                'fornecedor_endereco' => $request['fornecedor_endereco'],
 
-            'taxa_iva' => '0',
-            'valor_fatura' => $request['valor_fatura'],
-            'retencao' => $retencao,
+                'data_fatura' => $request['data_fatura'],
+                'data_vencimento' => $request['data_vencimento'],
 
-            'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
+                'obs_pagamento' => $request['obs_pagamento'],
 
-            'desconto_total' => $desconto_total,
-            'total_sem_desconto' => $totalSemDesconto,
-            'total_impostos' => $totalImpostos,
-            'total_geral' => $request['total_geral'], //$trotalFinal,
-            'troco' => $troco,
+                'taxa_iva' => '0',
+                'valor_fatura' => $request['valor_fatura'],
+                'retencao' => $retencao,
 
-            'utilizador_id' => $request['utilizador_id'],
-            'utilizador' => $request['utilizador'],
+                'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
 
-            'local_entrega' => $request['local_entrega'],
-            'data_recepcao' => $request['data_recepcao'],
-            'observacoes' => $request['observacoes'],
-            'paga' => $request['paga'],
-            'valor_pago' => $request['valor_pago'],
+                'desconto_total' => $desconto_total,
+                'total_sem_desconto' => $totalSemDesconto,
+                'total_impostos' => $totalImpostos,
+                'total_geral' => $request['total_geral'], //$trotalFinal,
+                'troco' => $troco,
 
-        ]);
+                'utilizador_id' => $request['utilizador_id'],
+                'utilizador' => $request['utilizador'],
 
+                'local_entrega' => $request['local_entrega'],
+                'data_recepcao' => $request['data_recepcao'],
+                'observacoes' => $request['observacoes'],
+                'paga' => $request['paga'],
+                'valor_pago' => $request['valor_pago'],
 
-        foreach ($quadroImpostos as $value) {
-            $value['incidencia'] = round($value['incidencia'], 2);
-            $value['iva'] = round($value['iva'], 2);
-            //$value['liquido'] = round($value['liquido'], 2);
-
-            ImpostoDocumentoCompra::create([
-                'documento_compra_id' => $documento->id,
-                'taxa' => $value['taxa'],
-                'incidencia' => $value['incidencia'],
-                'imposto' => $value['iva'],
-                //'liquido' => $value['liquido'],
-                'total' => $value['incidencia'] + $value['iva'],
             ]);
-        }
 
-        // Criação dos itens
-        $itens = [];
-        foreach ($request['itens'] as $item) {
 
-            $taxaIva = $item['iva_percent'];
+            foreach ($quadroImpostos as $value) {
+                $value['incidencia'] = round($value['incidencia'], 2);
+                $value['iva'] = round($value['iva'], 2);
+                //$value['liquido'] = round($value['liquido'], 2);
 
-            $desconto = 0;
-            if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
-                $desconto = $item['preco_venda'] * ($item['desconto_percent'] / 100);
-            } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
-                $desconto = $item['desconto_fixo'];
+                ImpostoDocumentoCompra::create([
+                    'documento_compra_id' => $documento->id,
+                    'taxa' => $value['taxa'],
+                    'incidencia' => $value['incidencia'],
+                    'imposto' => $value['iva'],
+                    //'liquido' => $value['liquido'],
+                    'total' => $value['incidencia'] + $value['iva'],
+                ]);
             }
 
-            // Calcula o total do item (sem IVA)
-            $totalSemDesconto = $item['preco_custo'] * $item['quantidade'];
-            $totalItem = $totalSemDesconto - $desconto;
+            // Criação dos itens
+            $itens = [];
+            foreach ($request['itens'] as $item) {
 
-            $itens[] = [
-                'documento_compra_id' => $documento->id,
-                'produto_nome' => $item['produto_nome'],
-                'produto_codigo' => $item['codigo_produto'],
-                'preco_custo' => $item['preco_custo'],
-                // 'descricao' => $item['descricao'],
-                'quantidade' => $item['quantidade'],
-                'desconto_percent' => $item['desconto_percent'],
-                'desconto_fixo' => $item['desconto_fixo'],
-                'iva_percent' => $taxaIva ?? 0,
-                // 'imposto_taxa_id' => $idImpostoTaxa,
-                // 'codigo_iva' => $codigoIva ?? '',
-                // 'motivo_isencao' => $motivoIsencaoDescricao,
-                'total_sem_desconto' => $totalSemDesconto,
-                'total' => $totalItem,
-                // Adicione outros campos conforme necessário
-            ];
+                $taxaIva = $item['iva_percent'];
+
+                $desconto = 0;
+                if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
+                    $desconto = $item['preco_custo'] * ($item['desconto_percent'] / 100);
+                } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
+                    $desconto = $item['desconto_fixo'];
+                }
+
+                // Total sem IVA
+                $totalSemDesconto = $item['preco_custo'] * $item['quantidade'];
+                $totalSemIva = $totalSemDesconto - $desconto;
+
+                // IVA do item
+                $valorIva = $totalSemIva * ($taxaIva / 100);
+
+                // Total com IVA
+                $totalComIva = $totalSemIva + $valorIva;
+
+                $itens[] = [
+                    'documento_compra_id' => $documento->id,
+                    'produto_id' => $item['produto_id'],
+                    'produto_nome' => $item['produto_nome'],
+                    'produto_codigo' => $item['codigo_produto'],
+                    'preco_custo' => $item['preco_custo'],
+                    // 'descricao' => $item['descricao'],
+                    'quantidade' => $item['quantidade'],
+                    'desconto_percent' => $item['desconto_percent'],
+                    'desconto_fixo' => $item['desconto_fixo'],
+                    'iva_percent' => $taxaIva ?? 0,
+                    'total_sem_desconto' => $totalSemDesconto,
+                    'valor_imposto' => $valorIva,
+                    'total_sem_imposto' => $totalSemIva,
+                    'total' => $totalComIva,
+                ];
+            }
+
+            //Cricao de outros itens
+            $otherItens = [];
+            foreach ($request['other_itens'] as $item) {
+
+
+                $taxaIva = $item['iva_percent'];
+
+                $desconto = 0;
+                if (isset($item['desconto_percent']) && $item['desconto_percent'] > 0) {
+                    $desconto = $item['preco_custo'] * ($item['desconto_percent'] / 100);
+                } elseif (isset($item['desconto_fixo']) && $item['desconto_fixo'] > 0) {
+                    $desconto = $item['desconto_fixo'];
+                }
+
+                // Calcula o total do item (sem IVA)
+                // Total sem IVA
+                $totalSemDesconto = $item['preco_custo'] * $item['quantidade'];
+                $totalSemIva = $totalSemDesconto - $desconto;
+
+                // IVA do item
+                $valorIva = $totalSemIva * ($taxaIva / 100);
+
+                // Total com IVA
+                $totalComIva = $totalSemIva + $valorIva;
+
+                $otherItens[] = [
+                    'documento_compra_id' => $documento->id,
+                    'nome' => $item['nome'],
+                    'preco_custo' => $item['preco_custo'],
+                    'descricao' => $item['descricao'],
+                    'quantidade' => $item['quantidade'],
+                    'desconto_percent' => $item['desconto_percent'],
+                    'desconto_fixo' => $item['desconto_fixo'],
+                    'iva_percent' => $taxaIva ?? 0,
+                    'total_sem_desconto' => $totalSemDesconto,
+                    'valor_imposto' => $valorIva,
+                    'total_sem_imposto' => $totalSemIva,
+                    'total' => $totalComIva,
+                ];
+            }
+
+            //Cadastra os itens do documento
+            $documento->itens()->createMany($itens);
+
+            //Cadastra outros itens do documento
+            $documento->otherItens()->createMany($otherItens);
+
+            //Atualiza o stock de cada produto da fatura
+            $documentoService->updateStock($documento->load("itens"), true);
+
+            DB::commit();
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json(
+                [
+                    "message" => "Erro ao criar o documento.",
+                    "error" => $th->getMessage(),
+                ],
+                500,
+            );
         }
-
-        $documento->itens()->createMany($itens);
 
         return response()->json([
             'message' => 'Documento de compra criado com sucesso.',
-            'documento' => $documento->load('itens')
+            'documento' => $documento->load(['itens', 'otherItens', 'pagamentos.documento'])
         ], 201);
     }
 
     public function show($id)
     {
-        $documento = DocumentoCompra::with(['itens', 'impostosDocumento'])->find($id);
+        $documento = DocumentoCompra::with(['itens', 'impostosDocumento', 'otherItens', 'pagamentos.documento'])->find($id);
 
         if (!$documento) {
             return response()->json(['message' => 'Documento não encontrado.'], 404);
         }
-
+        
         return response()->json($documento);
     }
 }

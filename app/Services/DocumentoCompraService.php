@@ -74,7 +74,7 @@ class DocumentoService
         'produto_id' => $produtoId,
         'quantidade' => $quantidade,
         'operacao' => 'entrada',
-        'observacao' => 'Receção de Encomenda',
+        'observacao' => 'Movimentação automática por documento',
         'utilizador_id' => $this->idUtilizador,
         'origem_movimento' => $this->documento->num_fatura,
       ]);

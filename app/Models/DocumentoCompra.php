@@ -17,6 +17,8 @@ class DocumentoCompra extends Model
         'num_fatura',
         'via',
 
+        'armazem_id',
+
         'empresa_id',
         'empresa_nome',
         'empresa_nif',
@@ -63,9 +65,23 @@ class DocumentoCompra extends Model
         return $this->hasMany(ItemDocumentoCompra::class, 'documento_compra_id', 'id');
     }
 
-     public function impostosDocumento(): HasMany
+    public function otherItens(): HasMany
+    {
+        return $this->hasMany(OtherItensDocumentoCompra::class, 'documento_compra_id', 'id');
+    }
+
+    public function impostosDocumento(): HasMany
     {
         return $this->hasMany(ImpostoDocumentoCompra::class, 'documento_compra_id', 'id');
     }
 
+    public function movimentosStock()
+    {
+        return $this->morphMany(MovimentoStock::class, 'documento');
+    }
+
+    public function pagamentos(): HasMany
+    {
+        return $this->hasMany(PagamentoDocumentoCompra::class, 'documento_compra_id');
+    }
 }
