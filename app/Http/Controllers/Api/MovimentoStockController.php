@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Armazem;
 use App\Models\Documento;
+use App\Models\DocumentoInterno;
 use App\Models\Empresa;
 use App\Models\MovimentoStock;
 use App\Models\Produto;
@@ -78,9 +79,10 @@ class MovimentoStockController extends Controller
             ], 422);
         }
 
-        DB::beginTransaction();
 
         try {
+
+            DB::beginTransaction();
 
             $result = null;
 
@@ -90,7 +92,7 @@ class MovimentoStockController extends Controller
                 $movimentos = [];
 
                 foreach ($data['itens'] as $item) {
-                    $movimentos[] = MovimentoStock::create([
+                    $movimentos[] = $documento->movimentosStock()->create([
                         'armazem_id' => $data['armazem_id'],
                         'produto_id' => $item['produto_id'],
                         'quantidade' => $item['quantidade'],
@@ -104,28 +106,32 @@ class MovimentoStockController extends Controller
 
                 $result = [
                     'message' => 'Movimentos de stock para Nota de Quebra registrados com sucesso',
-                    'data' => $movimentos
+                    'data' => $documento
                 ];
             } elseif ($data['tipo_movimento'] === 'transferencia') {
+
+                $documento = $this->storeDocumentTransferencia($request);
 
                 $movimentos = [];
 
                 foreach ($data['itens'] as $item) {
 
-                    $movimentos[] = MovimentoStock::create([
-                        'armazem_id' => $item['armazem_origem_id'],
+                    $movimentos[] = $documento->movimentosStock()->create([
+                        'armazem_id' => $data['armazem_origem_id'],
                         'produto_id' => $item['produto_id'],
                         'quantidade' => $item['quantidade'],
                         'operacao' => 'saida',
+                        'origem_movimento' => $data['armazem_origem'],
                         'observacao' => $item['observacao'] ?? null,
                         'utilizador_id' => $data['utilizador_id'] ?? null,
                     ]);
 
-                    $movimentos[] = MovimentoStock::create([
-                        'armazem_id' => $item['armazem_destino_id'],
+                    $movimentos[] = $documento->movimentosStock()->create([
+                        'armazem_id' => $data['armazem_destino_id'],
                         'produto_id' => $item['produto_id'],
                         'quantidade' => $item['quantidade'],
                         'operacao' => 'entrada',
+                        'origem_movimento' => $data['armazem_destino'],
                         'observacao' => $item['observacao'] ?? null,
                         'utilizador_id' => $data['utilizador_id'] ?? null,
                     ]);
@@ -133,7 +139,7 @@ class MovimentoStockController extends Controller
 
                 $result = [
                     'message' => 'Transferência realizada com sucesso',
-                    'data' => $movimentos
+                    'data' => $documento
                 ];
             } elseif ($data['tipo_movimento'] === 'saida_inventario' || $data['tipo_movimento'] === 'entrada_inventario') {
 
@@ -142,7 +148,7 @@ class MovimentoStockController extends Controller
                 $movimentos = [];
 
                 foreach ($data['itens'] as $item) {
-                    $movimentos[] = MovimentoStock::create([
+                    $movimentos[] = $documento->movimentosStock()->create([
                         'armazem_id' => $data['armazem_id'],
                         'produto_id' => $item['produto_id'],
                         'quantidade' => $item['quantidade'],
@@ -156,7 +162,7 @@ class MovimentoStockController extends Controller
 
                 $result = [
                     'message' => 'Movimentação registrada com sucesso',
-                    'data' => $movimentos
+                    'data' => $documento
                 ];
             } else {
                 $movimentos = [];
@@ -229,7 +235,7 @@ class MovimentoStockController extends Controller
 
             DB::beginTransaction();
 
-            $documento = Documento::create([
+            $documento = DocumentoInterno::create([
                 'tipo_nome' => 'Nota de Quebra',
                 'tipo_sigla' => 'NQ',
                 'estado_documento' => 'emitido',
@@ -244,11 +250,6 @@ class MovimentoStockController extends Controller
                 "empresa_endereco" => $empresa->endereco,
 
                 "cliente_id" => "0",
-                "cliente_nome" => "",
-                "cliente_nif" => "",
-                "cliente_telefone" => "",
-                "cliente_email" => "",
-                "cliente_endereco" => "",
 
                 "data_emissao" => now(),
 
@@ -340,10 +341,10 @@ class MovimentoStockController extends Controller
 
             DB::beginTransaction();
 
-            $documento = Documento::create([
+            $documento = DocumentoInterno::create([
                 'tipo_nome' => $tipo === 'entrada_inventario' ? 'Entrada de Inventário' : 'Saída de Inventário',
                 'tipo_sigla' => $tipo === 'entrada_inventario' ? 'EI' : 'SI',
-                'estado_documento' => 'emitido',
+                // 'estado_documento' => 'emitido',
                 'num_fatura' => $numFatura,
                 'via' => 'original',
 
@@ -353,13 +354,6 @@ class MovimentoStockController extends Controller
                 "empresa_telefone" => $empresa->telefone,
                 "empresa_email" => $empresa->email,
                 "empresa_endereco" => $empresa->endereco,
-
-                "cliente_id" => "0",
-                "cliente_nome" => "",
-                "cliente_nif" => "",
-                "cliente_telefone" => "",
-                "cliente_email" => "",
-                "cliente_endereco" => "",
 
                 "data_emissao" => now(),
 
@@ -420,6 +414,122 @@ class MovimentoStockController extends Controller
             DB::rollBack();
             return response()->json([
                 'message' => 'Erro ao criar documento de inventário',
+                'error' => $th->getMessage(),
+                'file' => $th->getFile(),
+                'line' => $th->getLine(),
+            ], 500);
+        }
+    }
+
+    public function storeDocumentTransferencia(Request $request)
+    {
+
+        $numFatura = app(DocumentoController::class)->gerarNumeroDocumento(
+            'TR',
+            $request->input("empresa_id"),
+        );
+
+        $data = $request->all();
+
+        $itens = $data['itens'] ?? [];
+
+        $totalGeral = 0;
+        foreach ($itens as $item) {
+            $totalItem = ($item['preco_custo'] * $item['quantidade']);
+            $totalGeral += $totalItem;
+        }
+
+        $empresa = Empresa::find($request->input("empresa_id"));
+
+        $armazemOrigem = Armazem::find($request["armazem_origem_id"]);
+        $armazemDestino = Armazem::find($request["armazem_destino_id"]);
+        
+
+        try {
+
+            DB::beginTransaction();
+
+            $documento = DocumentoInterno::create([
+                'tipo_nome' => 'Transferência',
+                'tipo_sigla' => 'TR',
+                'estado_documento' => 'emitido',
+                'num_fatura' => $numFatura,
+                'via' => 'original',
+
+                "empresa_id" => $empresa->id,
+                "empresa_nome" => $empresa->nome,
+                "empresa_nif" => $empresa->nif,
+                "empresa_telefone" => $empresa->telefone,
+                "empresa_email" => $empresa->email,
+                "empresa_endereco" => $empresa->endereco,
+
+                "cliente_id" => "0",
+
+                "data_emissao" => now(),
+
+                "taxa_iva" => "0",
+                "valor_iva" => "0",
+                "retencao" => "0",
+
+                "estado" => "emitido",
+
+                "hash" => "",
+
+                "desconto_tipo" => "0",
+                "desconto_total" => "0",
+                "valor_transporte" => "0",
+                "total_sem_desconto" => "0",
+                "total_impostos" => "0",
+                "total_geral" => $totalGeral,
+                "troco" => "0",
+
+                "utilizador_id" => $request["utilizador_id"],
+                "utilizador" => $request["utilizador"],
+
+                "armazem_origem_id" => $request["armazem_origem_id"],
+                "armazem_destino_id" => $request["armazem_destino_id"],
+
+                "armazem_origem" => $armazemOrigem->id,
+                "origem_destino" => $armazemDestino->id,
+
+            ]);
+
+            // Criação dos itens
+            $itens = [];
+            foreach ($request["itens"] as $item) {
+
+                $totalItem = ($item["preco_custo"] * $item["quantidade"]);
+                $produto = Produto::find($item["produto_id"]);
+
+                $itens[] = [
+                    "documento_id" => $documento->id,
+                    "produto_nome" => $produto->nome,
+                    "produto_codigo" => $produto->codigo_produto,
+                    "preco_unitario" => $item["preco_custo"],
+                    "descricao" => $produto->descricao,
+                    "quantidade" => $item["quantidade"],
+                    "desconto_percent" => 0,
+                    "desconto_fixo" => 0,
+                    "iva_percent" => 0,
+                    "imposto_taxa_id" => null,
+                    "codigo_iva" => null,
+                    "tipo_id" => $produto->tipo_id,
+                    "motivo_isencao" => null,
+                    "total_sem_desconto" => 0,
+                    "total" => $totalItem,
+                    // Adicione outros campos conforme necessário
+                ];
+            }
+
+            $documento->itens()->createMany($itens);
+
+            DB::commit();
+
+            return $documento;
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Erro ao criar documento de transferencia',
                 'error' => $th->getMessage(),
                 'file' => $th->getFile(),
                 'line' => $th->getLine(),

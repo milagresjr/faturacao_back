@@ -10,9 +10,12 @@ use App\Models\BancoDocumento;
 use App\Models\Cliente;
 use App\Models\Conta;
 use App\Models\Documento;
+use App\Models\DocumentoCompra;
 use App\Models\ImpostoDocumento;
+use App\Models\ImpostoDocumentoCompra;
 use App\Models\InfoGuia;
 use App\Models\MeioPagamentoDocumento;
+use App\Models\PagamentoDocumentoCompra;
 use App\Models\TipoTaxaIva;
 use App\Services\DocumentoService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -2322,10 +2325,11 @@ class DocumentoController extends Controller
 
     public function gerarPdfFaturaCompra(string $id)
     {
-        $documento = Documento::with([
-            "documentosRelacionados",
-            "relacionadoEm",
+        $documento = DocumentoCompra::with([
             "itens",
+            "otherItens",
+            "impostosDocumento",
+            "pagamentos"
         ])->find($id);
 
         // Verifica se o documento foi encontrado
@@ -2336,14 +2340,12 @@ class DocumentoController extends Controller
             );
         }
 
-        $bancos = BancoDocumento::where("documento_id", $id)->get();
-
-        $meiosPagamento = MeioPagamentoDocumento::where(
-            "documento_id",
+        $meiosPagamento = PagamentoDocumentoCompra::where(
+            "documento_compra_id",
             $id,
         )->get();
 
-        $quadroImposto = ImpostoDocumento::where("documento_id", $id)->get();
+        $quadroImposto = ImpostoDocumentoCompra::where("documento_compra_id", $id)->get();
 
         $quadroImpostoAgrupado = [];
 
@@ -2398,7 +2400,6 @@ class DocumentoController extends Controller
             compact([
                 "documento",
                 "quadroImpostoAgrupado",
-                "bancos",
                 "meiosPagamento",
             ]),
         )->render();
@@ -2417,7 +2418,7 @@ class DocumentoController extends Controller
             $canvas,
             $fontMetrics,
         ) {
-            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
+            // $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
             $text2 = "Página $pageNumber / $pageCount";
             $font = $fontMetrics->get_font("Helvetica", "normal");
             $size = 10;
@@ -2434,9 +2435,9 @@ class DocumentoController extends Controller
                 $lineY,
                 [0, 0, 0],
                 1,
-            );
+            );     
 
-            $canvas->text($x, $y1, $text1, $font, $size);
+            // $canvas->text($x, $y1, $text1, $font, $size);
             $canvas->text($x, $y2, $text2, $font, $size);
         });
 

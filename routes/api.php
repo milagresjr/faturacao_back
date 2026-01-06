@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CategoriaProdutoController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\ContaController;
 use App\Http\Controllers\Api\DocumentoController;
+use App\Http\Controllers\Api\DocumentoInternoController;
 use App\Http\Controllers\Api\EmpresaController;
 use App\Http\Controllers\Api\FaturaCompraController;
 use App\Http\Controllers\Api\FilialController;
@@ -72,10 +73,14 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::apiResource('bancos', BancoController::class);
 
     Route::apiResource('caixas', CaixaController::class);
+    Route::apiResource('movimento-stock', MovimentoStockController::class);
+    Route::apiResource('fatura-compra/pagamento', PagamentoDocumentoCompraController::class);
 });
-Route::apiResource('movimento-stock', MovimentoStockController::class);
-Route::apiResource('fatura-compra/pagamento', PagamentoDocumentoCompraController::class);
 Route::apiResource('unidades', UnidadeController::class);
+Route::get('documento-interno/{id}', [DocumentoInternoController::class, 'show']);
+Route::get('documento-interno/transferencia/{id}/pdf',[DocumentoInternoController::class, 'gerarPdfDocTransferencia']);
+Route::get('documento-interno/nota-quebra/{id}/pdf',[DocumentoInternoController::class, 'gerarPdfDocNotaQuebra']);
+Route::get('documento-interno/inventario/{id}/pdf',[DocumentoInternoController::class, 'gerarPdfDocInventario']);
 Route::patch('/unidades/{id}/definir-predefinida', [UnidadeController::class, 'definirComoPredefinida']);
 Route::apiResource('empresas', EmpresaController::class);
 Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);

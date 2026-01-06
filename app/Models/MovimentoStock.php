@@ -28,6 +28,7 @@ class MovimentoStock extends Model
         return match ($this->documento_type) {
             Documento::class => 'VENDA',
             DocumentoCompra::class => 'COMPRA',
+            DocumentoInterno::class => 'INTERNO',
             default => 'DESCONHECIDO',
         };
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DocumentoCompra;
 use App\Models\ImpostoDocumentoCompra;
+use App\Models\PagamentoDocumentoCompra;
 use App\Services\DocumentoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -482,6 +483,16 @@ class FaturaCompraController extends Controller
             //Cadastra outros itens do documento
             $documento->otherItens()->createMany($otherItens);
 
+            //Se a fatura foi paga, cadastrar o pagamento
+            if ($request->boolean('paga')) {
+                PagamentoDocumentoCompra::create([
+                    "documento_compra_id" => $documento->id,
+                    "observacao" => "",
+                    "data_pagamento" => now(),
+                    "valor" => $request['valor_pago'],
+                ]);
+            }
+
             //Atualiza o stock de cada produto da fatura
             $documentoService->updateStock($documento->load("itens"), true);
 
@@ -510,7 +521,51 @@ class FaturaCompraController extends Controller
         if (!$documento) {
             return response()->json(['message' => 'Documento não encontrado.'], 404);
         }
-        
+
         return response()->json($documento);
+    }
+
+    public function destroy(string $id)
+    {
+        $documento = DocumentoCompra::with(['itens', 'otherItens', 'impostosDocumento', 'pagamentos'])->find($id);
+
+        if (! $documento) {
+            return response()->json(['message' => 'Documento não encontrado.'], 404);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Apagar relacionamentos (pagamentos, impostos, itens, outros itens)
+            if ($documento->movimentosStock()->exists()) {
+                $documento->movimentosStock()->delete();
+            }
+
+            if ($documento->pagamentos()->exists()) {
+                $documento->pagamentos()->delete();
+            }
+            if ($documento->impostosDocumento()->exists()) {
+                $documento->impostosDocumento()->delete();
+            }
+            if ($documento->itens()->exists()) {
+                $documento->itens()->delete();
+            }
+            if ($documento->otherItens()->exists()) {
+                $documento->otherItens()->delete();
+            }
+
+            // Apagar documento
+            $documento->delete();
+
+            DB::commit();
+
+            return response()->json(['message' => 'Documento removido com sucesso.'], 200);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Erro ao remover o documento.',
+                'error' => $th->getMessage(),
+            ], 500);
+        }
     }
 }
