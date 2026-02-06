@@ -20,11 +20,13 @@ class Utilizador extends Authenticatable
         'nome_de_utilizador',
         'email',
         'senha',
+        'telefone',
         'nivel_acesso',
         'remember_token',
         'estado',
         'perfil_id',
         'empresa_id',
+        'must_change_password',
     ];
 
     protected function casts(): array
@@ -33,16 +35,23 @@ class Utilizador extends Authenticatable
             'estado' => 'boolean',
             'senha' => 'hashed',
         ];
-    } 
+    }
 
     public function empresa()
     {
         return $this->belongsTo(Empresa::class, 'empresa_id');
     }
-    
+
     public function perfil()
     {
         return $this->belongsTo(Perfil::class, 'perfil_id');
+    }
+
+    public function temPermissao($permissao)
+    {
+        return $this->perfil
+            ->permissoes
+            ->contains('nome', $permissao);
     }
 
     public function isAdmin()

@@ -127,6 +127,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados", // documentos que este documento referencia
                 "relacionadoEm", // documentos que referenciam este documento
             ])
+            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -138,6 +139,7 @@ class DocumentoController extends Controller
         $per_page = $request->input("per_page", 10);
 
         $search = $request->query("search");
+        $clienteId = $request->query("cliente_id");
         $tipo = $request->query("tipo"); // Tipo de documento
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
@@ -171,6 +173,11 @@ class DocumentoController extends Controller
                     $q->where("tipo_sigla", $tipo)->orWhere("tipo_nome", $tipo);
                 });
             }
+        }
+
+        // 👤 Filtrar por cliente
+        if ($clienteId) {
+            $documentoQuery->where("cliente_id", $clienteId);
         }
 
         // 📅 Filtrar por intervalo de datas
@@ -227,6 +234,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados", // documentos que este documento referencia
                 "relacionadoEm", // documentos que referenciam este documento
             ])
+            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -327,6 +335,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
+            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -427,6 +436,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
+            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -527,6 +537,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
+            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -2562,6 +2573,7 @@ class DocumentoController extends Controller
 
     public function pdfRelatorioDocumento(Request $request)
     {
+        $clienteId = $request->query("cliente_id");
         $tipo = $request->query("tipo"); // Tipo de documento
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
@@ -2586,6 +2598,11 @@ class DocumentoController extends Controller
             $documentoQuery->whereIn("tipo_sigla", ["FT", "FA", "FG", "FR"]);
         }
 
+        // 👤 Filtrar por cliente
+        if ($clienteId) {
+            $documentoQuery->where("cliente_id", $clienteId);
+        }
+
         // 📅 Filtrar por intervalo de datas
         if ($dataInicial && $dataFinal) {
             $documentoQuery->whereBetween("data_emissao", [
@@ -2605,6 +2622,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
+            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->get();
 
@@ -2736,6 +2754,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
+            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->get();
 
@@ -3746,6 +3765,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
+            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->get();
 

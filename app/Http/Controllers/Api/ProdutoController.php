@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Armazem;
 use Illuminate\Http\Request;
 use App\Models\Produto;
+use App\Models\Stock;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -66,7 +69,7 @@ class ProdutoController extends Controller
             'valor_iva' => 'required|numeric',
             'stock_min' => 'nullable|integer',
             'stock_max' => 'nullable|integer',
-            'stock_ideial' => 'nullable|integer',
+            'stock_ideal' => 'nullable|integer',
             'modelo' => 'nullable|string|max:255',
             'imagem' => 'nullable|file|image|max:2048',
             'movimenta_stock' => 'nullable|boolean',
@@ -93,34 +96,58 @@ class ProdutoController extends Controller
 
         $data = $request->all();
 
-        $codigoProduto = $this->gerarCodigoProduto($request->nome, $request->tipo_id == 1 ? 'P' : 'S', $request->empresa_id);
+        return DB::transaction(function () use ($data, $request) {
 
-        if (empty($data['codigo_produto'])) {
-            $data['codigo_produto'] = $codigoProduto; // Gera o código se não for fornecido
-        } else {
-            // Verifica se o código já existe
-            if (Produto::where('codigo_produto', $data['codigo_produto'])->exists()) {
-                return response()->json(['error' => 'Código de produto já existe'], 422);
+            $codigoProduto = $this->gerarCodigoProduto($request->nome, $request->tipo_id == 1 ? 'P' : 'S', $request->empresa_id);
+
+            if (empty($data['codigo_produto'])) {
+                $data['codigo_produto'] = $codigoProduto; // Gera o código se não for fornecido
+            } else {
+                if (Produto::where('codigo_produto', $data['codigo_produto'])->exists()) {
+                    return response()->json(['error' => 'Código de produto já existe'], 422);
+                }
             }
-        }
 
-        // Garante que o id da empresa seja do utilizador autenticado, se disponível
-        if (isset($request->empresa_id)) {
-            $data['empresa_id'] = $request->empresa_id;
-        }
+            if (isset($request->empresa_id)) {
+                $data['empresa_id'] = $request->empresa_id;
+            }
 
-        if ($request->hasFile('imagem')) {
-            $file = $request->file('imagem');
-            $filename = $file->hashName(); // ex: gpGxW5fiTCtyjYQ3EMatApbXRdfSQv0s2AOiZOKM.jpg
-            $file->storeAs('produtos', $filename, 'public');
-            $data['imagem'] = $filename; // salva só o nome do arquivo no banco
-        }
+            if ($request->hasFile('imagem')) {
+                $file = $request->file('imagem');
+                $filename = $file->hashName();
+                $file->storeAs('produtos', $filename, 'public');
+                $data['imagem'] = $filename;
+            }
 
-        $produto = Produto::create($data);
+            // Cria o produto dentro da transaction
+            $produto = Produto::create($data);
 
-        return response()->json($produto->load(['marca', 'categoria', 'subCategoria', 'armazem', 'tipoIva', 'motivoIsencao', 'fornecedor', 'movimentosStock']), 201);
+            // Cria os stocks para cada armazém dentro da mesma transaction
+            $armazens = Armazem::where('empresa_id', $data['empresa_id'])->get();
+            foreach ($armazens as $armazem) {
+                Stock::create([
+                    'empresa_id' => $data['empresa_id'],
+                    'produto_id' => $produto->id,
+                    'armazem_id' => $armazem->id,
+                    'stock_min' => $produto->stock_min ?? 0,      // valor padrão
+                    'stock_ideal' => $produto->stock_ideial ?? 0,  // valor padrão
+                    'stock_max' => $produto->stock_max ?? 0,      // valor padrão
+                    'stock_atual' => 0
+                ]);
+            }
+
+            return response()->json($produto->load([
+                'marca',
+                'categoria',
+                'subCategoria',
+                'armazem',
+                'tipoIva',
+                'motivoIsencao',
+                'fornecedor',
+                'movimentosStock'
+            ]), 201);
+        }); // fecha DB::transaction
     }
-
 
     function gerarCodigoProduto(string $nomeProduto, string $tipo, string $empresaId): string
     {

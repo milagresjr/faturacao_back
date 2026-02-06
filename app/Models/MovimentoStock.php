@@ -13,6 +13,7 @@ class MovimentoStock extends Model
     protected $fillable = [
         'id',
         'armazem_id',
+        'stock_id',
         'produto_id',
         'quantidade',
         'operacao',
@@ -50,6 +51,11 @@ class MovimentoStock extends Model
     public function documento()
     {
         return $this->morphTo();
+    }
+
+    public function stock()
+    {
+        return $this->belongsTo(Stock::class);
     }
 
     /**

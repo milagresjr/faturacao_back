@@ -12,6 +12,7 @@ class Armazem extends Model
         'nome',
         'endereco',
         'estado',
+        'predefinido',
         'filial_id',
         'empresa_id',
         'utilizador_id',

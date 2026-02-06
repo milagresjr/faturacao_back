@@ -26,6 +26,7 @@ class Produto extends Model
         'stock_min',
         'stock_max',
         'stock_ideial',
+        'stock_atual',
         'modelo',
         'imagem',
         'movimenta_stock',

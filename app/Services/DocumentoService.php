@@ -6,6 +6,7 @@ use App\Models\Documento;
 use App\Models\DocumentoCompra;
 use App\Models\MovimentoStock;
 use App\Models\Produto;
+use App\Models\Stock;
 
 class DocumentoService
 {
@@ -42,8 +43,14 @@ class DocumentoService
       return;
     }
 
+    // Encontra o stock do produto no armazém
+    $stock = Stock::where('produto_id', $produtoId)
+      ->where('armazem_id', $this->documento->armazem_id)
+      ->first();
+
     //Cria um registo na tabela de movimentos de stock
     $this->documento->movimentosStock()->create([
+      'stock_id' => $stock->id,
       'armazem_id' => $this->documento->armazem_id,
       'produto_id' => $produtoId,
       'quantidade' => $quantidade,
@@ -52,12 +59,19 @@ class DocumentoService
       'utilizador_id' => $this->idUtilizador,
       'origem_movimento' => $this->documento->num_fatura,
     ]);
+
+    //Atualiza na tabela Stock
+    $stock = Stock::where('produto_id', $produtoId)->first();
+
+    if ($stock) {
+      $stock->decrement('stock_atual', $quantidade);
+    }
   }
 
   private function increaseStock($produtoId, $quantidade)
   {
     $produto = Produto::find($produtoId);
-    
+
     if (!$produto) {
       return "Poduct not found!";
     }
@@ -66,10 +80,14 @@ class DocumentoService
       return;
     }
 
-    
+    $stock = Stock::where('produto_id', $produtoId)
+      ->where('armazem_id', $this->documento->armazem_id)
+      ->first();
+
     if ($this->isFaturaCompra) {
-      
+
       $this->documento->movimentosStock()->create([
+        'stock_id' => $stock->id,
         'armazem_id' => $this->documento->armazem_id,
         'produto_id' => $produtoId,
         'quantidade' => $quantidade,
@@ -80,6 +98,7 @@ class DocumentoService
       ]);
     } else {
       $this->documento->movimentosStock()->create([
+        'stock_id' => $stock->id,
         'armazem_id' => $this->documento->armazem_id,
         'produto_id' => $produtoId,
         'quantidade' => $quantidade,
@@ -88,6 +107,13 @@ class DocumentoService
         'utilizador_id' => $this->idUtilizador,
         'origem_movimento' => $this->documento->num_fatura,
       ]);
+    }
+
+    // Atualizar a tabela Stock
+    $stock = Stock::where('produto_id', $produtoId)->first();
+
+    if ($stock) {
+      $stock->increment('stock_atual', $quantidade);
     }
   }
 }

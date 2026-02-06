@@ -15,7 +15,15 @@ class Empresa extends Model
         'telefone',
         'morada',
         'logo',
-        'indicativo_fatura'
+        'indicativo_fatura',
+        'slogan',
+        'website',
+        'pais',
+        'provincia',
+        'municipio',
+        'bairro',
+        'codigo_postal',
+        'status'
     ];
 
     protected $casts = [

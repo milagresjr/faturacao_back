@@ -9,6 +9,7 @@ use App\Models\DocumentoInterno;
 use App\Models\Empresa;
 use App\Models\MovimentoStock;
 use App\Models\Produto;
+use App\Models\Stock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -184,6 +185,17 @@ class MovimentoStockController extends Controller
                     'message' => 'Movimentação registrada com sucesso',
                     'data' => $movimentos
                 ];
+            }
+
+            //Atualiza na tabela Stock
+            $stock = Stock::where('produto_id', $item['produto_id'])->first();
+
+            if ($stock) {
+                if ($this->resolveOperacao($data['tipo_movimento']) === '+') {
+                    $stock->increment('stock_atual', $item['quantidade']);
+                } else {
+                    $stock->decrement('stock_atual', $item['quantidade']);
+                }
             }
 
             DB::commit();
@@ -443,7 +455,7 @@ class MovimentoStockController extends Controller
 
         $armazemOrigem = Armazem::find($request["armazem_origem_id"]);
         $armazemDestino = Armazem::find($request["armazem_destino_id"]);
-        
+
 
         try {
 

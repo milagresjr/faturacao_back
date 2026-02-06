@@ -7,9 +7,12 @@ use App\Models\DocumentoCompra;
 use App\Models\ImpostoDocumentoCompra;
 use App\Models\PagamentoDocumentoCompra;
 use App\Services\DocumentoService;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FaturaCompraController extends Controller
 {
@@ -18,6 +21,7 @@ class FaturaCompraController extends Controller
         $per_page = $request->input('per_page', 10);
 
         $search = $request->query('search');
+        $fornecedorId = $request->query("fornecedor_id");
         $tipo = $request->query('tipo'); // Tipo de documento
         $dataInicial = $request->query('data_inicial');
         $dataFinal = $request->query('data_final');
@@ -63,8 +67,9 @@ class FaturaCompraController extends Controller
         }
 
         // 👤 Filtrar por fornecedor/entidade
-        if ($entidadeId) {
-            $documentoQuery->where('fornecedor_id', $entidadeId);
+
+        if ($fornecedorId) {
+            $documentoQuery->where("fornecedor_id", $fornecedorId);
         }
 
         // 💰 Filtro por valor
@@ -567,5 +572,119 @@ class FaturaCompraController extends Controller
                 'error' => $th->getMessage(),
             ], 500);
         }
+    }
+
+    public function pdfRelatorioDocumentoCompra(Request $request)
+    {
+        $fornecedorId = $request->query("fornecedor_id");
+        $dataInicial = $request->query("data_inicial");
+        $dataFinal = $request->query("data_final");
+
+        $documentoQuery = DocumentoCompra::query();
+   
+        // 👤 Filtrar por fornecedor
+        if ($fornecedorId) {
+            $documentoQuery->where("fornecedor_id", $fornecedorId);
+        }
+
+        // 📅 Filtrar por intervalo de datas
+        if ($dataInicial && $dataFinal) {
+            $documentoQuery->whereBetween("data_fatura", [
+                $dataInicial,
+                $dataFinal,
+            ]);
+        } elseif ($dataInicial) {
+            $documentoQuery->whereDate("data_fatura", ">=", $dataInicial);
+        } elseif ($dataFinal) {
+            $documentoQuery->whereDate("data_fatura", "<=", $dataFinal);
+        }
+
+        $documentos = $documentoQuery
+            ->with([
+                "itens",
+                "impostosDocumento",
+            ])
+            ->orderByDesc("id")
+            ->get();
+
+        $totalGeral = $documentos->sum("total_geral");
+
+        $dadosEmpresa = [
+            "nome" => "Softseven",
+            "endereco" => "Luanda, Camama",
+            "nif" => "999999999",
+            "telefone" => "941608052",
+            "email" => " geral@sofyseven.ao",
+        ];
+
+        $options = new Options();
+        $options->set("isHtml5ParserEnabled", true);
+        $options->set("isRemoteEnabled", true);
+
+        $dompdf = new Dompdf($options);
+
+        $html = view(
+            "pdf.relatorio-documento-compra",
+            compact([
+                "documentos",
+                "dataInicial",
+                "dataFinal",
+                "totalGeral",
+                "dadosEmpresa",
+            ]),
+        )->render();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper("A4", "portrait");
+        $dompdf->render();
+
+        // Pegamos o canvas atualizado
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+
+        // Aqui aplicamos o script para todas as páginas
+        $canvas->page_script(function (
+            $pageNumber,
+            $pageCount,
+            $canvas,
+            $fontMetrics,
+        ) {
+            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
+            $text2 = "Página $pageNumber / $pageCount";
+            $font = $fontMetrics->get_font("Helvetica", "normal");
+            $size = 10;
+
+            $x = 40;
+            $y1 = $canvas->get_height() - 50;
+            $y2 = $y1 + 12;
+
+            $lineY = $y1 - 5;
+            $canvas->line(
+                $x,
+                $lineY,
+                $canvas->get_width() - $x,
+                $lineY,
+                [0, 0, 0],
+                1,
+            );
+
+            $canvas->text($x, $y1, $text1, $font, $size);
+            $canvas->text($x, $y2, $text2, $font, $size);
+        });
+
+        $filename = "relatorio"; //str_replace([' ', '/'], '_', $documento['num_fatura']);
+
+        //Usa StreamedResponse com o dompdf direto
+        return new StreamedResponse(
+            function () use ($dompdf, $filename) {
+                echo $dompdf->stream($filename, ["Attachment" => false]);
+            },
+            200,
+            [
+                "Content-Type" => "application/pdf",
+                "Content-Disposition" => 'inline; filename="' . $filename . '"',
+                "Access-Control-Allow-Origin" =>
+                "https://softseven-faturacao-front.vercel.app",
+            ],
+        );
     }
 }

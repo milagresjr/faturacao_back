@@ -13,7 +13,6 @@ class Perfil extends Model
         'descricao',
         'estado',
         'empresa_id',
-        'utilizador_id',
     ];
 
     protected $casts = [
@@ -28,5 +27,13 @@ class Perfil extends Model
     public function utilizadores()
     {
         return $this->belongsTo(Utilizador::class);
+    }
+
+    public function permissoes()
+    {
+        return $this->belongsToMany(
+            Permissao::class,
+            'perfil_permissao'
+        );
     }
 }

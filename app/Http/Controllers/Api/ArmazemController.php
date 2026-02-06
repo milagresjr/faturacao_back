@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Armazem;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class ArmazemController extends Controller
@@ -93,5 +94,38 @@ class ArmazemController extends Controller
 
         $armazem->delete();
         return response()->json(['message' => 'Armazém deletado com sucesso']);
+    }
+
+    public function alterarPredefinido(string $id)
+    {
+        $armazem = Armazem::find($id);
+
+        if (!$armazem) {
+            return response()->json(['message' => 'Armazém não encontrado'], 404);
+        }
+
+        try {
+            DB::transaction(function () use ($armazem) {
+                // Reset all armazéns da mesma empresa (e mesma filial, se aplicável)
+                $query = Armazem::where('empresa_id', $armazem->empresa_id);
+
+                if (!is_null($armazem->filial_id)) {
+                    $query->where('filial_id', $armazem->filial_id);
+                }
+
+                $query->update(['predefinido' => false]);
+
+                // Marcar o escolhido como predefinido
+                $armazem->predefinido = true;
+                $armazem->save();
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Erro ao atualizar armazém predefinido',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+
+        return response()->json(['message' => 'Armazém predefinido alterado com sucesso', 'armazem' => $armazem]);
     }
 }

@@ -41,56 +41,53 @@ class ContaController extends Controller
      */
     public function store(Request $request)
     {
-        // Logic to create a new conta
-        $validatedData = Validator::make($request->all(), [
-            'banco_id' => 'required|exists:bancos,id',
-            'utilizador_id' => 'required|exists:utilizadores,id',
-            'numero_conta' => 'required|string|max:255|unique:contas,numero_conta',
-            'descricao' => 'nullable|string|max:255',
-            'saldo' => 'required|numeric|min:0',
-            'tipo' => 'required|string|in:corrente,poupanca,ordem',
-            'moeda' => 'required|string|max:3',
-            'iban' => 'nullable|string|max:34|unique:contas,iban',
-            'swift' => 'nullable|string|max:11',
-            'titular' => 'nullable|string|max:255',
-            'estado' => 'boolean'
-        ], [
-            'required' => 'O campo :attribute é obrigatório.',
-            'exists' => 'O :attribute selecionado não existe.',
-            'unique' => 'Já existe uma conta com este :attribute.',
-            'numeric' => 'O campo :attribute deve ser um número.',
-            'max' => 'O campo :attribute não pode ter mais de :max caracteres.',
-            'min' => 'O campo :attribute deve ser pelo menos :min.',
-            'in' => 'O campo :attribute deve ser um dos seguintes valores: :values.',
-            'boolean' => 'O campo :attribute deve ser verdadeiro ou falso.'
-        ]);
+        try {
+            $data = $request->validate([
+                'banco_id' => 'required|exists:bancos,id',
+                'utilizador_id' => 'required|exists:utilizadores,id',
+                'numero_conta' => 'required|string|max:255|unique:contas,numero_conta',
+                'descricao' => 'nullable|string|max:255',
+                'saldo' => 'required|numeric|min:0',
+                'tipo' => 'required|string|in:corrente,poupanca,ordem',
+                'moeda' => 'required|string|max:3',
+                'iban' => 'nullable|string|max:34|unique:contas,iban',
+                'swift' => 'nullable|string|max:11',
+                'titular' => 'nullable|string|max:255',
+                'estado' => 'boolean',
+                'empresa_id' => 'nullable|exists:empresas,id',
+            ], [
+                'required' => 'O campo :attribute é obrigatório.',
+                'exists' => 'O :attribute selecionado não existe.',
+                'unique' => 'Já existe uma conta com este :attribute.',
+                'numeric' => 'O campo :attribute deve ser um número.',
+                'max' => 'O campo :attribute não pode ter mais de :max caracteres.',
+                'min' => 'O campo :attribute deve ser pelo menos :min.',
+                'in' => 'O campo :attribute deve ser um dos seguintes valores: :values.',
+                'boolean' => 'O campo :attribute deve ser verdadeiro ou falso.',
+            ]);
 
-        if ($validatedData->fails()) {
-            return response()->json($validatedData->errors(), 422);
-        }
+            // Normalização do IBAN
+            if (!empty($data['iban'])) {
+                $iban = preg_replace('/\s+/', '', $data['iban']);
 
-        $data = $request->all();
+                if (!preg_match('/^AO06/i', $iban)) {
+                    $iban = 'AO06' . $iban;
+                }
 
-        if(isset($request->empresa_id)) {
-            $data['empresa_id'] = $request->empresa_id;
-        }
-
-        if (!empty($data['iban'])) {
-            $iban = $data['iban'];
-            if (!preg_match('/^(AO06|ao06)/', $iban)) {
-                $iban = 'AO06' . $iban;
+                $data['iban'] = trim(implode(' ', str_split($iban, 4)));
             }
-            // Remove all spaces
-            $iban = preg_replace('/\s+/', '', $iban);
-            // Split into groups of 4
-            $iban = trim(implode(' ', str_split($iban, 4)));
-            $data['iban'] = $iban;
+
+            $conta = Conta::create($data);
+
+            return response()->json($conta, 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Erro de validação',
+                'errors' => $e->errors(),
+            ], 422);
         }
-
-        $conta = Conta::create($data);
-
-        return response()->json($conta, 201);
     }
+
 
     /**
      * Display the specified resource.
@@ -131,11 +128,11 @@ class ContaController extends Controller
             'titular' => 'nullable|string|max:255',
             'estado' => 'boolean'
         ]);
-        
+
         if ($validatedData->fails()) {
             return response()->json($validatedData->errors(), 422);
         }
-        
+
         $conta->update($request->all());
 
         return response()->json($conta);
