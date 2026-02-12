@@ -27,6 +27,7 @@ class Utilizador extends Authenticatable
         'perfil_id',
         'empresa_id',
         'must_change_password',
+        'must_fill_data_empresa'
     ];
 
     protected function casts(): array

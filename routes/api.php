@@ -41,12 +41,15 @@ Route::middleware('api')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
+
+    Route::post('/empresas', [EmpresaController::class, 'store']);
 });
 
 Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
     Route::apiResource('utilizadores', UtilizadorController::class);
     Route::middleware('auth:sanctum')->post('utilizadores/change/password', [UtilizadorController::class, 'changePassword']);
+    Route::middleware('auth:sanctum')->patch('empresas/fill-data', [EmpresaController::class, 'fillDataEmpresaUser']);
     
     Route::middleware(ForcePasswordChange::class)->group(function () {
 
@@ -85,7 +88,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::apiResource('unidades', UnidadeController::class);
 
         Route::patch('/unidades/{id}/definir-predefinida', [UnidadeController::class, 'definirComoPredefinida']);
-        Route::apiResource('empresas', EmpresaController::class);
+        Route::apiResource('empresas', EmpresaController::class)->except(['store']);
 
         Route::patch('/armazens/{id}/definir-predefinido', [ArmazemController::class, 'alterarPredefinido']);
 

@@ -29,7 +29,7 @@ class UtilizadorController extends Controller
     public function store(Request $request)
     {
         $validated = validator($request->all(), [
-            'nome_pessoal' => 'required|string|max:255',
+            'nome_pessoal' => 'nullable|string|max:255',
             'nome_de_utilizador' => 'required|string|max:255|unique:utilizadores,nome_de_utilizador',
             'email' => 'required|email|max:255|unique:utilizadores,email',
             'senha' => 'required|string|min:6|confirmed',
