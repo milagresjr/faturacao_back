@@ -17,6 +17,7 @@ class ProdutoController extends Controller
 {
     public function index(Request $request)
     {
+        $idEmpresa = $request->input('empresa_id');
         $per_page = $request->input('per_page', 10);
         $search = $request->query('search');
 
@@ -30,7 +31,7 @@ class ProdutoController extends Controller
         }
 
         $produtos = $produtoQuery
-            // ->where('empresa_id', $request->empresa_id) // Filtra por empresa_id
+            ->where('empresa_id', $idEmpresa) // Filtra por empresa_id
             ->with(['marca', 'categoria', 'subCategoria', 'armazem', 'tipoIva', 'motivoIsencao', 'fornecedor', 'movimentosStock'])
             ->orderByDesc('id')
             ->paginate($per_page);

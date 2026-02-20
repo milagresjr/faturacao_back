@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Marca;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class MarcaController extends Controller
 {
     public function index(Request $request)
     {
+        $idEmpresa = $request->input('empresa_id');
+
         $per_page = $request->input('per_page', 10);
 
         $search = $request->query('search');
@@ -23,7 +26,8 @@ class MarcaController extends Controller
 
         // Return a list of all Marca records
         $marcas = $marcaQuery
-        ->orderByDesc('id')->paginate($per_page);
+            ->where('empresa_id', $idEmpresa) // Filtra por empresa_id
+            ->orderByDesc('id')->paginate($per_page);
 
         return response()->json($marcas);
     }
@@ -38,15 +42,22 @@ class MarcaController extends Controller
     public function store(Request $request)
     {
         // Validate and create a new Marca record
-        $validatedData = $request->validate([
-            'nome' => 'required|string|max:255',
+        $validatedData = Validator::make($request->all(), [
+            'nome' => 'required|string|max:255|unique:marcas,nome,NULL,id,empresa_id,',
             'descricao' => 'nullable|string',
             'estado' => 'boolean',
             'empresa_id' => 'required|exists:empresas,id',
             'utilizador_id' => 'required|exists:utilizadores,id',
         ]);
 
-        $marca = Marca::create($validatedData);
+        if ($validatedData->fails()) {
+            return response()->json([
+                'message' => 'Erro de validação',
+                'errors' => $validatedData->errors()
+            ], 422);
+        }
+        $data = $validatedData->validated();
+        $marca = Marca::create($data);
         return response()->json($marca, 201);
     }
 

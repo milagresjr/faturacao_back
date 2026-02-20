@@ -22,6 +22,7 @@ class MovimentoStockController extends Controller
      */
     public function index(Request $request)
     {
+        $idEmpresa = $request->query('empresa_id');
         $per_page = $request->input('per_page', 10);
 
         $search = $request->query('search');
@@ -42,7 +43,11 @@ class MovimentoStockController extends Controller
             });
         }
 
-        $movimentoStock = $movimentoStockQuery->with(['produto.categoria', 'armazem', 'utilizador'])->orderByDesc('id')->paginate($per_page);
+        $movimentoStock = $movimentoStockQuery
+            ->where('empresa_id', $idEmpresa)
+            ->with(['produto.categoria', 'armazem', 'utilizador'])
+            ->orderByDesc('id')
+            ->paginate($per_page);
 
         return response()->json($movimentoStock);
     }
@@ -80,6 +85,7 @@ class MovimentoStockController extends Controller
             ], 422);
         }
 
+        $idEmpresa = $request->input('empresa_id');
 
         try {
 
@@ -102,6 +108,7 @@ class MovimentoStockController extends Controller
                         'utilizador_id' => $data['utilizador_id'] ?? null,
                         'origem_movimento' => $documento->num_fatura,
                         'documento_relacionado_id' => $documento->id,
+                        'empresa_id' => $idEmpresa
                     ]);
                 }
 
@@ -125,6 +132,7 @@ class MovimentoStockController extends Controller
                         'origem_movimento' => $data['armazem_origem'],
                         'observacao' => $item['observacao'] ?? null,
                         'utilizador_id' => $data['utilizador_id'] ?? null,
+                        'empresa_id' => $idEmpresa
                     ]);
 
                     $movimentos[] = $documento->movimentosStock()->create([
@@ -135,6 +143,7 @@ class MovimentoStockController extends Controller
                         'origem_movimento' => $data['armazem_destino'],
                         'observacao' => $item['observacao'] ?? null,
                         'utilizador_id' => $data['utilizador_id'] ?? null,
+                        'empresa_id' => $idEmpresa
                     ]);
                 }
 
@@ -158,6 +167,7 @@ class MovimentoStockController extends Controller
                         'origem_movimento' => $documento->num_fatura,
                         'utilizador_id' => $data['utilizador_id'] ?? null,
                         'documento_relacionado_id' => $documento->id,
+                        'empresa_id' => $idEmpresa
                     ]);
                 }
 
@@ -178,6 +188,7 @@ class MovimentoStockController extends Controller
                         'utilizador_id' => $data['utilizador_id'] ?? null,
                         'origem_movimento' => 'Manual',
                         'documento_relacionado_id' => null,
+                        'empresa_id' => $idEmpresa
                     ]);
                 }
 

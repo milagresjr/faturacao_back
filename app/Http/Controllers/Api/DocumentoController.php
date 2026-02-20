@@ -11,6 +11,7 @@ use App\Models\Cliente;
 use App\Models\Conta;
 use App\Models\Documento;
 use App\Models\DocumentoCompra;
+use App\Models\Empresa;
 use App\Models\ImpostoDocumento;
 use App\Models\ImpostoDocumentoCompra;
 use App\Models\InfoGuia;
@@ -44,6 +45,8 @@ class DocumentoController extends Controller
         $entidadeId = $request->query("entidade_id"); // cliente
         $valorMin = $request->query("valor_min");
         $valorMax = $request->query("valor_max");
+
+        $idEmpresa = $request->input('empresa_id');
 
         $documentoQuery = Documento::query();
 
@@ -127,7 +130,8 @@ class DocumentoController extends Controller
                 "documentosRelacionados", // documentos que este documento referencia
                 "relacionadoEm", // documentos que referenciam este documento
             ])
-            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
+            ->where('empresa_id', $idEmpresa)
+            ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -147,6 +151,8 @@ class DocumentoController extends Controller
         $entidadeId = $request->query("entidade_id"); // cliente
         $valorMin = $request->query("valor_min");
         $valorMax = $request->query("valor_max");
+
+        $idEmpresa = $request->input('empresa_id');
 
         $documentoQuery = Documento::query();
 
@@ -234,7 +240,8 @@ class DocumentoController extends Controller
                 "documentosRelacionados", // documentos que este documento referencia
                 "relacionadoEm", // documentos que referenciam este documento
             ])
-            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
+            ->where('empresa_id', $idEmpresa)
+            ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -253,6 +260,8 @@ class DocumentoController extends Controller
         $entidadeId = $request->query("entidade_id"); // cliente
         $valorMin = $request->query("valor_min");
         $valorMax = $request->query("valor_max");
+
+        $idEmpresa = $request->input('empresa_id');
 
         $documentoQuery = Documento::query();
 
@@ -335,7 +344,8 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
-            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
+            ->where('empresa_id', $idEmpresa)
+            ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -354,6 +364,8 @@ class DocumentoController extends Controller
         $entidadeId = $request->query("entidade_id"); // cliente
         $valorMin = $request->query("valor_min");
         $valorMax = $request->query("valor_max");
+
+        $idEmpresa = $request->input('empresa_id');
 
         $documentoQuery = Documento::query();
 
@@ -436,7 +448,8 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
-            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
+            ->where('empresa_id', $idEmpresa)
+            ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -455,6 +468,8 @@ class DocumentoController extends Controller
         $entidadeId = $request->query("entidade_id"); // cliente
         $valorMin = $request->query("valor_min");
         $valorMax = $request->query("valor_max");
+
+        $idEmpresa = $request->input('empresa_id');
 
         $documentoQuery = Documento::query();
 
@@ -537,7 +552,8 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
-            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
+            ->where('empresa_id', $idEmpresa)
+            ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->paginate($per_page);
 
@@ -2446,7 +2462,7 @@ class DocumentoController extends Controller
                 $lineY,
                 [0, 0, 0],
                 1,
-            );     
+            );
 
             // $canvas->text($x, $y1, $text1, $font, $size);
             $canvas->text($x, $y2, $text2, $font, $size);
@@ -2622,7 +2638,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
-            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
+            ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->get();
 
@@ -2715,6 +2731,8 @@ class DocumentoController extends Controller
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
 
+        $idEmpresa = $request->input('empresa_id');
+
         $documentoQuery = Documento::query();
 
         // 📄 Filtrar por tipo de documento
@@ -2754,7 +2772,8 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
-            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
+            ->where('empresa_id', $idEmpresa)
+            ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->get();
 
@@ -2840,8 +2859,11 @@ class DocumentoController extends Controller
         $dataFinal = $request->query("data_final");
         $perPage = $request->query("per_page", 10);
 
+        $idEmpresa = $request->input('empresa_id');
+
         // ⚙️ Base da query
         $query = DB::table("documentos")
+            ->where('empresa_id', $idEmpresa)
             ->where("cliente_id", $clienteId)
             ->whereIn("tipo_sigla", [
                 "FT",
@@ -2910,6 +2932,7 @@ class DocumentoController extends Controller
 
         // 🔢 Totais gerais (sem paginação)
         $totaisQuery = DB::table("documentos")
+            ->where('empresa_id', $idEmpresa)
             ->where("cliente_id", $clienteId)
             ->whereIn("tipo_sigla", ["FT", "FA", "FG", "FR", "NC", "ND", "RC"])
             ->select([
@@ -2960,8 +2983,11 @@ class DocumentoController extends Controller
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
 
+        $idEmpresa = $request->input('empresa_id');
+
         // ⚙️ Base da query
         $query = DB::table("documentos")
+            ->where("empresa_id", $idEmpresa)
             ->where("cliente_id", $clienteId)
             ->whereIn("tipo_sigla", [
                 "FT",
@@ -3027,6 +3053,7 @@ class DocumentoController extends Controller
         }
         // 🔢 Totais gerais
         $totaisQuery = DB::table("documentos")
+            ->where("empresa_id", $idEmpresa)
             ->where("cliente_id", $clienteId)
             ->whereIn("tipo_sigla", ["FT", "FA", "FG", "FR", "NC", "ND", "RC"])
             ->select([
@@ -3051,13 +3078,8 @@ class DocumentoController extends Controller
         $saldoFinal =
             ($totais->total_debito ?? 0) - ($totais->total_credito ?? 0);
         $cliente = Cliente::find($clienteId);
-        $dadosEmpresa = [
-            "nome" => "Softseven",
-            "endereco" => "Luanda, Camama",
-            "nif" => "999999999",
-            "telefone" => "941608052",
-            "email" => "",
-        ];
+
+        $dadosEmpresa = Empresa::find($idEmpresa);
 
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
@@ -3130,6 +3152,8 @@ class DocumentoController extends Controller
         $perPage = $request->query("per_page", 10);
         $hoje = now()->toDateString();
 
+        $idEmpresa = $request->input('empresa_id');
+
         // Base da query
         $baseQuery = DB::table("documentos as d")
             // 👇 Liga faturas aos recibos que as pagaram
@@ -3160,6 +3184,7 @@ class DocumentoController extends Controller
                     "(d.total_geral - COALESCE(SUM(mp.valor), 0)) as valor_em_falta",
                 ),
             ])
+            ->where("d.empresa_id", $idEmpresa)
             // Apenas documentos que geram dívida
             ->whereIn("d.tipo_sigla", ["FT", "FA", "FG", "ND"])
             ->groupBy(
@@ -3230,6 +3255,8 @@ class DocumentoController extends Controller
         $dataFinal = $request->query("data_final");
         $hoje = now()->toDateString();
 
+        $idEmpresa = $request->input('empresa_id');
+
         // 🔹 Query base (idêntica à da listagem)
         $query = DB::table("documentos as d")
             ->leftJoin(
@@ -3258,6 +3285,7 @@ class DocumentoController extends Controller
                     "(d.total_geral - COALESCE(SUM(mp.valor), 0)) as valor_em_falta",
                 ),
             ])
+            ->where("d.empresa_id", $idEmpresa)
             ->whereIn("d.tipo_sigla", ["FT", "FA", "FG", "ND"])
             ->groupBy(
                 "d.id",
@@ -3303,13 +3331,7 @@ class DocumentoController extends Controller
             ->first();
 
         // 🏢 Dados da empresa (podes buscar da tabela empresa se quiser)
-        $dadosEmpresa = [
-            "nome" => "Softseven",
-            "endereco" => "Luanda, Camama",
-            "nif" => "999999999",
-            "telefone" => "941608052",
-            "email" => "",
-        ];
+        $dadosEmpresa = Empresa::find($idEmpresa);
 
         // ⚙️ Configuração DomPDF
         $options = new Options();
@@ -3385,6 +3407,8 @@ class DocumentoController extends Controller
         $dataFinal = $request->query("data_final");
         $perPage = $request->query("per_page", 10);
 
+        $idEmpresa = $request->input('empresa_id');
+
         $hoje = now()->toDateString();
 
         // 🧾 Query principal: Recibos (RG, RC) e os documentos pagos
@@ -3411,6 +3435,7 @@ class DocumentoController extends Controller
                 "rg.data_emissao",
                 DB::raw("COALESCE(SUM(mp.valor), 0) as valor_pago"),
             ])
+            ->where("rg.empresa_id", $idEmpresa)
             ->whereIn("rg.tipo_sigla", ["RG", "RC"]) // apenas Recibos
             ->where("ft.tipo_sigla", "!=", "NC") // exclui Notas de Crédito
             ->groupBy(
@@ -3475,6 +3500,8 @@ class DocumentoController extends Controller
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
 
+        $idEmpresa = $request->input('empresa_id');
+
         // 🧾 Query principal: Recibos (RG) e os documentos pagos
         $query = DB::table("documentos as rg")
             ->join("documento_relacoes as dr", "dr.documento_id", "=", "rg.id")
@@ -3498,6 +3525,7 @@ class DocumentoController extends Controller
                 "ft.data_vencimento",
                 DB::raw("COALESCE(SUM(mp.valor), 0) as valor_pago"),
             ])
+            ->where("rg.empresa_id", $idEmpresa)
             ->whereIn("rg.tipo_sigla", ["RG", "RC"]) // apenas Recibos
             ->where("ft.tipo_sigla", "!=", "NC") // exclui Notas de Crédito
             ->groupBy(
@@ -3528,13 +3556,7 @@ class DocumentoController extends Controller
         // 🧮 Totais
         $totalGeral = $resultados->sum("valor_pago");
 
-        $dadosEmpresa = [
-            "nome" => "Softseven",
-            "endereco" => "Luanda, Camama",
-            "nif" => "999999999",
-            "telefone" => "941608052",
-            "email" => "info@softseven.ao",
-        ];
+        $dadosEmpresa = Empresa::find($idEmpresa);
 
         // ⚙️ Configuração do DOMPDF
         $options = new Options();
@@ -3611,8 +3633,11 @@ class DocumentoController extends Controller
         $dataFinal = $request->query("data_final");
         $perPage = $request->query("per_page", 10);
 
+        $idEmpresa = $request->input('empresa_id');
+
         $query = DB::table("itens_documento as di")
             ->join("documentos as d", "di.documento_id", "=", "d.id")
+            ->where("d.empresa_id", $idEmpresa)
             ->select([
                 "di.produto_codigo as codigo",
                 "di.produto_nome as nome",
@@ -3662,6 +3687,7 @@ class DocumentoController extends Controller
         // Totais globais (sem paginação)
         $totais = DB::table("itens_documento as di")
             ->join("documentos as d", "di.documento_id", "=", "d.id")
+            ->where("d.empresa_id", $idEmpresa)
             ->select([
                 DB::raw("SUM(COALESCE(di.quantidade, 0)) as totalQtd"),
                 DB::raw(
@@ -3726,6 +3752,8 @@ class DocumentoController extends Controller
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
 
+        $idEmpresa = $request->input('empresa_id');
+
         $documentoQuery = Documento::query();
 
         // 📄 Filtrar por tipo de documento
@@ -3765,7 +3793,8 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
-            ->where('estado_documento', '!=', [ 'cancelado' , 'anulado', 'pendente', 'rascunho'])
+            ->where("empresa_id", $idEmpresa)
+            ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->get();
 
@@ -3823,13 +3852,7 @@ class DocumentoController extends Controller
         //     'totalGeral' => $totalGeral,
         // ]);
 
-        $dadosEmpresa = [
-            "nome" => "Softseven",
-            "endereco" => "Luanda, Camama",
-            "nif" => "999999999",
-            "telefone" => "941608052",
-            "email" => " geral@sofyseven.ao",
-        ];
+        $dadosEmpresa = Empresa::find($idEmpresa);
 
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
@@ -3915,6 +3938,8 @@ class DocumentoController extends Controller
         $dataFinal = $request->query("data_final");
         $perPage = $request->query("per_page", 10);
 
+        $idEmpresa = $request->input('empresa_id');
+
         $baseQuery = DB::table("documentos as d")
             ->join("utilizadores as u", "d.utilizador_id", "=", "u.id");
 
@@ -3957,6 +3982,7 @@ class DocumentoController extends Controller
         $documentos = (clone $baseQuery)
             ->select([
                 "d.id",
+                "d.empresa_id",
                 "d.tipo_sigla",
                 "d.tipo_nome",
                 "d.num_fatura",
@@ -3967,6 +3993,7 @@ class DocumentoController extends Controller
                 "u.id as colaborador_id",
                 "u.nome_pessoal as colaborador_nome",
             ])
+            ->where("d.empresa_id", $idEmpresa)
             ->orderBy("u.nome_pessoal", "asc")
             ->orderBy("d.data_emissao", "desc")
             ->paginate($perPage);
@@ -3982,6 +4009,7 @@ class DocumentoController extends Controller
             SUM(COALESCE(d.total_sem_desconto, 0)) as totalSemDesconto,
             SUM(COALESCE(d.total_geral, 0)) as totalFaturado
         ")
+            ->where("d.empresa_id", $idEmpresa)
             ->first();
 
         return response()->json([
@@ -4008,7 +4036,10 @@ class DocumentoController extends Controller
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
 
+        $idEmpresa = $request->input('empresa_id');
+
         $query = DB::table("documentos as d")
+            ->where("d.empresa_id", $idEmpresa)
             ->join("utilizadores as u", "d.utilizador_id", "=", "u.id")
             ->select([
                 "d.id",
@@ -4070,13 +4101,7 @@ class DocumentoController extends Controller
         $totalFaturado = $documentos->sum("total_geral");
 
         // 📋 Dados da empresa
-        $dadosEmpresa = [
-            "nome" => "Softseven",
-            "endereco" => "Luanda, Camama",
-            "nif" => "999999999",
-            "telefone" => "941608052",
-            "email" => "geral@softseven.ao",
-        ];
+        $dadosEmpresa = Empresa::find($idEmpresa);
 
         // 🧾 Agrupar documentos por colaborador
         $documentosPorColaborador = $documentos->groupBy("colaborador_nome");

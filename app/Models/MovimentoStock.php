@@ -22,6 +22,7 @@ class MovimentoStock extends Model
         'origem_movimento',
         'armazem_origem_id',
         'armazem_destino_id',
+        'empresa_id'
     ];
 
     public function getTipoDocumentoAttribute()

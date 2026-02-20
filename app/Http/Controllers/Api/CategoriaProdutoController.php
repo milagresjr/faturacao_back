@@ -5,12 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CategoriaProduto;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class CategoriaProdutoController extends Controller
 {
     public function index(Request $request)
     {
-
+        $idEmpresa = $request->input('empresa_id');
         $per_page = $request->input('per_page', 10);
 
         $search = $request->query('search');
@@ -24,7 +25,8 @@ class CategoriaProdutoController extends Controller
 
         // Return a list of all CategoriaProduto records
         $categoriasProduto = $categoriaQuery
-        ->orderByDesc('id')->paginate($per_page);
+            ->where('empresa_id', $idEmpresa) // Filtra por empresa_id
+            ->orderByDesc('id')->paginate($per_page);
 
         return response()->json($categoriasProduto);
     }
@@ -39,7 +41,7 @@ class CategoriaProdutoController extends Controller
     public function store(Request $request)
     {
         // Validate and create a new CategoriaProduto record
-        $validatedData = $request->validate([
+        $validatedData = Validator::make($request->all(), [
             'nome' => 'required|string|max:255',
             'descricao' => 'nullable|string',
             'estado' => 'boolean',
@@ -47,9 +49,18 @@ class CategoriaProdutoController extends Controller
             'utilizador_id' => 'required|exists:utilizadores,id',
         ]);
 
-        $validatedData['nome'] = mb_strtoupper($validatedData['nome']);
+        if ($validatedData->fails()) {
+            return response()->json([
+                'message' => 'Erro de validação',
+                'errors' => $validatedData->errors()
+            ], 422);
+        }
 
-        $categoriaProduto = CategoriaProduto::create($validatedData);
+        $data = $validatedData->validated();
+
+        $data['nome'] = mb_strtoupper($data['nome']);
+
+        $categoriaProduto = CategoriaProduto::create($data);
         return response()->json($categoriaProduto, 201);
     }
 

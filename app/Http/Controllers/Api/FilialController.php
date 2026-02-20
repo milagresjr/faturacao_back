@@ -11,6 +11,7 @@ class FilialController extends Controller
 {
     public function index(Request $request)
     {
+        $idEmpresa = $request->input('empresa_id');
         $per_page = $request->input('per_page', 10);
 
         $search = $request->query('search');
@@ -24,6 +25,7 @@ class FilialController extends Controller
 
         // Return a list of all CategoriaProduto records
         $filial = $filialQuery
+        ->where('empresa_id', $idEmpresa) // Filtra por empresa_id
         ->orderByDesc('id')->paginate($per_page);
 
         return response()->json($filial);

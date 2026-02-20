@@ -12,21 +12,23 @@ class ArmazemController extends Controller
 {
     public function index(Request $request)
     {
-         $per_page = $request->input('per_page', 10);
+        $idEmpresa = $request->input('empresa_id');
+        $per_page = $request->input('per_page', 10);
 
         $search = $request->query('search');
 
         $armazenQuery = Armazem::query();
 
         if ($search) {
-            // Assuming you want to filter by the 'nome' field. Adjust as necessary.
+            //Assuming you want to filter by the 'nome' field. Adjust as necessary.
             $armazenQuery->where('nome', 'like', '%' . $search . '%');
         }
 
         // Return a list of all filial records
         $armazens = $armazenQuery
-        ->with(['filial'])->orderByDesc('id')->paginate($per_page);
-        
+            ->where('empresa_id', $idEmpresa)
+            ->with(['filial'])->orderByDesc('id')->paginate($per_page);
+
         return response()->json($armazens);
     }
 

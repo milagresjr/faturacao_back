@@ -41,9 +41,11 @@ Route::middleware('api')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
-
     Route::post('/empresas', [EmpresaController::class, 'store']);
 });
+
+Route::post('/forgot-password', [UtilizadorController::class, 'sendCodePasswordReset']);
+Route::patch('/reset-new-password', [UtilizadorController::class, 'resetNewPassword']);
 
 Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DocumentoCompra;
+use App\Models\Empresa;
 use App\Models\ImpostoDocumentoCompra;
 use App\Models\PagamentoDocumentoCompra;
 use App\Services\DocumentoService;
@@ -29,6 +30,8 @@ class FaturaCompraController extends Controller
         $entidadeId = $request->query('entidade_id'); // cliente
         $valorMin = $request->query('valor_min');
         $valorMax = $request->query('valor_max');
+
+        $idEmpresa = $request->input('empresa_id');
 
         $documentoQuery = DocumentoCompra::query();
 
@@ -97,6 +100,7 @@ class FaturaCompraController extends Controller
         }
 
         $documentos = $documentoQuery
+            ->where('empresa_id', $idEmpresa)
             ->with([
                 'itens',
                 'impostosDocumento',
@@ -580,8 +584,10 @@ class FaturaCompraController extends Controller
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
 
+        $idEmpresa = $request->input('empresa_id');
+
         $documentoQuery = DocumentoCompra::query();
-   
+
         // 👤 Filtrar por fornecedor
         if ($fornecedorId) {
             $documentoQuery->where("fornecedor_id", $fornecedorId);
@@ -600,6 +606,7 @@ class FaturaCompraController extends Controller
         }
 
         $documentos = $documentoQuery
+            ->where("empresa_id", $idEmpresa)
             ->with([
                 "itens",
                 "impostosDocumento",
@@ -609,13 +616,7 @@ class FaturaCompraController extends Controller
 
         $totalGeral = $documentos->sum("total_geral");
 
-        $dadosEmpresa = [
-            "nome" => "Softseven",
-            "endereco" => "Luanda, Camama",
-            "nif" => "999999999",
-            "telefone" => "941608052",
-            "email" => " geral@sofyseven.ao",
-        ];
+        $dadosEmpresa = Empresa::find($idEmpresa);
 
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);

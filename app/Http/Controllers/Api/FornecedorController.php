@@ -15,6 +15,8 @@ class FornecedorController extends Controller
 
         $search = $request->query('search');
 
+        $idEmpresa = $request->input('empresa_id');
+
         $fornecedorQuery = Fornecedor::query();
 
         if ($search) {
@@ -25,6 +27,7 @@ class FornecedorController extends Controller
 
         // Return a list of all Marca records
         $fornecedores = $fornecedorQuery
+        ->where('empresa_id', $idEmpresa)
         ->orderByDesc('id')->paginate($per_page);
 
         return response()->json($fornecedores);

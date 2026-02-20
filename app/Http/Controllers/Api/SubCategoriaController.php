@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\SubCategoria;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class SubCategoriaController extends Controller
 {
    
     public function index(Request $request)
     {
+        $idEmpresa = $request->query('empresa_id');
         $per_page = $request->input('per_page', 10);
 
         $search = $request->query('search');
@@ -24,6 +26,7 @@ class SubCategoriaController extends Controller
 
         // Return a list of all subCategoria records
         $subCategorias = $subCategoriaQuery
+        ->where('empresa_id', $idEmpresa)
         ->with(['categoria'])->orderByDesc('id')->paginate($per_page);
         
         return response()->json($subCategorias);
@@ -37,7 +40,7 @@ class SubCategoriaController extends Controller
     public function store(Request $request)
     {
         // Validate and create a new subCategoria record
-        $validatedData = $request->validate([
+        $validatedData = Validator::make($request->all(),[
             'nome' => 'required|string|max:255',
             'descricao' => 'nullable|string',
             'estado' => 'sometimes|boolean',
@@ -46,16 +49,25 @@ class SubCategoriaController extends Controller
             'utilizador_id' => 'required|exists:utilizadores,id',
         ]);
 
-        $validatedData['nome'] = mb_strtoupper($validatedData['nome']);
+        if($validatedData->fails()){
+            return response()->json([
+                'message' => 'Erro de validação!',
+                'errors' => $validatedData->errors()
+            ], 422);
+        }
 
-        $subCategoria = SubCategoria::create($validatedData);
+        $data = $validatedData->validated();
+
+        $data['nome'] = mb_strtoupper($data['nome']);
+
+        $subCategoria = SubCategoria::create($data);
         return response()->json($subCategoria, 201);
     }
 
     public function update(Request $request, $id)
     {
         // Validate and update an existing subCategoria record
-        $validatedData = $request->validate([
+        $validatedData = Validator::make($request->all(),[
             'nome' => 'sometimes|required|string|max:255',
             'descricao' => 'sometimes|nullable|string',
             'estado' => 'sometimes|boolean',
@@ -64,10 +76,18 @@ class SubCategoriaController extends Controller
             'utilizador_id' => 'sometimes|required|exists:utilizadores,id',
         ]);
 
-        $validatedData['nome'] = mb_strtoupper($validatedData['nome']);
+        if($validatedData->fails()) { 
+            return response()->json([ 
+                'message' => 'Erro de validação!', 
+                'errors' => $validatedData->errors() ], 422); 
+        }
+
+        $data = $validatedData->validated();
+
+        $data['nome'] = mb_strtoupper($data['nome']);
 
         $subCategoria = SubCategoria::findOrFail($id);
-        $subCategoria->update($validatedData);
+        $subCategoria->update($data);
         return response()->json($subCategoria);
     }
 

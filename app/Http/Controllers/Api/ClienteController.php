@@ -11,20 +11,32 @@ class ClienteController extends Controller
 {
     public function index(Request $request)
     {
+        $paginate = $request->input('paginate', false);
         $per_page = $request->input('per_page', 10);
         $search = $request->query('search');
 
+        $idEmpresa = $request->input('empresa_id');
+     
         $clienteQuery = Cliente::query();
 
         if ($search) {
             // Assuming you want to filter by the 'nome' field. Adjust as necessary.
             $clienteQuery->where('nome', 'like', '%' . $search . '%')
-                         ->orWhere('nif', 'like', '%' . $search . '%');
+                ->orWhere('nif', 'like', '%' . $search . '%');
         }
 
-        // Return a list of all cliente records
-        $clientes = $clienteQuery->with(['tipoCliente', 'empresa', 'utilizador'])->orderByDesc('id')->paginate($per_page);
-
+        if ($paginate) {
+            $clientes = $clienteQuery
+            ->with(['tipoCliente', 'empresa', 'utilizador'])
+            ->where('empresa_id', $idEmpresa)
+            ->orderByDesc('id')->paginate($per_page);
+        } else {
+            $clientes = $clienteQuery
+            ->with(['tipoCliente', 'empresa', 'utilizador'])
+            ->where('empresa_id', $idEmpresa)
+            ->orderByDesc('id')->get();
+        }
+        
         return response()->json($clientes);
     }
 

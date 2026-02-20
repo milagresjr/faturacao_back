@@ -9,10 +9,25 @@ use Illuminate\Support\Facades\Validator;
 
 class TipoStockController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $idEmpresa = $request->input('empresa_id');
+        $paginate = $request->input('paginate', false);
+        $per_page = $request->input('per_page', 10);
+
         // Return a list of all tipo_stock records
-        $tiposStock = TipoStock::all();
+        $tiposStock = TipoStock::query();
+
+        if ($idEmpresa) {
+            $tiposStock->where('empresa_id', $idEmpresa);
+        }
+
+        if ($paginate) {
+            $tiposStock = $tiposStock->paginate($per_page);
+        } else {
+            $tiposStock = $tiposStock->get();
+        }
+
         return response()->json($tiposStock);
     }
 

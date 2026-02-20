@@ -25,6 +25,7 @@ class Empresa extends Model
         'provincia',
         'municipio',
         'bairro',
+        'rua',
         'codigo_postal',
         'status'
     ];

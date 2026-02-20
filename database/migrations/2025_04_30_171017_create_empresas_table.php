@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('nif')->unique();
             $table->integer('telefone');
+            $table->enum('regime_tributario', ['regime_geral', 'regime_simplificado', 'regime_exclusao'])->nullable();
             $table->text('morada');
             $table->timestamps();
         });

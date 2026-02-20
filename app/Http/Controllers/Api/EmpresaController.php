@@ -59,7 +59,7 @@ class EmpresaController extends Controller
             ]);
 
             $storeUser = Utilizador::create([
-                'nome_pessoal' => '',
+                'nome_pessoal' => 'Utilizador1',
                 'nome_de_utilizador' => $request->input('nome_de_utilizador'),
                 'email' => $request->input('email'),
                 'senha' => Hash::make($request->input('senha')),
@@ -117,6 +117,7 @@ class EmpresaController extends Controller
             'provincia' => 'sometimes|nullable|string|max:255',
             'municipio' => 'sometimes|nullable|string|max:255',
             'bairro' => 'sometimes|nullable|string|max:255',
+            'rua' => 'sometimes|nullable|string|max:255',
             'codigo_postal' => 'sometimes|nullable|string|max:50',
             'status' => 'sometimes|nullable|string|max:50',
         ]);
