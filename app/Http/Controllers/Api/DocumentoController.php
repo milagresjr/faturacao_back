@@ -754,8 +754,7 @@ class DocumentoController extends Controller
         $descontoGeral = 0; //$request['desconto_total'] ?? 0;
 
         if ($request["desconto_tipo"] === "percentual") {
-            $descontoGeral =
-                $totalSemDesconto * ($request["desconto_total"] / 100);
+            $descontoGeral = $totalSemDesconto * ($request["desconto_total"] / 100);
         } elseif ($request["desconto_tipo"] === "fixo") {
             $descontoGeral = $request["desconto_total"]; // decide se é total ou por unidade
         }
@@ -839,8 +838,9 @@ class DocumentoController extends Controller
             $troco = 0;
         }
 
+        DB::beginTransaction();
+
         try {
-            DB::beginTransaction();
 
             $infoGuiaId = null;
 
@@ -1079,6 +1079,10 @@ class DocumentoController extends Controller
                 );
             }
 
+            //Atualizar hash
+            $hash = $this->calcularHash($documento->id);
+            $documento->update(['hash' => $hash]);
+
             //Se movimentar stock for true, atualiza o stock
             if ($request->boolean("movimenta_stock")) {
                 $documentoService->updateStock($documento->load("itens"));
@@ -1105,6 +1109,58 @@ class DocumentoController extends Controller
             201,
         );
     }
+
+    public function calcularHash($id)
+    {
+        $documento = Documento::find($id);
+        if (!$documento) {
+            return response()->json(["message" => "Documento não encontrado."], 404);
+        }
+
+        //Formatar campos obrigatórios
+        $invoiceDate = Carbon::parse($documento->data_emissao)
+            ->format('Y-m-d');
+
+        $systemEntryDate = Carbon::parse($documento->created_at)
+            ->format('Y-m-d\TH:i:s');
+
+        $grossTotal = number_format($documento->total_geral, 2, '.', '');
+
+        //Buscar hash anterior (respeitando cadeia correta)
+
+        $hashAnterior = Documento::where('empresa_id', $documento->empresa_id)
+            ->where('tipo_sigla', $documento->tipo_sigla)
+            // ->where('serie', $documento->serie)
+            ->whereYear('data_emissao', $documento->data_emissao->year)
+            ->where('id', '<', $documento->id)
+            ->orderBy('id', 'desc')
+            ->value('hash') ?? '';
+
+        //Montar string exatamente no padrão AGT
+      
+        $mensagem = $invoiceDate . ';' .
+            $systemEntryDate . ';' .
+            $documento->num_fatura . ';' .
+            $grossTotal . ';' .
+            $hashAnterior;
+
+        //Carregar chave privada
+
+        $privateKey = openssl_pkey_get_private(
+            file_get_contents(storage_path('app/keys/ChavePrivada.pem'))
+        );
+
+        //Assinar (RSA 1024 + SHA1 + PKCS1 v1.5)
+
+        openssl_sign($mensagem, $assinatura, $privateKey, OPENSSL_ALGO_SHA1);
+
+        //Converter para Base64 (172 caracteres)
+
+        $hash = base64_encode($assinatura);
+
+        return $hash;
+    }
+
 
     public function destroyDocRascunho(string $id)
     {
@@ -1606,6 +1662,10 @@ class DocumentoController extends Controller
 
             // 8️⃣ Marcar documento de origem como transformado
             $documentoOrigem->update(["estado_documento" => "transformado"]);
+
+            //Atualizar hash
+            $hash = $this->calcularHash($novoDocumento->id);
+            $novoDocumento->update(['hash' => $hash]);
 
             DB::commit();
 

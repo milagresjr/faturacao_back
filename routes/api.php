@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\MotivoIsencaoController;
 use App\Http\Controllers\Api\MovimentoStockController;
 use App\Http\Controllers\Api\PagamentoDocumentoCompraController;
 use App\Http\Controllers\Api\PermissaoController;
+use App\Http\Controllers\Api\SaftController;
 use App\Http\Controllers\Api\TipoStockController;
 use App\Http\Controllers\Api\TipoTaxaIvaController;
 use App\Http\Controllers\Api\UnidadeController;
@@ -47,11 +48,17 @@ Route::middleware('api')->group(function () {
 Route::post('/forgot-password', [UtilizadorController::class, 'sendCodePasswordReset']);
 Route::patch('/reset-new-password', [UtilizadorController::class, 'resetNewPassword']);
 
+Route::get('/calcular-hash-agt/{id}', [DocumentoController::class, 'calcularHashAGT']);
+
+Route::get('/generate-saft', [SaftController::class, 'gerarSaft']);
+
 Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
     Route::apiResource('utilizadores', UtilizadorController::class);
     Route::middleware('auth:sanctum')->post('utilizadores/change/password', [UtilizadorController::class, 'changePassword']);
     Route::middleware('auth:sanctum')->patch('empresas/fill-data', [EmpresaController::class, 'fillDataEmpresaUser']);
+
+    Route::middleware('auth:sanctum')->post('utilizadores/check-password-change', [UtilizadorController::class, 'changeNewPassword']);
     
     Route::middleware(ForcePasswordChange::class)->group(function () {
 

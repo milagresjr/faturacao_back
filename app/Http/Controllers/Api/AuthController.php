@@ -51,7 +51,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Validation error', 'errors' => $validated->errors()], 422);
         }
 
-        $utilizador = Utilizador::with(['empresa:id,nome,email,nif,telefone,morada', 'perfil:id,nome', 'perfil.permissoes:id,nome'])
+        $utilizador = Utilizador::with(['empresa:id,nome,email,nif,telefone,morada,regime_tributario', 'perfil:id,nome', 'perfil.permissoes:id,nome'])
             ->whereRaw('BINARY nome_de_utilizador = ?', [$request->nome_de_utilizador])->first();
     
         if (!$utilizador || !password_verify($request->senha, $utilizador->senha)) {

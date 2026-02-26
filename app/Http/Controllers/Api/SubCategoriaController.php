@@ -58,6 +58,15 @@ class SubCategoriaController extends Controller
 
         $data = $validatedData->validated();
 
+        //se ja existir sub categoria com mesmo nome retornar uma mensagem
+        $subCategoriaExistente = SubCategoria::where('nome', $data['nome'])
+            ->where('empresa_id', $data['empresa_id'])
+            ->first();
+
+        if ($subCategoriaExistente) {
+            return response()->json(['message' => 'Já existe uma subcategoria com este nome'], 409);
+        }
+
         $data['nome'] = mb_strtoupper($data['nome']);
 
         $subCategoria = SubCategoria::create($data);
@@ -83,6 +92,16 @@ class SubCategoriaController extends Controller
         }
 
         $data = $validatedData->validated();
+
+         //se ja existir sub categoria com mesmo nome retornar uma mensagem
+         $subCategoriaExistente = SubCategoria::where('nome', $data['nome'])
+            ->where('empresa_id', $data['empresa_id'])
+            ->where('id', '!=', $id)
+            ->first();
+
+        if ($subCategoriaExistente) {
+            return response()->json(['message' => 'Já existe uma subcategoria com este nome'], 409);
+        }
 
         $data['nome'] = mb_strtoupper($data['nome']);
 

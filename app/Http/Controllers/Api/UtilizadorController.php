@@ -183,6 +183,45 @@ class UtilizadorController extends Controller
         ]);
     }
 
+    public function changeNewPassword(Request $request)
+    {
+        $validated = Validator::make($request->all(), [
+            'senha_atual' => ['required', 'string', 'min:8'],
+            'nova_senha' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        if ($validated->fails()) {
+            return response()->json([
+                'message' => 'Erro de validação',
+                'errors' => $validated->errors()
+            ], 422);
+        }
+
+        $user = $request->user();
+
+        if (!Hash::check($request->senha_atual, $user->senha)) {
+            return response()->json([
+                'message' => 'Senha atual incorreta'
+            ], 421);
+        }
+
+        DB::beginTransaction();
+
+        try {
+
+            $user->senha = $request->nova_senha;
+            $user->must_change_password = false;
+            $user->save();
+
+            DB::commit();
+
+            return response()->json(['message' => 'Senha alterada com sucesso']);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erro ao alterar a senha'], 500);
+        }
+    }
+
     public function changePassword(Request $request)
     {
         $validated = Validator::make($request->all(), [

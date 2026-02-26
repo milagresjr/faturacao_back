@@ -33,6 +33,7 @@ class EmpresaController extends Controller
             'nome' => 'nullable|string|max:255',
             'email' => 'required|string|email|max:255|unique:empresas,email',
             'nif' => 'nullable|string|max:255|unique:empresas,nif',
+            'regime_tributario' => 'nullable|string|in:regime_geral,regime_simplificado,regime_exclusao',
             'telefone' => 'nullable|string|max:255',
             'senha' => 'required|string|min:6|confirmed',
         ]);
@@ -54,6 +55,7 @@ class EmpresaController extends Controller
                 'nome' => 'Empresa' . $totEmpresas + 1,
                 'email' => $request->input('email'),
                 // 'nif' => $request->input('nif') || '',
+                'regime_tributario' => $request->input('regime_tributario') || '',
                 'telefone' => $request->input('telefone') || '',
                 'morada' => ''
             ]);
@@ -107,6 +109,7 @@ class EmpresaController extends Controller
             'nome' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:empresas,email,' . $id,
             'nif' => 'sometimes|required|string|max:255|unique:empresas,nif,' . $id,
+            'regime_tributario' => 'sometimes|required|string|in:regime_geral,regime_simplificado,regime_exclusao',
             'telefone' => 'sometimes|required|string|max:255',
             'morada' => 'sometimes|nullable|string|max:255',
             'logo' => 'sometimes|nullable|string|max:255',
@@ -146,6 +149,7 @@ class EmpresaController extends Controller
         $validated = Validator::make($request->all(), [
             'nif' => 'required|string|max:255',
             'nome_empresa' => 'required|string|max:255',
+            'regime_tributario' => 'required|string|in:regime_geral,regime_simplificado,regime_exclusao',
             'nome_pessoal' => 'required|string|max:255',
             'telefone' => 'sometimes|required|string|max:255',
             // 'pais' => 'sometimes|nullable|string|max:255',
@@ -169,6 +173,7 @@ class EmpresaController extends Controller
         $empresa->update([
             'nome' => $data['nome_empresa'],
             'nif' => $data['nif'],
+            'regime_tributario' => $data['regime_tributario'],
             'telefone' => $data['telefone'],
             'pais' => 'Angola',
             'provincia' => $data['provincia'],

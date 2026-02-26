@@ -87,7 +87,9 @@ class Documento extends Model
     protected $casts = [
         'estado_documento' => EstadoDocumento::class,
         'estado_pagamento' => EstadoPagamento::class,
-        'estado_vencimento' => EstadoVencimento::class
+        'estado_vencimento' => EstadoVencimento::class,
+        'data_emissao' => 'date',
+        'data_vencimento' => 'date',
     ];
 
     public function itens(): HasMany

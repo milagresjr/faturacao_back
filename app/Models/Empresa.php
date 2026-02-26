@@ -15,6 +15,7 @@ class Empresa extends Model
         'nome',
         'email',
         'nif',
+        'regime_tributario',
         'telefone',
         'morada',
         'logo',

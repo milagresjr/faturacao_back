@@ -57,6 +57,14 @@ class MarcaController extends Controller
             ], 422);
         }
         $data = $validatedData->validated();
+
+        //Se a marca já existir, retorna um erro
+        if (Marca::where('nome', $data['nome'])->where('empresa_id', $data['empresa_id'])->exists()) {
+            return response()->json([
+                'message' => 'Já existe uma marca com este nome.',
+            ], 409);
+        }
+
         $marca = Marca::create($data);
         return response()->json($marca, 201);
     }
@@ -73,6 +81,19 @@ class MarcaController extends Controller
         ]);
 
         $marca = Marca::findOrFail($id);
+
+        //Se a marca já existir, retorna um erro
+        $marcaExistente = Marca::where('nome', $validatedData['nome'])
+            ->where('empresa_id', $marca->empresa_id)
+            ->where('id', '!=', $id)
+            ->first();
+
+        if ($marcaExistente) {
+            return response()->json([
+                'message' => 'Já existe uma marca com este nome.',
+            ], 409);
+        }
+
         $marca->update($validatedData);
         return response()->json($marca);
     }

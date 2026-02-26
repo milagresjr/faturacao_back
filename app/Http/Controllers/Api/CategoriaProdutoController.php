@@ -58,6 +58,15 @@ class CategoriaProdutoController extends Controller
 
         $data = $validatedData->validated();
 
+        //se ja existir categoria com mesmo nome retornar uma mensagem
+        $categoriaExistente = CategoriaProduto::where('nome', $data['nome'])
+            ->where('empresa_id', $data['empresa_id'])
+            ->first();
+
+        if ($categoriaExistente) {
+            return response()->json(['message' => 'Já existe uma categoria com este nome'], 409);
+        }
+
         $data['nome'] = mb_strtoupper($data['nome']);
 
         $categoriaProduto = CategoriaProduto::create($data);
@@ -74,6 +83,16 @@ class CategoriaProdutoController extends Controller
             'empresa_id' => 'sometimes|required|exists:empresas,id',
             'utilizador_id' => 'sometimes|required|exists:utilizadores,id',
         ]);
+
+        //se ja existir categoria com mesmo nome retornar uma mensagem
+        $categoriaExistente = CategoriaProduto::where('nome', $validatedData['nome'])
+            ->where('empresa_id', $validatedData['empresa_id'])
+            ->where('id', '!=', $id)
+            ->first();
+
+        if ($categoriaExistente) {
+            return response()->json(['message' => 'Já existe uma categoria com este nome'], 409);
+        }
 
         $validatedData['nome'] = mb_strtoupper($validatedData['nome']);
 

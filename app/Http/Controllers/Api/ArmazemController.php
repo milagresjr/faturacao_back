@@ -46,6 +46,15 @@ class ArmazemController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        //Se ja existir armazem com mesmo nome retornar uma mensagem
+        $armazemExistente = Armazem::where('nome', $request->input('nome'))
+            ->where('empresa_id', $request->input('empresa_id'))
+            ->first();
+
+        if ($armazemExistente) {
+            return response()->json(['message' => 'Já existe um armazém com este nome'], 409);
+        }
+
         $armazem = Armazem::create($request->all());
         return response()->json($armazem, 201);
     }
@@ -82,6 +91,16 @@ class ArmazemController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        //Se ja existir armazem com mesmo nome retornar uma mensagem
+        $armazemExistente = Armazem::where('nome', $request->input('nome'))
+            ->where('empresa_id', $request->input('empresa_id'))
+            ->where('id', '!=', $id)
+            ->first();
+
+        if ($armazemExistente) {
+            return response()->json(['message' => 'Já existe um armazém com este nome'], 409);
+        }
+
         $armazem->update($request->all());
         return response()->json($armazem);
     }
@@ -111,9 +130,9 @@ class ArmazemController extends Controller
                 // Reset all armazéns da mesma empresa (e mesma filial, se aplicável)
                 $query = Armazem::where('empresa_id', $armazem->empresa_id);
 
-                if (!is_null($armazem->filial_id)) {
-                    $query->where('filial_id', $armazem->filial_id);
-                }
+                // if (!is_null($armazem->filial_id)) {
+                //     $query->where('filial_id', $armazem->filial_id);
+                // }
 
                 $query->update(['predefinido' => false]);
 

@@ -25,11 +25,10 @@ class FilialController extends Controller
 
         // Return a list of all CategoriaProduto records
         $filial = $filialQuery
-        ->where('empresa_id', $idEmpresa) // Filtra por empresa_id
-        ->orderByDesc('id')->paginate($per_page);
+            ->where('empresa_id', $idEmpresa) // Filtra por empresa_id
+            ->orderByDesc('id')->paginate($per_page);
 
         return response()->json($filial);
-
     }
 
     public function show($id)
@@ -57,6 +56,24 @@ class FilialController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        //Se ja existir filial com mesmo nome retornar uma mensagem
+        $filialExistente = Filial::where('nome', $request->input('nome'))
+            ->where('empresa_id', $request->input('empresa_id'))
+            ->first();
+
+        if ($filialExistente) {
+            return response()->json(['message' => 'Já existe uma filial com este nome'], 409);
+        }
+
+        //Se ja existir filial com mesmo telefone retornar uma mensagem
+        $filialTelefoneExistente = Filial::where('telefone', $request->input('telefone'))
+            ->where('empresa_id', $request->input('empresa_id'))
+            ->first();
+
+        if ($filialTelefoneExistente) {
+            return response()->json(['message' => 'Já existe uma filial com este telefone'], 410);
+        }
+
         $filial = Filial::create($request->all());
         return response()->json($filial, 201);
     }
@@ -81,6 +98,26 @@ class FilialController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        //Se ja existir filial com mesmo nome retornar uma mensagem
+        $filialExistente = Filial::where('nome', $request->input('nome'))
+            ->where('empresa_id', $request->input('empresa_id'))
+            ->where('id', '!=', $id)
+            ->first();
+
+        if ($filialExistente) {
+            return response()->json(['message' => 'Já existe uma filial com este nome'], 409);
+        }
+
+        //Se ja existir filial com mesmo telefone retornar uma mensagem
+        $filialTelefoneExistente = Filial::where('telefone', $request->input('telefone'))
+            ->where('empresa_id', $request->input('empresa_id'))
+            ->where('id', '!=', $id)
+            ->first();
+
+        if ($filialTelefoneExistente) {
+            return response()->json(['message' => 'Já existe uma filial com este telefone'], 410);
         }
 
         $filial->update($request->all());

@@ -77,7 +77,7 @@ class ProdutoController extends Controller
             'codigo_produto' => 'nullable|string|max:255',
             'codigo_barra' => 'nullable|string|max:255',
             'data_validade' => 'nullable|date',
-            'imposto' => 'required|string|integer|max:255',
+            'imposto' => 'nullable|string|integer|max:255',
             'motivo_isencao_id' => 'nullable|integer|exists:motivo_isencao,id',
             'unidade' => 'nullable|string|max:50',
             'tipo_stock_id' => 'required|integer|exists:tipo_stock,id',
