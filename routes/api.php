@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\CaixaController;
 use App\Http\Controllers\Api\CategoriaProdutoController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\ContaController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DocumentoController;
 use App\Http\Controllers\Api\DocumentoInternoController;
 use App\Http\Controllers\Api\EmpresaController;
@@ -50,7 +51,7 @@ Route::patch('/reset-new-password', [UtilizadorController::class, 'resetNewPassw
 
 Route::get('/calcular-hash-agt/{id}', [DocumentoController::class, 'calcularHashAGT']);
 
-Route::get('/generate-saft', [SaftController::class, 'gerarSaft']);
+
 
 Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
@@ -59,8 +60,18 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::middleware('auth:sanctum')->patch('empresas/fill-data', [EmpresaController::class, 'fillDataEmpresaUser']);
 
     Route::middleware('auth:sanctum')->post('utilizadores/check-password-change', [UtilizadorController::class, 'changeNewPassword']);
-    
+
     Route::middleware(ForcePasswordChange::class)->group(function () {
+
+        Route::get('/generate-saft', [SaftController::class, 'gerarSaft']);
+
+        Route::get('/dashboard/summary', [DashboardController::class, 'getSummary']);
+
+        Route::get('/dashboard/monthly-sales', [DashboardController::class, 'getMonthlyData']);
+        Route::get('/dashboard/faturas-qtd-mensal', [DashboardController::class, 'getMonthlyValue']);
+        Route::get('/dashboard/percent-tipo-doc', [DashboardController::class, 'percentagemTiposDocumentosMesAtual']);
+        Route::get('/dashboard/percent-estado-doc', [DashboardController::class, 'percentagemEstadoFaturasMesAtual']);
+        Route::get('/dashboard/top-clientes-devedores', [DashboardController::class, 'topClientesDevedores']);
 
         Route::apiResource('produtos', ProdutoController::class);
         // Add routes that require password change here

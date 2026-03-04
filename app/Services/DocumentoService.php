@@ -51,6 +51,7 @@ class DocumentoService
     //Cria um registo na tabela de movimentos de stock
     $this->documento->movimentosStock()->create([
       'stock_id' => $stock->id,
+      'empresa_id' => $produto->empresa_id,
       'armazem_id' => $this->documento->armazem_id,
       'produto_id' => $produtoId,
       'quantidade' => $quantidade,
@@ -88,6 +89,7 @@ class DocumentoService
 
       $this->documento->movimentosStock()->create([
         'stock_id' => $stock->id,
+        'empresa_id' => $produto->empresa_id,
         'armazem_id' => $this->documento->armazem_id,
         'produto_id' => $produtoId,
         'quantidade' => $quantidade,
