@@ -1094,6 +1094,8 @@ class DocumentoController extends Controller
             return response()->json(
                 [
                     "message" => "Erro ao criar o documento.",
+                    "file" => $th->getFile(),
+                    "line" => $th->getLine(),
                     "error" => $th->getMessage(),
                 ],
                 500,

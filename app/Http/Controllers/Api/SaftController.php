@@ -89,7 +89,7 @@ class SaftController extends Controller
             $products[] = [
                 'ProductType' => $produto->tipo->nome == 'Produto' ? 'P' : 'S' ?? 'Desconhecido',
                 'ProductCode' => $produto->id,
-                'ProductDescription' => $produto->descricao,
+                'ProductDescription' => $produto->nome,
                 'ProductNumberCode' => $produto->id ?? 'Desconhecido',
             ];
         }
@@ -301,13 +301,33 @@ class SaftController extends Controller
         );
 
         // send XML directly to the browser and stop further processing
-        // header('Content-Type: application/xml; charset=UTF-8');
-        // header('Content-Disposition: inline; filename="SAFT.xml"');
-        // echo $xml;
-        // exit;
+        header('Content-Type: application/xml; charset=UTF-8');
+        header('Content-Disposition: inline; filename="SAFT.xml"');
+        echo $xml;
+        exit;
 
-        return response($xml, 200)
-            ->header('Content-Type', 'application/xml')
-            ->header('Content-Disposition', 'attachment; filename="SAFT.xml"');
+        // return response($xml, 200)
+        //     ->header('Content-Type', 'application/xml')
+        //     ->header('Content-Disposition', 'attachment; filename="SAFT.xml"');
+    }
+
+    public function listFaturas(Request $request)
+    {
+        $perPage = $request->input('per_page', 15);
+
+        $dataInicial = $request->input('data_inicial');
+        $dataFinal = $request->input('data_final');
+
+        $query = Documento::query();
+
+        if ($dataInicial && $dataFinal) {
+            $query->whereBetween('created_at', [$dataInicial, $dataFinal]);
+        }
+
+        $faturas = $query->whereNotIn('estado_documento', ['anulado', 'rascunho'])
+            ->whereIn('tipo_sigla', ['FR', 'FT', 'FA', 'ND'])
+            ->paginate($perPage);
+
+        return response()->json($faturas);
     }
 }

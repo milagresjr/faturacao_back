@@ -226,8 +226,9 @@ class UtilizadorController extends Controller
     {
         $validated = Validator::make($request->all(), [
             'senha' => ['required', 'confirmed', 'min:8'],
+            'utilizador_id' => ['nullable', 'exists:utilizadores,id'], // opcional
         ]);
-
+        
         if ($validated->fails()) {
             return response()->json([
                 'message' => 'Erro de validação',
@@ -235,14 +236,24 @@ class UtilizadorController extends Controller
             ], 422);
         }
 
-        $user = $request->user();
-
         DB::beginTransaction();
 
         try {
 
-            $user->senha = $request->senha;
-            $user->must_change_password = false;
+            // Se vier utilizador_id → admin está alterando
+            if ($request->utilizador_id) {
+                $user = Utilizador::findOrFail($request->utilizador_id);
+
+                $user->senha = $request->senha;
+                $user->must_change_password = true; // força troca no próximo login
+            } else {
+                // Caso contrário → usuário logado
+                $user = $request->user();
+
+                $user->senha = $request->senha;
+                $user->must_change_password = false; // opcional
+            }
+
             $user->save();
 
             DB::commit();
@@ -250,7 +261,11 @@ class UtilizadorController extends Controller
             return response()->json(['message' => 'Senha alterada com sucesso']);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return response()->json(['message' => 'Erro ao alterar a senha'], 500);
+            return response()->json([
+                'message' => $th->getMessage(),
+                'file' => $th->getFile(),
+                'line' => $th->getLine()
+            ], 500);
         }
     }
 
@@ -349,4 +364,41 @@ class UtilizadorController extends Controller
             ], 500);
         }
     }
+
+    public function changeEstado(Request $request, string $id)
+    {
+        $utilizador = Utilizador::find($id);
+
+        if (!$utilizador) {
+            return response()->json([
+                'message' => 'Utilizador não encontrado'
+            ], 404);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Toggle do estado (se null/false -> true, se true -> false)
+            $utilizador->estado = !$utilizador->estado;
+            $utilizador->save();
+
+            DB::commit();
+
+            $utilizador->makeHidden(['senha']);
+
+            $statusText = $utilizador->estado ? 'ativado' : 'suspenso';
+
+            return response()->json([
+                'message' => "Utilizador {$statusText} com sucesso",
+                'utilizador' => $utilizador
+            ]);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Erro ao atualizar o estado do utilizador',
+                'error' => $th->getMessage()
+            ], 500);
+        }
+    }
+    
 }
