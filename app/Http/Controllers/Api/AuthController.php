@@ -55,7 +55,9 @@ class AuthController extends Controller
             ->whereRaw('BINARY nome_de_utilizador = ?', [$request->nome_de_utilizador])->first();
     
         if (!$utilizador || !password_verify($request->senha, $utilizador->senha)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
         }
 
         $token = $utilizador->createToken('auth_token')->plainTextToken;

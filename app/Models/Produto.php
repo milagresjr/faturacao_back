@@ -109,6 +109,11 @@ class Produto extends Model
         return $this->belongsTo(Utilizador::class);
     }
 
+    public function stocks()
+    {
+        return $this->hasMany(Stock::class, 'produto_id');
+    }
+
     public function movimentosStock()
     {
         return $this->hasMany(MovimentoStock::class, 'produto_id');

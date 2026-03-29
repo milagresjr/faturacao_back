@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\BancoController;
 use App\Http\Controllers\Api\CaixaController;
 use App\Http\Controllers\Api\CategoriaProdutoController;
 use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\ConfiguracaoFaturaController;
 use App\Http\Controllers\Api\ContaController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DocumentoController;
@@ -65,6 +66,12 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::middleware('auth:sanctum')->patch('empresas/fill-data', [EmpresaController::class, 'fillDataEmpresaUser']);
 
     Route::middleware('auth:sanctum')->post('utilizadores/check-password-change', [UtilizadorController::class, 'changeNewPassword']);
+
+    Route::prefix('configuracoes-fatura')->group(function () {
+        Route::get('/{empresaId}', [ConfiguracaoFaturaController::class, 'show']);
+        Route::post('/', [ConfiguracaoFaturaController::class, 'store']);
+        Route::put('/{id}', [ConfiguracaoFaturaController::class, 'update']);
+    });
 
     Route::middleware(ForcePasswordChange::class)->group(function () {
 

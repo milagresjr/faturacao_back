@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Banco;
 use App\Models\BancoDocumento;
 use App\Models\Cliente;
+use App\Models\ConfiguracaoFatura;
 use App\Models\Conta;
 use App\Models\Documento;
 use App\Models\DocumentoCompra;
@@ -1139,7 +1140,7 @@ class DocumentoController extends Controller
             ->value('hash') ?? '';
 
         //Montar string exatamente no padrão AGT
-      
+
         $mensagem = $invoiceDate . ';' .
             $systemEntryDate . ';' .
             $documento->num_fatura . ';' .
@@ -2340,6 +2341,11 @@ class DocumentoController extends Controller
             $paginas[] = $pagina;
         }
 
+        $dadosPersonalizacaoFatura = ConfiguracaoFatura::where("empresa_id", $documento->empresa_id)->first();
+        $imagePath = public_path('storage/logos-fatura/'.$dadosPersonalizacaoFatura->logo);
+        $imageData = base64_encode(file_get_contents($imagePath));
+        $src = 'data:image/png;base64,' . $imageData;
+
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
         $options->set("isRemoteEnabled", true);
@@ -2355,6 +2361,8 @@ class DocumentoController extends Controller
                 "bancos",
                 "meiosPagamento",
                 "infoGuia",
+                "src",
+                "dadosPersonalizacaoFatura"
             ]),
         )->render();
         $dompdf->loadHtml($html);

@@ -130,11 +130,10 @@
 
     <div class="section" style="width: 100%; position: relative; margin-bottom: 100px;">
 
-        @if ($documento->empresa_logo)
+        @if ($dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo)
             <div style="border-bottom: 1px solid #069; width: 100%; margin-bottom: 10px;">
                 <div style="display: inline-block; vertical-align: top;">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png"
-                        alt="Logo"
+                    <img src="{{ $src }}" alt="Logo"
                         style="width: 120px; height: 100px; z-index: 10; object-fit: contain; display: block;">
                 </div>
                 <div style="display: block; float: right; width: 200px; text-align: right; margin-top: 20px;">
@@ -146,20 +145,29 @@
 
         <div class="col-left">
             <span style="font-size: 12pt; font-weight: bold;">{{ $documento->empresa_nome ?? '' }}</span>
-            <span>{{ $documento->empresa_endereco ?? '' }}</span> <br>
-            <span><b>Contribuinte:</b> {{ $documento->empresa_nif ?? '' }}</span> <br>
-            <span><b>E-mail:</b> {{ $documento->empresa_email ?? '' }}</span> <br>
-            <span><b>Tel:</b> {{ $documento->empresa_telefone ?? '' }}</span> <br>
+            @if ($dadosPersonalizacaoFatura->endereco)
+                <span>{{ $documento->empresa_endereco ?? '' }}</span> <br>
+            @endif
+            @if ($dadosPersonalizacaoFatura->nif)
+                <span><b>Contribuinte:</b> {{ $documento->empresa_nif ?? '' }}</span> <br>
+            @endif
+            @if ($dadosPersonalizacaoFatura->email)
+                <span><b>E-mail:</b> {{ $documento->empresa_email ?? '' }}</span> <br>
+            @endif
+            @if ($dadosPersonalizacaoFatura->telefone)
+                <span><b>Tel:</b> {{ $documento->empresa_telefone ?? '' }}</span> <br>
+            @endif
         </div>
 
         <div class="col-right" style="text-align: right;">
-            @if (!$documento->empresa_logo)
+            @if (!$dadosPersonalizacaoFatura->mostrar_logo)
                 <span style="font-size: 12pt; font-weight: bold;">{{ $documento->tipo_nome }}</span> <br>
                 <span style="font-size: 10pt;">{{ $documento->via }}</span> <br> <br>
             @endif
             <strong style="margin-top: 15px;">{{ $documento->cliente_nome ?? 'Milagres jr' }}</strong><br>
-            <span>{{ $documento->cliente_endereco ?? '' }}</span>
-
+            @if ($dadosPersonalizacaoFatura->endereco_cliente)
+                <span>{{ $documento->cliente_endereco ?? '' }}</span>
+            @endif
         </div>
 
     </div>

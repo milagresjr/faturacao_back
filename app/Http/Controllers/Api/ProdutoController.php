@@ -159,7 +159,7 @@ class ProdutoController extends Controller
                 ->groupBy('armazem_id')
                 ->map(function ($movimentos) {
                     return $movimentos->sum(function ($movimento) {
-                        if (in_array(strtolower($movimento->operacao), ['saida', 'ajuste negativo'])) {
+                        if (in_array(strtolower($movimento->operacao), ['saida', 'saida_inventario', 'nota_quebra'])) {
                             return -$movimento->quantidade;
                         } else {
                             return $movimento->quantidade;
@@ -295,19 +295,48 @@ class ProdutoController extends Controller
 
     public function show($id)
     {
-        $produto = Produto::with('movimentosStock')->findOrFail($id);
+        $produto = Produto::with(['movimentosStock', 'stocks'])->findOrFail($id);
 
-        // STOCK (já tens)
+        // Indexar configurações de stock por armazém
+        $stocksPorArmazem = $produto->stocks->keyBy('armazem_id');
+
+        //STOCK por armazém + estado
         $quantidades = $produto->movimentosStock
             ->groupBy('armazem_id')
-            ->map(function ($movimentos) {
-                return $movimentos->sum(function ($movimento) {
-                    if (in_array(strtolower($movimento->operacao), ['saida', 'ajuste negativo'])) {
+            ->map(function ($movimentos, $armazemId) use ($stocksPorArmazem) {
+
+                //Calcular quantidade
+                $quantidade = $movimentos->sum(function ($movimento) {
+                    if (in_array(strtolower($movimento->operacao), ['saida', 'saida_inventario', 'nota_quebra'])) {
                         return -$movimento->quantidade;
                     } else {
                         return $movimento->quantidade;
                     }
                 });
+
+                // ⚙️ Buscar configuração de stock
+                $stockConfig = $stocksPorArmazem[$armazemId] ?? null;
+
+                $stockIdeal = $stockConfig->stock_ideal ?? 0;
+                $stockMin   = $stockConfig->stock_min ?? 0;
+                $stockMax   = $stockConfig->stock_max ?? 0;
+
+                // 🚦 Definir estado do stock
+                $estado = match (true) {
+                    $quantidade <= 0 => 'sem_stock',
+                    $quantidade < $stockMin => 'critico',
+                    $quantidade < $stockIdeal => 'baixo',
+                    $stockMax && $quantidade > $stockMax => 'excesso',
+                    default => 'ok',
+                };
+
+                return [
+                    'quantidade'   => (int) $quantidade,
+                    'estado'       => $estado,
+                    'stock_min'    => (int) $stockMin,
+                    'stock_ideal'  => (int) $stockIdeal,
+                    'stock_max'    => (int) $stockMax,
+                ];
             });
 
         $produto->quantidades = $quantidades;
@@ -319,13 +348,13 @@ class ProdutoController extends Controller
         $inicioMesAnterior = Carbon::now()->subMonth()->startOfMonth();
         $fimMesAnterior = Carbon::now()->subMonth()->endOfMonth();
 
-        // Função auxiliar
+        // 📊 Função auxiliar de vendas
         $getDados = function ($start, $end = null) use ($produto) {
             $query = DB::table('itens_documento')
                 ->join('documentos', 'documentos.id', '=', 'itens_documento.documento_id')
                 ->where('itens_documento.produto_id', $produto->id)
-                ->whereIn('documentos.tipo_sigla', ['FT', 'FR']) // só vendas
-                ->whereNotIn('documentos.estado_documento', ['rascunho', 'anulado', 'cancelado']); // 👈 aqui
+                ->whereIn('documentos.tipo_sigla', ['FT', 'FR'])
+                ->whereNotIn('documentos.estado_documento', ['rascunho', 'anulado', 'cancelado']);
 
             if ($end) {
                 $query->whereBetween('documentos.created_at', [$start, $end]);
@@ -343,13 +372,13 @@ class ProdutoController extends Controller
             $lucro = ($dados->total_qtd ?? 0) * ($produto->preco_venda - $produto->preco_custo);
 
             return [
-                'quantidade' => (int) ($dados->total_qtd ?? 0),
-                'vendas' => (float) ($dados->total_vendas ?? 0),
-                'rentabilidade' => (float) $lucro,
+                'quantidade'     => (int) ($dados->total_qtd ?? 0),
+                'vendas'         => (float) ($dados->total_vendas ?? 0),
+                'rentabilidade'  => (float) $lucro,
             ];
         };
 
-        // 📊 Dados por período
+        //Estatísticas
         $produto->estatisticas = [
             'hoje' => $getDados($hoje),
             'ontem' => $getDados($ontem),
