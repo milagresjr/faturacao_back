@@ -321,7 +321,7 @@ class ProdutoController extends Controller
                 $stockMin   = $stockConfig->stock_min ?? 0;
                 $stockMax   = $stockConfig->stock_max ?? 0;
 
-                // 🚦 Definir estado do stock
+                // Definir estado do stock
                 $estado = match (true) {
                     $quantidade <= 0 => 'sem_stock',
                     $quantidade < $stockMin => 'critico',
@@ -341,14 +341,14 @@ class ProdutoController extends Controller
 
         $produto->quantidades = $quantidades;
 
-        // 📅 Períodos
+        // Períodos
         $hoje = Carbon::today();
         $ontem = Carbon::yesterday();
         $inicioMes = Carbon::now()->startOfMonth();
         $inicioMesAnterior = Carbon::now()->subMonth()->startOfMonth();
         $fimMesAnterior = Carbon::now()->subMonth()->endOfMonth();
 
-        // 📊 Função auxiliar de vendas
+        //Função auxiliar de vendas
         $getDados = function ($start, $end = null) use ($produto) {
             $query = DB::table('itens_documento')
                 ->join('documentos', 'documentos.id', '=', 'itens_documento.documento_id')
@@ -473,6 +473,23 @@ class ProdutoController extends Controller
         return response()->json(['message' => 'Produto deleted successfully']);
     }
 
+    public function changeEstado($id)
+    {
+        $produto = Produto::find($id);
+
+        if (!$produto) {
+            return response()->json(['message' => 'Produto not found'], 404);
+        }
+
+        $produto->estado = $produto->estado == '1' ? '0' : '1';
+        $produto->save();
+
+        return response()->json([
+            'message' => 'Produto ' . $produto->estado . ' com sucesso',
+            'produto' => $produto
+        ]);
+    }
+
     public function relatorioProdutos(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -505,7 +522,6 @@ class ProdutoController extends Controller
     | FILTROS
     |--------------------------------------------------------------------------
     */
-
         if ($request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('nome', 'like', "%{$request->search}%")

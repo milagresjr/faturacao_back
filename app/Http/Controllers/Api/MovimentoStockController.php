@@ -119,7 +119,7 @@ class MovimentoStockController extends Controller
             } elseif ($data['tipo_movimento'] === 'transferencia') {
 
                 $documento = $this->storeDocumentTransferencia($request);
-
+            
                 $movimentos = [];
 
                 foreach ($data['itens'] as $item) {
@@ -129,7 +129,7 @@ class MovimentoStockController extends Controller
                         'produto_id' => $item['produto_id'],
                         'quantidade' => $item['quantidade'],
                         'operacao' => 'saida',
-                        'origem_movimento' => $data['armazem_origem'],
+                        'origem_movimento' => $documento->num_fatura,
                         'observacao' => $item['observacao'] ?? null,
                         'utilizador_id' => $data['utilizador_id'] ?? null,
                         'empresa_id' => $idEmpresa
@@ -140,7 +140,7 @@ class MovimentoStockController extends Controller
                         'produto_id' => $item['produto_id'],
                         'quantidade' => $item['quantidade'],
                         'operacao' => 'entrada',
-                        'origem_movimento' => $data['armazem_destino'],
+                        'origem_movimento' => $documento->num_fatura,
                         'observacao' => $item['observacao'] ?? null,
                         'utilizador_id' => $data['utilizador_id'] ?? null,
                         'empresa_id' => $idEmpresa
@@ -464,9 +464,8 @@ class MovimentoStockController extends Controller
 
         $empresa = Empresa::find($request->input("empresa_id"));
 
-        $armazemOrigem = Armazem::find($request["armazem_origem_id"]);
-        $armazemDestino = Armazem::find($request["armazem_destino_id"]);
-
+        $armazemOrigem = Armazem::find($request["armazem_origem_id"])->nome;
+        $armazemDestino = Armazem::find($request["armazem_destino_id"])->nome;
 
         try {
 
@@ -512,8 +511,8 @@ class MovimentoStockController extends Controller
                 "armazem_origem_id" => $request["armazem_origem_id"],
                 "armazem_destino_id" => $request["armazem_destino_id"],
 
-                "armazem_origem" => $armazemOrigem->id,
-                "origem_destino" => $armazemDestino->id,
+                "armazem_origem" => $armazemOrigem,
+                "armazem_destino" => $armazemDestino,
 
             ]);
 

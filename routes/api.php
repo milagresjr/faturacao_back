@@ -76,6 +76,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::middleware(ForcePasswordChange::class)->group(function () {
 
         Route::apiResource('produtos', ProdutoController::class);
+        Route::patch('/produtos/{id}/change-estado', [ProdutoController::class, 'changeEstado']);
 
         Route::get('/dashboard/summary', [DashboardController::class, 'getSummary']);
 

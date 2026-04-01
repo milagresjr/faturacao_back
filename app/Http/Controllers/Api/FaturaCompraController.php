@@ -13,6 +13,7 @@ use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FaturaCompraController extends Controller
@@ -369,7 +370,7 @@ class FaturaCompraController extends Controller
                 'valor_fatura' => $request['valor_fatura'],
                 'retencao' => $retencao,
 
-                'hash' => 'aheshtsjrjsryrjyrkyrkylfmcszndbgabvdkabvdkd',
+                'hash' => Str::random(40),
 
                 'desconto_total' => $desconto_total,
                 'total_sem_desconto' => $totalSemDesconto,
