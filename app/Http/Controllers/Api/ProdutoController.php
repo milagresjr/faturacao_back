@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Armazem;
+use App\Models\LoteProduto;
 use Illuminate\Http\Request;
 use App\Models\Produto;
 use App\Models\Stock;
@@ -104,70 +105,159 @@ class ProdutoController extends Controller
 
         if ($armazens && is_array($armazens)) {
             $armazensArray = is_array($armazens) ? $armazens : explode(',', $armazens);
-            $produtoQuery->whereHas('movimentosStock', function ($q) use ($armazensArray) {
+            $produtoQuery->whereHas('stocks', function ($q) use ($armazensArray) {
                 $q->whereIn('armazem_id', $armazensArray);
             });
         }
 
-        if ($stock) {
-            // calcula stock total por produto (somando entradas e subtraindo saídas/ajustes negativos)
-            $movimentosSub = DB::table('movimentos_stock')
-                ->select('produto_id', DB::raw("SUM(CASE WHEN LOWER(operacao) IN ('saida','ajuste negativo') THEN -quantidade ELSE quantidade END) as total_stock"))
-                ->groupBy('produto_id');
+        // ==========================================
+        // SUBQUERY PARA STOCK TOTAL (PRODUTOS SEM VALIDADE)
+        // ==========================================
+        $stocksSub = DB::table('stocks')
+            ->select('produto_id', DB::raw('SUM(stock_atual) as total_stock'))
+            ->groupBy('produto_id');
 
-            // junta subquery para poder filtrar por total_stock
-            $produtoQuery->leftJoinSub($movimentosSub, 'ms', function ($join) {
-                $join->on('produtos.id', '=', 'ms.produto_id');
-            })->select('produtos.*');
+        // ==========================================
+        // SUBQUERY PARA STOCK TOTAL (PRODUTOS COM VALIDADE via lotes)
+        // ==========================================
+        $lotesSub = DB::table('lotes_produto')
+            ->select('produto_id', DB::raw('SUM(qtd_atual) as total_stock_lotes'))
+            ->where('status', 'activo')
+            ->where('data_validade', '>=', now())
+            ->groupBy('produto_id');
+
+        // ==========================================
+        // FILTRO POR STOCK (quando o parâmetro 'stock' é enviado)
+        // ==========================================
+        if ($stock) {
+            // Junta ambas subqueries para produtos com e sem validade
+            $produtoQuery->leftJoinSub($stocksSub, 's', function ($join) {
+                $join->on('produtos.id', '=', 's.produto_id');
+            })->leftJoinSub($lotesSub, 'l', function ($join) {
+                $join->on('produtos.id', '=', 'l.produto_id');
+            })->select(
+                'produtos.*',
+                DB::raw('COALESCE(s.total_stock, 0) as stock_sem_validade'),
+                DB::raw('COALESCE(l.total_stock_lotes, 0) as stock_com_validade')
+            );
 
             $stockFilters = is_array($stock) ? $stock : explode(',', $stock);
 
             $produtoQuery->where(function ($q) use ($stockFilters) {
                 foreach ($stockFilters as $f) {
                     $f = strtolower(trim($f));
+
                     if ($f === 'positivo') {
-                        // stock total > 0
-                        $q->orWhereRaw('COALESCE(ms.total_stock,0) > 0');
-                    } elseif ($f === 'negativo' || $f === 'menor_que_0' || $f === 'menorque0') {
-                        // stock total < 0
-                        $q->orWhereRaw('COALESCE(ms.total_stock,0) < 0');
-                    } elseif ($f === 'nulo' || $f === 'zero') {
-                        // stock igual a 0 ou sem movimentos (null)
+                        // Stock total > 0 (considera ambos tipos de produto)
                         $q->orWhere(function ($q2) {
-                            $q2->whereNull('ms.total_stock')->orWhereRaw('COALESCE(ms.total_stock,0) = 0');
+                            $q2->where(function ($q3) {
+                                // Produtos sem validade
+                                $q3->where('produtos.controla_validade', false)
+                                    ->whereRaw('COALESCE(s.total_stock,0) > 0');
+                            })->orWhere(function ($q4) {
+                                // Produtos com validade
+                                $q4->where('produtos.controla_validade', true)
+                                    ->whereRaw('COALESCE(l.total_stock_lotes,0) > 0');
+                            });
+                        });
+                    } elseif ($f === 'negativo' || $f === 'menor_que_0' || $f === 'menorque0') {
+                        // Stock total < 0 (apenas produtos sem validade podem ter stock negativo)
+                        $q->orWhere(function ($q2) {
+                            $q2->where('produtos.controla_validade', false)
+                                ->whereRaw('COALESCE(s.total_stock,0) < 0');
+                        });
+                    } elseif ($f === 'nulo' || $f === 'zero') {
+                        // Stock igual a 0 ou sem stock
+                        $q->orWhere(function ($q2) {
+                            $q2->where(function ($q3) {
+                                // Produtos sem validade
+                                $q3->where('produtos.controla_validade', false)
+                                    ->where(function ($q4) {
+                                        $q4->whereNull('s.total_stock')
+                                            ->orWhereRaw('COALESCE(s.total_stock,0) = 0');
+                                    });
+                            })->orWhere(function ($q5) {
+                                // Produtos com validade
+                                $q5->where('produtos.controla_validade', true)
+                                    ->where(function ($q6) {
+                                        $q6->whereNull('l.total_stock_lotes')
+                                            ->orWhereRaw('COALESCE(l.total_stock_lotes,0) = 0');
+                                    });
+                            });
                         });
                     } elseif ($f === 'menor_que_stock_min' || $f === 'menor_que_stockmin') {
-                        // stock total menor que stock_min do produto
-                        $q->orWhereRaw('COALESCE(ms.total_stock,0) < COALESCE(produtos.stock_min,0)');
+                        // Stock total menor que stock_min (apenas produtos sem validade)
+                        $q->orWhere(function ($q2) {
+                            $q2->where('produtos.controla_validade', false)
+                                ->whereRaw('COALESCE(s.total_stock,0) < COALESCE(produtos.stock_min,0)');
+                        });
                     } elseif ($f === 'sem_controlo' || $f === 'semcontrolo') {
-                        // produtos que não movimentam stock (controle desligado)
-                        $q->orWhere('movimenta_stock', 0);
+                        // Produtos que não controlam stock
+                        $q->orWhere('produtos.controla_stock', 0);
                     }
                 }
             });
         }
 
+        // ==========================================
+        // BUSCAR PRODUTOS
+        // ==========================================
         $produtos = $produtoQuery
-            ->where('empresa_id', $idEmpresa) // Filtra por empresa_id
-            ->with(['marca', 'categoria', 'subCategoria', 'armazem', 'tipoIva', 'motivoIsencao', 'fornecedor', 'movimentosStock'])
+            ->where('empresa_id', $idEmpresa)
+            ->with(['marca', 'categoria', 'subCategoria', 'tipoIva', 'motivoIsencao', 'fornecedor', 'stocks'])
             ->orderByDesc('id')
             ->paginate($per_page);
 
-        // Adiciona as quantidades por armazém a cada produto
+        // ==========================================
+        // ADICIONAR QUANTIDADES POR ARMAZÉM
+        // ==========================================
         $produtos->getCollection()->transform(function ($produto) {
-            $quantidades = $produto->movimentosStock
-                ->groupBy('armazem_id')
-                ->map(function ($movimentos) {
-                    return $movimentos->sum(function ($movimento) {
-                        if (in_array(strtolower($movimento->operacao), ['saida', 'saida_inventario', 'nota_quebra'])) {
-                            return -$movimento->quantidade;
-                        } else {
-                            return $movimento->quantidade;
-                        }
-                    });
-                });
 
-            $produto->quantidades = $quantidades;
+            // ==========================================
+            // PRODUTO COM VALIDADE (usa lotes_produto)
+            // ==========================================
+            if ($produto->controla_validade) {
+                // Buscar lotes agrupados por armazém
+                $lotesPorArmazem = LoteProduto::where('produto_id', $produto->id)
+                    ->where('status', 'activo')
+                    ->where('qtd_atual', '>', 0)
+                    ->where('data_validade', '>=', now())
+                    ->get()
+                    ->groupBy('armazem_id');
+
+                $quantidades = [];
+
+                foreach ($lotesPorArmazem as $armazemId => $lotes) {
+                    $quantidades[$armazemId] = $lotes->sum('qtd_atual');
+                }
+
+                // Se não tem lotes em nenhum armazém, buscar configurações existentes
+                if (empty($quantidades)) {
+                    $stocksConfig = $produto->stocks->keyBy('armazem_id');
+                    foreach ($stocksConfig as $armazemId => $config) {
+                        $quantidades[$armazemId] = 0;
+                    }
+                }
+
+                $produto->quantidades = $quantidades;
+
+                // Adicionar stock total consolidado
+                $produto->stock_total = array_sum($quantidades);
+            }
+
+            // ==========================================
+            // PRODUTO SEM VALIDADE (usa stocks)
+            // ==========================================
+            else {
+                $quantidades = $produto->stocks
+                    ->groupBy('armazem_id')
+                    ->map(function ($stocks) {
+                        return $stocks->sum('stock_atual');
+                    });
+
+                $produto->quantidades = $quantidades;
+                $produto->stock_total = $quantidades->sum();
+            }
 
             return $produto;
         });
@@ -193,7 +283,7 @@ class ProdutoController extends Controller
             'movimenta_stock' => 'nullable|boolean',
             'codigo_produto' => 'nullable|string|max:255',
             'codigo_barra' => 'nullable|string|max:255',
-            'data_validade' => 'nullable|date',
+            'controla_validade' => 'nullable|boolean',
             'imposto' => 'nullable|string|integer|max:255',
             'motivo_isencao_id' => 'nullable|integer|exists:motivo_isencao,id',
             'unidade' => 'nullable|string|max:50',
@@ -297,24 +387,33 @@ class ProdutoController extends Controller
     {
         $produto = Produto::with(['movimentosStock', 'stocks'])->findOrFail($id);
 
-        // Indexar configurações de stock por armazém
-        $stocksPorArmazem = $produto->stocks->keyBy('armazem_id');
+        // ==========================================
+        // VERIFICAR SE PRODUTO CONTROLA VALIDADE
+        // ==========================================
 
-        //STOCK por armazém + estado
-        $quantidades = $produto->movimentosStock
-            ->groupBy('armazem_id')
-            ->map(function ($movimentos, $armazemId) use ($stocksPorArmazem) {
+        if ($produto->controla_validade) {
+            // ==========================================
+            // CENÁRIO: Produto com validade (usa tabela lotes_produto)
+            // ==========================================
 
-                //Calcular quantidade
-                $quantidade = $movimentos->sum(function ($movimento) {
-                    if (in_array(strtolower($movimento->operacao), ['saida', 'saida_inventario', 'nota_quebra'])) {
-                        return -$movimento->quantidade;
-                    } else {
-                        return $movimento->quantidade;
-                    }
-                });
+            // Buscar lotes agrupados por armazém
+            $lotesPorArmazem = LoteProduto::where('produto_id', $produto->id)
+                ->where('status', 'activo')
+                // ->where('qtd_atual', '>', 0)
+                ->where('data_validade', '>=', now())
+                ->get()
+                ->groupBy('armazem_id');
 
-                // ⚙️ Buscar configuração de stock
+            // Buscar configurações de stock (stock_min, stock_ideal, stock_max)
+            $stocksPorArmazem = $produto->stocks->keyBy('armazem_id');
+
+            $quantidades = collect();
+
+            foreach ($lotesPorArmazem as $armazemId => $lotes) {
+                // Somar quantidade de todos os lotes deste armazém
+                $quantidadeTotal = $lotes->sum('qtd_atual');
+
+                // Buscar configuração de stock para este armazém
                 $stockConfig = $stocksPorArmazem[$armazemId] ?? null;
 
                 $stockIdeal = $stockConfig->stock_ideal ?? 0;
@@ -323,21 +422,97 @@ class ProdutoController extends Controller
 
                 // Definir estado do stock
                 $estado = match (true) {
-                    $quantidade <= 0 => 'sem_stock',
-                    $quantidade < $stockMin => 'critico',
-                    $quantidade < $stockIdeal => 'baixo',
-                    $stockMax && $quantidade > $stockMax => 'excesso',
+                    $quantidadeTotal <= 0 => 'sem_stock',
+                    $quantidadeTotal < $stockMin => 'critico',
+                    $quantidadeTotal < $stockIdeal => 'baixo',
+                    $stockMax && $quantidadeTotal > $stockMax => 'excesso',
                     default => 'ok',
                 };
 
-                return [
-                    'quantidade'   => (int) $quantidade,
-                    'estado'       => $estado,
-                    'stock_min'    => (int) $stockMin,
-                    'stock_ideal'  => (int) $stockIdeal,
-                    'stock_max'    => (int) $stockMax,
-                ];
-            });
+                // Detalhar lotes deste armazém (opcional)
+                $detalheLotes = $lotes->map(function ($lote) {
+                    return [
+                        'lote_id' => $lote->id,
+                        'lote' => $lote->lote,
+                        'codigo_lote' => $lote->codigo_lote,
+                        'qtd_atual' => $lote->qtd_atual,
+                        'data_validade' => $lote->data_validade->format('Y-m-d'),
+                        'dias_restantes' => now()->diffInDays($lote->data_validade),
+                        'localizacao' => $lote->localizacao_armazem
+                    ];
+                });
+
+                $quantidades->put($armazemId, [
+                    'quantidade' => (int) $quantidadeTotal,
+                    'estado' => $estado,
+                    'stock_min' => (int) $stockMin,
+                    'stock_ideal' => (int) $stockIdeal,
+                    'stock_max' => (int) $stockMax,
+                    'lotes' => $detalheLotes  // Detalhamento dos lotes
+                ]);
+            }
+
+            // Se não tem lotes em nenhum armazém, retorna zero para todos
+            if ($quantidades->isEmpty()) {
+                // Buscar todos armazéns configurados
+                $todosArmazens = $produto->stocks->pluck('armazem_id');
+
+                foreach ($todosArmazens as $armazemId) {
+                    $stockConfig = $stocksPorArmazem[$armazemId] ?? null;
+                    $quantidades->put($armazemId, [
+                        'quantidade' => 0,
+                        'estado' => 'sem_stock',
+                        'stock_min' => (int) ($stockConfig->stock_min ?? 0),
+                        'stock_ideal' => (int) ($stockConfig->stock_ideal ?? 0),
+                        'stock_max' => (int) ($stockConfig->stock_max ?? 0),
+                        'lotes' => []
+                    ]);
+                }
+            }
+        } else {
+            // ==========================================
+            // CENÁRIO: Produto SEM validade (usa tabela stocks)
+            // ==========================================
+
+            // Indexar configurações de stock por armazém
+            $stocksPorArmazem = $produto->stocks->keyBy('armazem_id');
+
+            // Buscar TODOS os armazéns que têm configuração de stock para este produto
+            $todosArmazensConfigurados = $produto->stocks->pluck('armazem_id')->toArray();
+
+            // Se não houver configuração em nenhum armazém, pelo menos retorna vazio
+            if (empty($todosArmazensConfigurados)) {
+                $quantidades = [];
+            } else {
+                $quantidades = [];
+                foreach ($todosArmazensConfigurados as $armazemId) {
+                    $stockConfig = $stocksPorArmazem[$armazemId] ?? null;
+
+                    $quantidade = $stockConfig->stock_atual ?? 0;
+                    $stockIdeal = $stockConfig->stock_ideal ?? 0;
+                    $stockMin   = $stockConfig->stock_min ?? 0;
+                    $stockMax   = $stockConfig->stock_max ?? 0;
+
+                    // Definir estado do stock
+                    $estado = match (true) {
+                        $quantidade <= 0 => 'sem_stock',
+                        $quantidade < $stockMin => 'critico',
+                        $quantidade < $stockIdeal => 'baixo',
+                        $stockMax && $quantidade > $stockMax => 'excesso',
+                        default => 'ok',
+                    };
+
+                    $quantidades[$armazemId] = [
+                        'quantidade'   => (int) $quantidade,
+                        'estado'       => $estado,
+                        'stock_min'    => (int) $stockMin,
+                        'stock_ideal'  => (int) $stockIdeal,
+                        'stock_max'    => (int) $stockMax,
+                        'lotes'        => []
+                    ];
+                }
+            }
+        }
 
         $produto->quantidades = $quantidades;
 
@@ -427,7 +602,7 @@ class ProdutoController extends Controller
             'movimenta_stock' => 'sometimes|required|boolean',
             'codigo_produto' => 'sometimes|required|string|max:255',
             'codigo_barra' => 'nullable|string|max:255',
-            'data_validade' => 'nullable|date',
+            'controla_validade' => 'nullable|boolean',
             'imposto' => 'sometimes|required|string|max:255',
             'unidade' => 'nullable|string|max:50',
             'estado' => 'sometimes|nullable|boolean',

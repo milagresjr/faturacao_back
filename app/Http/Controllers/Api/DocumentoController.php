@@ -2342,7 +2342,7 @@ class DocumentoController extends Controller
         }
 
         $dadosPersonalizacaoFatura = ConfiguracaoFatura::where("empresa_id", $documento->empresa_id)->first();
-        $imagePath = public_path('storage/logos-fatura/'.$dadosPersonalizacaoFatura->logo);
+        $imagePath = storage_path('app/public/logos-fatura/'.$dadosPersonalizacaoFatura->logo);
         $imageData = base64_encode(file_get_contents($imagePath));
         $src = 'data:image/png;base64,' . $imageData;
 

@@ -27,12 +27,12 @@ class Produto extends Model
         'stock_max',
         'stock_ideial',
         'stock_atual',
+        'controla_validade',
         'modelo',
         'imagem',
         'movimenta_stock',
         'codigo_produto',
         'codigo_barra',
-        'data_validade',
         'imposto',
         'unidade',
         'motivo_isencao_id',
@@ -117,5 +117,46 @@ class Produto extends Model
     public function movimentosStock()
     {
         return $this->hasMany(MovimentoStock::class, 'produto_id');
+    }
+
+    //Um produto pode ter muitos lotes
+    public function lotes()
+    {
+        return $this->hasMany(LoteProduto::class, 'produto_id');
+    }
+
+    // Configuração de validade
+    public function configuracaoValidade()
+    {
+        return $this->hasOne(ConfigValidacaoProduto::class, 'produto_id');
+    }
+
+    //Verificar se o produto precisa controlar validade
+    public function precisaControlarValidade()
+    {
+        return $this->controla_validade;
+    }
+
+    // Pegar stock total considerando apenas lotes válidos
+    public function getStockValidoAttribute()
+    {
+        if (!$this->precisaControlarValidade()) {
+            return $this->stock_atual; // Retorna o stock normal da tabela produtos
+        }
+
+        // Soma apenas lotes não vencidos
+        return $this->lotes()
+            ->where('status', 'activo')
+            ->where('data_validade', '>=', now())
+            ->sum('quantidade_actual');
+    }
+
+    //Atualizar stock na tabela produtos (para manter compatibilidade)
+    public function atualizarStockConsolidado()
+    {
+        if ($this->precisaControlarValidade()) {
+            $this->stock_atual = $this->stock_valido;
+            $this->saveQuietly(); // salva sem disparar eventos
+        }
     }
 }

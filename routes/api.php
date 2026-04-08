@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\EmpresaController;
 use App\Http\Controllers\Api\FaturaCompraController;
 use App\Http\Controllers\Api\FilialController;
 use App\Http\Controllers\Api\FornecedorController;
+use App\Http\Controllers\Api\LoteController;
 use App\Http\Controllers\Api\MarcaController;
 use App\Http\Controllers\Api\PerfilController;
 use App\Http\Controllers\Api\ProdutoController;
@@ -38,7 +39,6 @@ use App\Http\Middleware\ForcePasswordChange;
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
 // })->middleware('auth:sanctum');
-
 
 Route::middleware('api')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
@@ -115,6 +115,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
         Route::apiResource('caixas', CaixaController::class);
         Route::apiResource('movimento-stock', MovimentoStockController::class);
+        Route::patch('/alterar-stock-minimo/{idArmazem}/{idProduto}', [MovimentoStockController::class, 'alterarStockMinimo']);
         Route::apiResource('fatura-compra/pagamento', PagamentoDocumentoCompraController::class);
 
         Route::apiResource('unidades', UnidadeController::class);
@@ -146,6 +147,9 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::get('documentos/relatorio-faturacao-por-colaborador', [DocumentoController::class, 'pdfRelatorioFaturacaoPorColaborador']);
         Route::apiResource('documentos', DocumentoController::class);
 
+
+        Route::get('/documento/{id}/pdf', [DocumentoController::class, 'gerarPdf']);
+
         Route::patch('documentos/{id}/finalizar', [DocumentoController::class, 'finalizarDocRascunho']);
         Route::delete('documentos/{id}/delete-rascunho', [DocumentoController::class, 'destroyDocRascunho']);
         Route::post('/documentos/{id}/transformar', [DocumentoController::class, 'transformarDocumento']);
@@ -158,10 +162,15 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::get('relatorio/fatura-compra', [FaturaCompraController::class, 'pdfRelatorioDocumentoCompra']);
 
         Route::get('caixas/armazem/{armazemId}', [CaixaController::class, 'getByArmazem']);
-        Route::get('/documento/{id}/pdf', [DocumentoController::class, 'gerarPdf']);
         Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
         Route::get('/documento/{id}/pdf/fatura-compra', [DocumentoController::class, 'gerarPdfFaturaCompra']);
         Route::get('/documento/num-last-doc', [DocumentoController::class, 'NumLastDoc']);
+
+        //rota para lotes
+        Route::apiResource('lotes', LoteController::class);
+        Route::get('lotes/produto/{produtoId}', [LoteController::class, 'getLotesByProduto']);
+        Route::get('lotes/empresa/{empresaId}', [LoteController::class, 'getLotesByEmpresa']);
+
     });
 });
 
