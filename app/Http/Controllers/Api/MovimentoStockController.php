@@ -532,8 +532,7 @@ class MovimentoStockController extends Controller
                     ->where('codigo_lote', $dadosLoteTransferencia['codigo_lote'])
                     ->get();
 
-                Log::info('Lotes com código parecido:', $existeParecido->toArray());
-
+              
                 // Verificar se já existe este lote no armazém de destino
                 $loteDestino = LoteProduto::where('produto_id', $produto->id)
                     ->where('armazem_id', $dados['armazem_id'])  // armazém destino

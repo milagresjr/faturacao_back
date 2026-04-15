@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Cliente;
+use App\Models\Documento;
 use Illuminate\Support\Facades\Validator;
 
 class ClienteController extends Controller
@@ -16,7 +17,7 @@ class ClienteController extends Controller
         $search = $request->query('search');
 
         $idEmpresa = $request->input('empresa_id');
-     
+
         $clienteQuery = Cliente::query();
 
         if ($search) {
@@ -27,16 +28,16 @@ class ClienteController extends Controller
 
         if ($paginate) {
             $clientes = $clienteQuery
-            ->with(['tipoCliente', 'empresa', 'utilizador'])
-            ->where('empresa_id', $idEmpresa)
-            ->orderByDesc('id')->paginate($per_page);
+                ->with(['tipoCliente', 'empresa', 'utilizador'])
+                ->where('empresa_id', $idEmpresa)
+                ->orderByDesc('id')->paginate($per_page);
         } else {
             $clientes = $clienteQuery
-            ->with(['tipoCliente', 'empresa', 'utilizador'])
-            ->where('empresa_id', $idEmpresa)
-            ->orderByDesc('id')->get();
+                ->with(['tipoCliente', 'empresa', 'utilizador'])
+                ->where('empresa_id', $idEmpresa)
+                ->orderByDesc('id')->get();
         }
-        
+
         return response()->json($clientes);
     }
 
@@ -118,7 +119,15 @@ class ClienteController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        //Verificar se esse cliente ja emitiu uma fatura
+        $hasFatura = Documento::where('cliente_id', $id)->first();
+
+        if (isset($request['nif']) && $hasFatura) {
+            throw new \Exception("Não pode alterar NIF do cliente. Cliente já possui fatura emitida!");
+        }
+
         $cliente->update($request->all());
+
         return response()->json($cliente);
     }
 

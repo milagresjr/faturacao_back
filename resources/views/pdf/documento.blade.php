@@ -134,7 +134,7 @@
             <div style="border-bottom: 1px solid #069; width: 100%; margin-bottom: 10px;">
                 <div style="display: inline-block; vertical-align: top;">
                     <img src="{{ $src }}" alt="Logo"
-                        style="width: 120px; height: 100px; z-index: 10; object-fit: contain; display: block;">
+                        style="width: 200px; height: 100px; z-index: 10; object-fit: contain; display: block;">
                 </div>
                 <div style="display: block; float: right; width: 200px; text-align: right; margin-top: 20px;">
                     <span style="font-size: 12pt; font-weight: bold;">{{ $documento->tipo_nome }}</span> <br>
