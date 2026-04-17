@@ -119,11 +119,19 @@ class ClienteController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        //Verificar se esse cliente ja emitiu uma fatura
-        $hasFatura = Documento::where('cliente_id', $id)->first();
+        // VERIFICAR SE O NIF FOI ALTERADO
+        if ($request->has('nif') && $request->input('nif') != $cliente->nif) {
+            // Verificar se cliente já possui documentos (faturas, recibos, notas de crédito, etc.)
+            $temDocumentos = Documento::where('cliente_id', $id)
+            ->where('estado', '!=', 'rascunho')
+            ->exists();
 
-        if (isset($request['nif']) && $hasFatura) {
-            throw new \Exception("Não pode alterar NIF do cliente. Cliente já possui fatura emitida!");
+            if ($temDocumentos) {
+                return response()->json([
+                    'message' => 'Não é permitido alterar o NIF do cliente pois ele já possui documentos emitidos.',
+                    'error' => 'NIF_CHANGE_NOT_ALLOWED'
+                ], 422);
+            }
         }
 
         $cliente->update($request->all());

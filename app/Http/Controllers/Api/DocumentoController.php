@@ -661,6 +661,25 @@ class DocumentoController extends Controller
             );
         }
 
+        // VALIDAÇÃO: Verificar data da última fatura
+        $validacaoData = $this->validateInvoiceDate(
+            $request->cliente_id,
+            $request->data_emissao,
+            $request->empresa_id
+        );
+
+        if (!$validacaoData['allowed']) {
+            return response()->json([
+                'message' => $validacaoData['message'],
+                'error' => 'INVALID_INVOICE_DATE',
+                'details' => [
+                    'ultima_fatura_emitida' => $validacaoData['ultima_fatura'] ?? null,
+                    'data_ultima_fatura' => $validacaoData['ultima_data'] ?? null,
+                    'data_solicitada' => $validacaoData['data_solicitada'] ?? null
+                ]
+            ], 422);
+        }
+
 
         // Construção do quadro por taxas (mantendo também o 'liquido' por grupo)
         $quadroImposto = [];
@@ -1164,6 +1183,39 @@ class DocumentoController extends Controller
         return $hash;
     }
 
+    private function validateInvoiceDate($clienteId, $novaDataEmissao, $empresaId = null)
+    {
+        // Buscar a última fatura emitida para este cliente
+        $query = Documento::where('cliente_id', $clienteId)
+            ->whereIn('tipo_sigla', ['FT', 'FR', 'FG']) // Ajuste conforme suas siglas
+            ->where('estado', 'emitido'); // Apenas faturas emitidas, não rascunhos
+
+        if ($empresaId) {
+            $query->where('empresa_id', $empresaId);
+        }
+
+        $ultimaFatura = $query->orderBy('data_emissao', 'desc')
+            ->orderBy('id', 'desc') // Desempate por ID se mesma data
+            ->first();
+
+        if ($ultimaFatura) {
+            $ultimaData = Carbon::parse($ultimaFatura->data_emissao);
+            $novaData = Carbon::parse($novaDataEmissao);
+
+            // Verificar se a nova data é anterior à última fatura
+            if ($novaData->lt($ultimaData)) {
+                return [
+                    'allowed' => false,
+                    'message' => "Não é permitido emitir fatura com data anterior à última fatura emitida.",
+                    'ultima_data' => $ultimaData->format('d/m/Y'),
+                    'ultima_fatura' => $ultimaFatura->num_fatura,
+                    'data_solicitada' => $novaData->format('d/m/Y')
+                ];
+            }
+        }
+
+        return ['allowed' => true];
+    }
 
     public function destroyDocRascunho(string $id)
     {
@@ -1694,6 +1746,60 @@ class DocumentoController extends Controller
 
     public function storeNotaCredito(Request $request)
     {
+        // VALIDAÇÃO: Verificar se a fatura já possui nota de crédito
+        $faturaId = $request->input("documento_id");
+
+        // Buscar a fatura original
+        $faturaOriginal = Documento::find($faturaId);
+
+        if (!$faturaOriginal) {
+            return response()->json([
+                'message' => 'Fatura não encontrada.',
+                'error' => 'INVOICE_NOT_FOUND'
+            ], 404);
+        }
+
+        // Verificar se a fatura já tem uma nota de crédito associada
+        $notaCreditoExistente = DB::table("documento_relacoes")
+            ->where("documento_relacionado_id", $faturaId)
+            ->where("tipo_relacao", "NOTA_DE_CREDITO_FATURA")
+            ->exists();
+
+        if ($notaCreditoExistente) {
+            return response()->json([
+                'message' => 'Não é permitido criar múltiplas notas de crédito para a mesma fatura.',
+                'error' => 'DUPLICATE_CREDIT_NOTE',
+                'fatura_id' => $faturaId,
+                'fatura_numero' => $faturaOriginal->num_fatura
+            ], 422);
+        }
+
+        // Verificar se a fatura está elegível para nota de crédito (opcional)
+        if ($faturaOriginal->estado === 'cancelada') {
+            return response()->json([
+                'message' => 'Não é possível criar nota de crédito para uma fatura cancelada.',
+                'error' => 'CANCELLED_INVOICE'
+            ], 422);
+        }
+
+        // Se a fatura já tiver sido totalmente creditada (opcional - baseado no valor)
+        $totalCreditado = DB::table("documento_relacoes")
+            ->join("documentos", "documento_relacoes.documento_id", "=", "documentos.id")
+            ->where("documento_relacoes.documento_relacionado_id", $faturaId)
+            ->where("documento_relacoes.tipo_relacao", "NOTA_DE_CREDITO_FATURA")
+            ->where("documentos.estado", "emitido")
+            ->sum("documentos.total_geral");
+
+        if ($totalCreditado >= $faturaOriginal->total_geral) {
+            return response()->json([
+                'message' => 'Esta fatura já foi totalmente creditada. Não é possível criar nova nota de crédito.',
+                'error' => 'FULLY_CREDITED_INVOICE',
+                'valor_fatura' => $faturaOriginal->total_geral,
+                'valor_creditado' => $totalCreditado
+            ], 422);
+        }
+
+        // Gerar número do documento
         $numFatura = $this->gerarNumeroDocumento(
             "NC",
             $request->input("empresa_id"),
@@ -1717,7 +1823,7 @@ class DocumentoController extends Controller
                 "total_impostos" => "nullable|numeric",
                 "total_geral" => "nullable|numeric",
 
-                "motivo_emissao" => "required!string",
+                "motivo_emissao" => "required|string", // Corrigido: required!string para required|string
 
                 "meiosPagamento" => "required|array",
                 "meiosPagamento.*.descricao" => "required|string",
@@ -1748,8 +1854,7 @@ class DocumentoController extends Controller
                 "date" => "O campo :attribute deve ser uma data válida.",
                 "array" => "O campo :attribute deve ser uma lista.",
                 "min" => [
-                    "array" =>
-                    "O campo :attribute deve ter pelo menos :min item(ns).",
+                    "array" => "O campo :attribute deve ter pelo menos :min item(ns).",
                 ],
             ],
         );
@@ -1764,7 +1869,9 @@ class DocumentoController extends Controller
             );
         }
 
-        // Construção do quadro por taxas (mantendo também o 'liquido' por grupo)
+        // Restante do seu código permanece igual...
+        // (Construção do quadro por taxas, cálculo de descontos, etc.)
+
         $quadroImposto = [];
         $totalLiquido = 0;
         $totalBase = 0;
@@ -1811,9 +1918,9 @@ class DocumentoController extends Controller
                     "taxa" => $taxaIva,
                     "codigo" => $codigo,
                     "motivo_isencao" => $motivo,
-                    "incidencia" => 0.0, // base
+                    "incidencia" => 0.0,
                     "imposto" => 0.0,
-                    "liquido" => 0.0, // subtotal (com IVA) do grupo
+                    "liquido" => 0.0,
                 ];
             }
 
@@ -1828,11 +1935,10 @@ class DocumentoController extends Controller
 
         $totalSemDesconto = 0;
         $descontoItensTotal = 0;
-        // 1. Calcular total bruto e descontos por item
+
         foreach ($request->itens as $item) {
             $precoBruto = $item["preco_venda"] * $item["quantidade"];
 
-            // Desconto do item
             $desconto = 0;
             if (
                 $item["desconto_percent"] !== null &&
@@ -1846,25 +1952,22 @@ class DocumentoController extends Controller
                 $desconto = $item["desconto_fixo"] * $item["quantidade"];
             }
 
-            // Acumula totais gerais
             $totalSemDesconto += $precoBruto;
             $descontoItensTotal += $desconto;
         }
 
-        // Desconto geral (se existir)
-        $descontoGeral = 0; //$request['desconto_total'] ?? 0;
+        $descontoGeral = 0;
 
         if ($request["desconto_tipo"] === "percentual") {
             $descontoGeral =
                 $totalSemDesconto * ($request["desconto_total"] / 100);
         } elseif ($request["desconto_tipo"] === "fixo") {
-            $descontoGeral = $request["desconto_total"]; // decide se é total ou por unidade
+            $descontoGeral = $request["desconto_total"];
         }
 
         if ($descontoGeral > 0 && $totalLiquido > 0) {
             $totalLiquidoOriginal = $totalLiquido;
 
-            // para garantir soma exata do desconto distribuído (corrige residual de arredond.)
             $groupKeys = array_keys($quadroImposto);
             $lastKey = end($groupKeys);
             $assigned = 0.0;
@@ -1872,24 +1975,20 @@ class DocumentoController extends Controller
             foreach ($groupKeys as $key) {
                 $linha = &$quadroImposto[$key];
 
-                // proporção segundo o liquido do grupo
                 $proporcao = $linha["liquido"] / $totalLiquidoOriginal;
 
                 if ($key !== $lastKey) {
                     $descontoLinha = round($descontoGeral * $proporcao, 2);
                     $assigned += $descontoLinha;
                 } else {
-                    // resto do desconto para o último grupo (evita erro de arredondamento)
                     $descontoLinha = round($descontoGeral - $assigned, 2);
                 }
 
-                // aplica desconto ao liquido do grupo
                 $linha["liquido"] = round(
                     $linha["liquido"] - $descontoLinha,
                     2,
                 );
 
-                // recalcula base e imposto segundo a taxa daquele grupo
                 $linha["incidencia"] = round(
                     $linha["liquido"] / (1 + $linha["taxa"] / 100),
                     2,
@@ -1899,20 +1998,17 @@ class DocumentoController extends Controller
                     2,
                 );
 
-                unset($linha); // bom hábito ao usar referência
+                unset($linha);
             }
 
-            // (opcional) Recalcule totais finais:
             $totalLiquido = array_sum(array_column($quadroImposto, "liquido"));
             $totalBase = array_sum(array_column($quadroImposto, "incidencia"));
             $totalImposto = array_sum(array_column($quadroImposto, "imposto"));
         }
 
-        // 2. Aplicar desconto geral (apenas no final)
         $totalComIvaFinal =
             $totalSemDesconto - $descontoItensTotal - $descontoGeral;
 
-        // 3. Calcular total final (já com todos descontos)
         $totalFinal = $totalComIvaFinal;
 
         $totalImpostos = array_sum(array_column($quadroImposto, "imposto"));
@@ -1923,9 +2019,8 @@ class DocumentoController extends Controller
 
         // Criação do documento
         $documento = Documento::create([
-            "tipo_nome" => "Nota de Crédito", // $request['tipo_fatura'],
-            "tipo_sigla" => "NC", // $request['sigla_fatura'],
-            //'tipo_cor' => $request['tipo_cor'],
+            "tipo_nome" => "Nota de Crédito",
+            "tipo_sigla" => "NC",
 
             "num_fatura" => $numFatura,
             "via" => "original",
@@ -1952,7 +2047,6 @@ class DocumentoController extends Controller
 
             "taxa_iva" => "0",
             "valor_iva" => "0",
-            //'retencao' => $retencao,
 
             "estado" => "emitido",
 
@@ -2006,7 +2100,6 @@ class DocumentoController extends Controller
                 "motivo_isencao" => $value["motivo_isencao"],
                 "incidencia" => $value["incidencia"],
                 "imposto" => $value["imposto"],
-                //'liquido' => $value['liquido'],
                 "total" => $value["incidencia"] + $value["imposto"],
             ]);
         }
@@ -2016,12 +2109,11 @@ class DocumentoController extends Controller
         foreach ($request["itens"] as $item) {
             $taxaIva = TipoTaxaIva::find($item["imposto_taxa_id"])->taxa;
             $codigoIva = TipoTaxaIva::find($item["imposto_taxa_id"])->codigo;
-            //$motivoIsencaoCodigo = null;
             $motivoIsencaoDescricao = null;
 
             if ($codigoIva === "ISENTO") {
                 $motivo = DB::table("motivo_isencao")
-                    ->where("id", $item["motivo_isencao_id"]) // <-- aqui
+                    ->where("id", $item["motivo_isencao_id"])
                     ->first();
                 if ($motivo) {
                     $codigoIva = $motivo->codigo;
@@ -2043,7 +2135,6 @@ class DocumentoController extends Controller
                 $desconto = $item["desconto_fixo"];
             }
 
-            // Calcula o total do item (sem IVA)
             $totalSemDesconto = $item["preco_venda"] * $item["quantidade"];
             $totalItem = $totalSemDesconto - $desconto;
 
@@ -2060,7 +2151,7 @@ class DocumentoController extends Controller
                 "iva_percent" => $taxaIva ?? 0,
                 "codigo_iva" => $codigoIva ?? "",
                 "motivo_isencao" => $motivoIsencaoDescricao,
-                "motivo_isencao_id" => $item["motivo_isencao_id"],
+                "motivo_isencao_id" => $item["motivo_isencao_id"] ?? null,
                 "total_sem_desconto" => $totalSemDesconto,
                 "total" => $totalItem,
             ];
@@ -2078,7 +2169,6 @@ class DocumentoController extends Controller
         ]);
 
         // Criar Recibo
-        // Se for um APRONTO, relaciona com o documento relacionado
         $request->merge([
             "tipo_nome" => "Recibo",
             "tipo_sigla" => "RC",
@@ -2087,7 +2177,7 @@ class DocumentoController extends Controller
         ]);
 
         $data = [
-            "tipo_fatura" => "Recibo", // "RECIBO"
+            "tipo_fatura" => "Recibo",
             "sigla_fatura" => "RC",
             "total_geral" => $totalFinal,
             "documento_relacionado_id" => $documento->id,
@@ -2115,14 +2205,6 @@ class DocumentoController extends Controller
                 "message" => "Nota de Crédito e Recibo criados com sucesso.",
                 "documento" => $documento->load("itens"),
                 "documento_recibo" => $recibo->documento ?? "",
-            ],
-            201,
-        );
-
-        return response()->json(
-            [
-                "message" => "Documento criado com sucesso.",
-                "documento" => $documento->load("itens"),
             ],
             201,
         );
@@ -2324,7 +2406,14 @@ class DocumentoController extends Controller
         });
 
         $itens = collect($documento->itens);
-        $maxLinhas = 25; // número de linhas por página
+
+        $dadosPersonalizacaoFatura = ConfiguracaoFatura::where("empresa_id", $documento->empresa_id)->first();
+
+        $maxLinhas = 25;
+        if ($dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo) {
+            $maxLinhas = 23;
+        }
+        // número de linhas por página
         $paginas = [];
         $subtotalTransportar = 0;
 
@@ -2341,8 +2430,7 @@ class DocumentoController extends Controller
             $paginas[] = $pagina;
         }
 
-        $dadosPersonalizacaoFatura = ConfiguracaoFatura::where("empresa_id", $documento->empresa_id)->first();
-        $imagePath = storage_path('app/public/logos-fatura/'.$dadosPersonalizacaoFatura->logo);
+        $imagePath = storage_path('app/public/logos-fatura/' . $dadosPersonalizacaoFatura->logo);
         $imageData = base64_encode(file_get_contents($imagePath));
         $src = 'data:image/png;base64,' . $imageData;
 

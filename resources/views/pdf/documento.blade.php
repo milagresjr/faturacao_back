@@ -128,7 +128,7 @@
 
 <body>
 
-    <div class="section" style="width: 100%; position: relative; margin-bottom: 100px;">
+    <header class="section" style="width: 100%; position: relative; margin-bottom: 100px;">
 
         @if ($dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo)
             <div style="border-bottom: 1px solid #069; width: 100%; margin-bottom: 10px;">
@@ -144,7 +144,7 @@
         @endif
 
         <div class="col-left">
-            <span style="font-size: 12pt; font-weight: bold;">{{ $documento->empresa_nome ?? '' }}</span>
+            <span style="font-size: 12pt; font-weight: bold;">{{ $documento->empresa_nome ?? '' }}</span> <br>
             @if ($dadosPersonalizacaoFatura->endereco)
                 <span>{{ $documento->empresa_endereco ?? '' }}</span> <br>
             @endif
@@ -170,7 +170,7 @@
             @endif
         </div>
 
-    </div>
+    </header>
 
     <div class="section">
         <h3 style="margin-bottom: 3px;">{{ $documento->num_fatura }}</h3>
