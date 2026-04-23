@@ -25,6 +25,7 @@ class Documento extends Model
 
         'num_fatura',
         'via',
+        'vezes_impresso',
 
         'empresa_id',
         'empresa_logo',

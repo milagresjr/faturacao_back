@@ -146,10 +146,9 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::get('documentos/faturacao-por-colaborador/{utilizadorId?}', [DocumentoController::class, 'listFaturacaoPorColaborador']);
         Route::get('documentos/relatorio-faturacao-por-colaborador', [DocumentoController::class, 'pdfRelatorioFaturacaoPorColaborador']);
         Route::apiResource('documentos', DocumentoController::class);
-
-
+        
         Route::get('/documento/{id}/pdf', [DocumentoController::class, 'gerarPdf']);
-
+        
         Route::patch('documentos/{id}/finalizar', [DocumentoController::class, 'finalizarDocRascunho']);
         Route::delete('documentos/{id}/delete-rascunho', [DocumentoController::class, 'destroyDocRascunho']);
         Route::post('/documentos/{id}/transformar', [DocumentoController::class, 'transformarDocumento']);

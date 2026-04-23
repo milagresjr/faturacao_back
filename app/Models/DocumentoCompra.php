@@ -16,6 +16,7 @@ class DocumentoCompra extends Model
 
         'num_fatura',
         'via',
+        'vezes_impresso',
 
         'armazem_id',
 

@@ -28,6 +28,9 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use Endroid\QrCode\Builder\Builder;
+use Endroid\QrCode\Writer\PngWriter;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class DocumentoController extends Controller
 {
@@ -2329,7 +2332,7 @@ class DocumentoController extends Controller
         return "{$tipoSigla} {$empresa->indicativo_fatura}{$ano}/{$sequencial}";
     }
 
-    public function gerarPdf(string $id)
+    public function gerarPdf(string $id, Request $request)
     {
         $documento = Documento::with([
             "documentosRelacionados",
@@ -2344,6 +2347,8 @@ class DocumentoController extends Controller
                 404,
             );
         }
+
+        $empresaId = $documento->empresa_id;
 
         $bancos = BancoDocumento::where("documento_id", $id)->get();
 
@@ -2411,7 +2416,7 @@ class DocumentoController extends Controller
 
         $maxLinhas = 25;
         if ($dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo) {
-            $maxLinhas = 23;
+            $maxLinhas = 22;
         }
         // número de linhas por página
         $paginas = [];
@@ -2434,14 +2439,52 @@ class DocumentoController extends Controller
         $imageData = base64_encode(file_get_contents($imagePath));
         $src = 'data:image/png;base64,' . $imageData;
 
+        $configFat = ConfiguracaoFatura::where('empresa_id', $empresaId)->first();
+        $numVias = $configFat->num_via;
+
+        $viasBase = ['Original', 'Duplicado', 'Triplicado', 'Quadruplicado', 'Quintuplicado'];
+        $vias = [];
+
+        if ($documento->vezes_impresso == 0) {
+            $vias = array_slice($viasBase, 0, $numVias);
+        } else {
+            $vias = ['Duplicado'];
+        }
+        // Incrementa sempre
+        $documento->vezes_impresso += 1;
+        $documento->save();
+
+        $totalPaginasPorVia = count($paginas);
+
+        $qrString = "A:" . $documento->empresa_nif .
+            "*B:" . $documento->cliente_nif .
+            "*C:AO" .
+            "*D:" . $documento->tipo_sigla .
+            "*F:" . $documento->num_fatura .
+            "*G:" . $documento->data_emissao .
+            "*H:" . $documento->total_geral;
+
+        $result = Builder::create()
+            ->writer(new PngWriter())
+            ->data($qrString)
+            ->size(100)
+            ->margin(2)
+            ->build();
+
+        $qrCode = base64_encode($result->getString());
+
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
         $options->set("isRemoteEnabled", true);
 
         $dompdf = new Dompdf($options);
 
+        $template = ConfiguracaoFatura::where("empresa_id", $documento->empresa_id)->value("template");
+
+        $templateView = $template === "classic" ? "pdf.documento-classic" : "pdf.documento-modern";
+
         $html = view(
-            "pdf.documento",
+            $templateView,
             compact([
                 "documento",
                 "paginas",
@@ -2450,46 +2493,15 @@ class DocumentoController extends Controller
                 "meiosPagamento",
                 "infoGuia",
                 "src",
-                "dadosPersonalizacaoFatura"
+                "dadosPersonalizacaoFatura",
+                "vias",
+                "totalPaginasPorVia",
+                "qrCode"
             ]),
         )->render();
         $dompdf->loadHtml($html);
         $dompdf->setPaper("A4", "portrait");
         $dompdf->render();
-
-        // Pegamos o canvas atualizado
-        $canvas = $dompdf->getCanvas();
-        $fontMetrics = $dompdf->getFontMetrics();
-
-        // Aqui aplicamos o script para todas as páginas
-        $canvas->page_script(function (
-            $pageNumber,
-            $pageCount,
-            $canvas,
-            $fontMetrics,
-        ) {
-            $text1 = "FzBf-Processado por programa validado n. /AGT/2019";
-            $text2 = "Página $pageNumber / $pageCount";
-            $font = $fontMetrics->get_font("Helvetica", "normal");
-            $size = 10;
-
-            $x = 40;
-            $y1 = $canvas->get_height() - 50;
-            $y2 = $y1 + 12;
-
-            $lineY = $y1 - 5;
-            $canvas->line(
-                $x,
-                $lineY,
-                $canvas->get_width() - $x,
-                $lineY,
-                [0, 0, 0],
-                1,
-            );
-
-            $canvas->text($x, $y1, $text1, $font, $size);
-            $canvas->text($x, $y2, $text2, $font, $size);
-        });
 
         $filename = str_replace([" ", "/"], "_", $documento["num_fatura"]);
 

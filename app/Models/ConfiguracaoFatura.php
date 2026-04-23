@@ -38,6 +38,8 @@ class ConfiguracaoFatura extends Model
         'mostrar_logo',
         'mostrar_nif',
         'mostrar_rodape',
+
+        'num_via'
     ];
 
     protected $casts = [

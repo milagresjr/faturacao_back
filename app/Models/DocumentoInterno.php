@@ -15,6 +15,7 @@ class DocumentoInterno extends Model
         "tipo_cor",
         "num_fatura",
         "via",
+        "vezes_impresso",
         "empresa_id",
         "empresa_nome",
         "empresa_nif",

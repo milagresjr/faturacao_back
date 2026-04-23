@@ -28,8 +28,7 @@ class ConfiguracaoFaturaController extends Controller
 
             'template' => 'in:classic,modern,minimal',
             'rodape' => 'nullable|string',
-
-            'logo' => 'nullable|image|max:2048'
+            'logo' => 'nullable|image|max:2048',
         ]);
 
         $idEmpresa = $request->empresa_id;
@@ -70,6 +69,8 @@ class ConfiguracaoFaturaController extends Controller
             'mostrar_logo' => 'boolean',
             'mostrar_nif' => 'boolean',
             'mostrar_rodape' => 'boolean',
+
+            'num_via' => 'integer|min:1'
         ]);
 
         // 👉 Se vier null, ignora
