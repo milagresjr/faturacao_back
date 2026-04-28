@@ -7,6 +7,7 @@ use App\Models\DocumentoCompra;
 use App\Models\Empresa;
 use App\Models\ImpostoDocumentoCompra;
 use App\Models\PagamentoDocumentoCompra;
+use App\Services\DocumentoCompraService;
 use App\Services\DocumentoService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -116,7 +117,7 @@ class FaturaCompraController extends Controller
         return response()->json($documentos);
     }
 
-    public function store(Request $request, DocumentoService $documentoService)
+    public function store(Request $request, DocumentoCompraService $documentoCompraService)
     {
         // Validação dos dados recebidos
         $validated = Validator::make($request->all(), [
@@ -504,7 +505,7 @@ class FaturaCompraController extends Controller
             }
 
             //Atualiza o stock de cada produto da fatura
-            $documentoService->updateStock($documento->load("itens"), true);
+            $documentoCompraService->updateStock($documento->load("itens"));
 
             DB::commit();
         } catch (\Throwable $th) {

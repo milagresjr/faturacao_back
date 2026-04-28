@@ -1512,8 +1512,8 @@ class DocumentoController extends Controller
             $infoGuiaId = null;
 
             if (
-                $request["sigla_fatura"] === "GT" ||
-                $request["sigla_fatura"] === "GR"
+                $request["tipo_sigla"] === "GT" ||
+                $request["tipo_sigla"] === "GR"
             ) {
                 $infoGuiaId = DB::table("info_guias")->insertGetId([
                     "marca" => $request->input("marca"),
@@ -2464,12 +2464,14 @@ class DocumentoController extends Controller
             "*G:" . $documento->data_emissao .
             "*H:" . $documento->total_geral;
 
-        $result = Builder::create()
-            ->writer(new PngWriter())
-            ->data($qrString)
-            ->size(100)
-            ->margin(2)
-            ->build();
+        $builder = new Builder(
+            writer: new PngWriter(),
+            data: $qrString,
+            size: 100,
+            margin: 2
+        );
+
+        $result = $builder->build();
 
         $qrCode = base64_encode($result->getString());
 
@@ -2686,6 +2688,49 @@ class DocumentoController extends Controller
             $id,
         )->get();
 
+        $empresaId = $documento->empresa_id;
+
+        $dadosPersonalizacaoFatura = ConfiguracaoFatura::where("empresa_id", $documento->empresa_id)->first();
+
+        $imagePath = storage_path('app/public/logos-fatura/' . $dadosPersonalizacaoFatura->logo);
+        $imageData = base64_encode(file_get_contents($imagePath));
+        $src = 'data:image/png;base64,' . $imageData;
+
+        $configFat = ConfiguracaoFatura::where('empresa_id', $empresaId)->first();
+        $numVias = $configFat->num_via;
+
+        $viasBase = ['Original', 'Duplicado', 'Triplicado', 'Quadruplicado', 'Quintuplicado'];
+        $vias = [];
+
+        if ($documento->vezes_impresso == 0) {
+            $vias = array_slice($viasBase, 0, $numVias);
+        } else {
+            $vias = ['Duplicado'];
+        }
+
+        // Incrementa sempre
+        $documento->vezes_impresso += 1;
+        $documento->save();
+
+        $qrString = "A:" . $documento->empresa_nif .
+            "*B:" . $documento->cliente_nif .
+            "*C:AO" .
+            "*D:" . $documento->tipo_sigla .
+            "*F:" . $documento->num_fatura .
+            "*G:" . $documento->data_emissao .
+            "*H:" . $documento->total_geral;
+
+        $builder = new Builder(
+            writer: new PngWriter(),
+            data: $qrString,
+            size: 100,
+            margin: 2
+        );
+
+        $result = $builder->build();
+
+        $qrCode = base64_encode($result->getString());
+
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
         $options->set("isRemoteEnabled", true);
@@ -2700,6 +2745,10 @@ class DocumentoController extends Controller
                 "bancos",
                 "meiosPagamento",
                 "valorPago",
+                "src",
+                "dadosPersonalizacaoFatura",
+                "vias",
+                "qrCode"
             ]),
         )->render();
         $dompdf->loadHtml($html);

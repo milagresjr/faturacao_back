@@ -385,7 +385,7 @@ class ProdutoController extends Controller
 
     public function show($id)
     {
-        $produto = Produto::with(['movimentosStock', 'stocks'])->findOrFail($id);
+        $produto = Produto::with(['tipoStock','subCategoria','movimentosStock', 'stocks', 'categoria'])->findOrFail($id);
 
         // ==========================================
         // VERIFICAR SE PRODUTO CONTROLA VALIDADE

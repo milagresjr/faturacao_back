@@ -55,7 +55,7 @@ class EmpresaController extends Controller
                 'nome' => 'Empresa' . $totEmpresas + 1,
                 'email' => $request->input('email'),
                 // 'nif' => $request->input('nif') || '',
-                'regime_tributario' => $request->input('regime_tributario') || '',
+                'regime_tributario' => NULL,
                 'telefone' => $request->input('telefone') || '',
                 'morada' => ''
             ]);

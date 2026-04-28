@@ -161,7 +161,6 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::get('relatorio/fatura-compra', [FaturaCompraController::class, 'pdfRelatorioDocumentoCompra']);
 
         Route::get('caixas/armazem/{armazemId}', [CaixaController::class, 'getByArmazem']);
-        Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
         Route::get('/documento/{id}/pdf/fatura-compra', [DocumentoController::class, 'gerarPdfFaturaCompra']);
         Route::get('/documento/num-last-doc', [DocumentoController::class, 'NumLastDoc']);
 
@@ -172,5 +171,6 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
     });
 });
-
+Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
+        
 //});
