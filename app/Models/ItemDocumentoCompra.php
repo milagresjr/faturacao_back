@@ -23,7 +23,13 @@ class ItemDocumentoCompra extends Model
         'total_sem_desconto',
         'total_sem_imposto',
         'valor_imposto',
-        'total'
+        'total',
+        //LOTES
+        'lote_id',
+        'lote',
+        'codigo_lote',
+        'lote_codigo_barras',
+        'lote_data_validade',
     ];
 
     public function documentos(): BelongsTo

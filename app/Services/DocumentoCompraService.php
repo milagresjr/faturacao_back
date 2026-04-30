@@ -136,11 +136,11 @@ class DocumentoCompraService
     }
 
     // Validar data de validade (obrigatória para produtos com validade)
-    if (empty($item->data_validade)) {
+    if (empty($item->lote_data_validade)) {
       throw new \Exception("Data de validade é obrigatória para o produto {$produto->nome}");
     }
 
-    $dataValidade = \Carbon\Carbon::parse($item->data_validade);
+    $dataValidade = \Carbon\Carbon::parse($item->lote_data_validade);
     if ($dataValidade < now()) {
       throw new \Exception("Não é possível dar entrada em produto com data de validade vencida: {$dataValidade->format('d/m/Y')}");
     }
@@ -159,11 +159,6 @@ class DocumentoCompraService
       // Atualizar data de validade se a nova for mais curta
       if ($dataValidade < $lote->data_validade) {
         $lote->data_validade = $dataValidade;
-      }
-
-      // Atualizar preço de custo (opcional)
-      if (isset($item->preco_custo)) {
-        $lote->preco_custo = $item->preco_custo;
       }
 
       $lote->save();

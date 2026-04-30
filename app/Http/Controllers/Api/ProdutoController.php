@@ -287,7 +287,7 @@ class ProdutoController extends Controller
             'imposto' => 'nullable|string|integer|max:255',
             'motivo_isencao_id' => 'nullable|integer|exists:motivo_isencao,id',
             'unidade' => 'nullable|string|max:50',
-            'tipo_stock_id' => 'required|integer|exists:tipo_stock,id',
+            'tipo_stock_id' => 'nullable|integer|exists:tipo_stock,id',
             'marca_id' => 'nullable|integer|exists:marcas,id',
             'tipo_id' => 'required|integer|exists:tipo_produtos,id',
             'armazem_id' => 'nullable|integer|exists:armazens,id',

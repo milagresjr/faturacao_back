@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Armazem;
+use App\Models\ConfiguracaoFatura;
 use App\Models\Empresa;
+use App\Models\Filial;
+use App\Models\TipoStock;
 use App\Models\Utilizador;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +22,7 @@ class EmpresaController extends Controller
         return response()->json($empresas);
     }
 
-    public function show($id)
+    public function show(String $id)
     {
         $empresa = Empresa::find($id);
         if (!$empresa) {
@@ -54,7 +58,7 @@ class EmpresaController extends Controller
             $empresa = Empresa::create([
                 'nome' => 'Empresa' . $totEmpresas + 1,
                 'email' => $request->input('email'),
-                // 'nif' => $request->input('nif') || '',
+                'nif' => $request->input('nif') || '9999999999',
                 'regime_tributario' => NULL,
                 'telefone' => $request->input('telefone') || '',
                 'morada' => ''
@@ -71,6 +75,35 @@ class EmpresaController extends Controller
                 'empresa_id' => $empresa->id,
                 'must_change_password' => false,
                 'must_fill_data_empresa' => true
+            ]);
+
+            //Cadastrar informacoes/personalizacao da fatura
+            ConfiguracaoFatura::create([
+                'empresa_id' => $empresa->id,
+                'mostrar_logo' => '0'
+            ]);
+
+            //Cadastrar tipos de Stock
+            TipoStock::create([
+                'tipo' => 'Mercadoria',
+                'sigla' => 'P',
+                'motivo_isencao_id' => '7',
+                'empresa_id' => $empresa->id
+            ]);
+
+            $filialCreated = Filial::create([
+                'nome' => 'Filial 1',
+                'empresa_id' => $empresa->id,
+                'utilizador_id' => $storeUser->id
+            ]);
+
+            //Cadastrar Loja principal
+            Armazem::create([
+                'nome' => 'Armazém Principal',
+                'predefinido' => '1',
+                'filial_id' => $filialCreated->id,
+                'empresa_id' => $empresa->id,
+                'utilizador_id' => $storeUser->id
             ]);
 
             DB::commit();
@@ -123,6 +156,7 @@ class EmpresaController extends Controller
             'rua' => 'sometimes|nullable|string|max:255',
             'codigo_postal' => 'sometimes|nullable|string|max:50',
             'status' => 'sometimes|nullable|string|max:50',
+            'num_via' => 'nullable'
         ]);
 
         if ($validated->fails()) {
@@ -132,9 +166,26 @@ class EmpresaController extends Controller
             ], 422);
         }
 
-        $empresa->update($validated->validated());
+        try {
+            DB::beginTransaction();
 
-        return response()->json($empresa);
+            $empresa->update($validated->validated());
+
+            if ($request->filled('num_via') && $request->input('num_via') !== null && $request->input('num_via') !== '' && $request->input('num_via') !== 'undefined') {
+                ConfiguracaoFatura::where('empresa_id', $id)->update([
+                    'num_via' => $request->input('num_via')
+                ]);
+            }
+
+            DB::commit();
+            return response()->json($empresa);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error updating company',
+                'error' => $th->getMessage(),
+            ], 500);
+        }
     }
 
     function fillDataEmpresaUser(Request $request)

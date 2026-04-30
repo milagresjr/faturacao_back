@@ -9,6 +9,7 @@ use App\Models\ImpostoDocumentoCompra;
 use App\Models\PagamentoDocumentoCompra;
 use App\Services\DocumentoCompraService;
 use App\Services\DocumentoService;
+use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
@@ -129,8 +130,8 @@ class FaturaCompraController extends Controller
             'armazem_id' => 'nullable|integer',
 
             'empresa_id' => 'nullable|integer',
-            'empresa_nome' => 'required|string',
-            'empresa_nif' => 'required|integer',
+            'empresa_nome' => 'nullable|string',
+            'empresa_nif' => 'nullable|integer',
             'empresa_telefone' => 'nullable|integer',
             'empresa_email' => 'nullable|email',
             'empresa_endereco' => 'nullable|string',
@@ -175,6 +176,12 @@ class FaturaCompraController extends Controller
             'itens.*.desconto_percent' => 'nullable|numeric',
             'itens.*.desconto_fixo' => 'nullable|numeric',
             'itens.*.iva_percent' => 'nullable|numeric',
+            //CAMPOS DE LOTE
+            'itens.*.lote_id' => 'nullable|integer',
+            'itens.*.lote' => 'nullable|string',
+            'itens.*.codigo_lote' => 'nullable|string',
+            'itens.*.lote_codigo_barras' => 'nullable|string',
+            'itens.*.lote_data_validade' => 'nullable|date',
 
             //Outros itens do documento
             'other_itens' => 'nullable|array',
@@ -429,6 +436,10 @@ class FaturaCompraController extends Controller
                 // Total com IVA
                 $totalComIva = $totalSemIva + $valorIva;
 
+                $loteDataValidade = $item['lote_data_validade']
+                    ? Carbon::parse($item['lote_data_validade'])->format('Y-m-d')
+                    : null;
+
                 $itens[] = [
                     'documento_compra_id' => $documento->id,
                     'produto_id' => $item['produto_id'],
@@ -444,6 +455,12 @@ class FaturaCompraController extends Controller
                     'valor_imposto' => $valorIva,
                     'total_sem_imposto' => $totalSemIva,
                     'total' => $totalComIva,
+                    //LOTES
+                    'lote_id' => $item['lote_id'],
+                    'lote' => $item['lote'],
+                    'codigo_lote' => $item['codigo_lote'],
+                    'lote_codigo_barras' => $item['lote_codigo_barras'],
+                    'lote_data_validade' => $loteDataValidade,
                 ];
             }
 
@@ -679,7 +696,7 @@ class FaturaCompraController extends Controller
         //Usa StreamedResponse com o dompdf direto
         return new StreamedResponse(
             function () use ($dompdf, $filename) {
-                echo $dompdf->stream($filename, ["Attachment" => false]);
+                $dompdf->stream($filename, ["Attachment" => false]);
             },
             200,
             [
