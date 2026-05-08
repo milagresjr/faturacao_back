@@ -2436,8 +2436,13 @@ class DocumentoController extends Controller
         }
 
         $imagePath = storage_path('app/public/logos-fatura/' . $dadosPersonalizacaoFatura->logo);
-        $imageData = base64_encode(file_get_contents($imagePath));
-        $src = 'data:image/png;base64,' . $imageData;
+
+        if (!empty($dadosPersonalizacaoFatura->logo) && file_exists($imagePath) && is_file($imagePath)) {
+            $imageData = base64_encode(file_get_contents($imagePath));
+            $src = 'data:image/png;base64,' . $imageData;
+        } else {
+            $src = null; // ou imagem padrão
+        }
 
         $configFat = ConfiguracaoFatura::where('empresa_id', $empresaId)->first();
         $numVias = $configFat->num_via;

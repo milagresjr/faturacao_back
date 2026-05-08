@@ -118,7 +118,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::patch('/alterar-stock-minimo/{idArmazem}/{idProduto}', [MovimentoStockController::class, 'alterarStockMinimo']);
         Route::apiResource('fatura-compra/pagamento', PagamentoDocumentoCompraController::class);
 
-        Route::apiResource('unidades', UnidadeController::class);
+        
 
         Route::patch('/unidades/{id}/definir-predefinida', [UnidadeController::class, 'definirComoPredefinida']);
         Route::apiResource('empresas', EmpresaController::class)->except(['store']);
@@ -174,3 +174,5 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
         
 //});
+
+Route::apiResource('unidades', UnidadeController::class);

@@ -58,9 +58,10 @@ class EmpresaController extends Controller
             $empresa = Empresa::create([
                 'nome' => 'Empresa' . $totEmpresas + 1,
                 'email' => $request->input('email'),
-                'nif' => $request->input('nif') || '9999999999',
+                'nif' => NULL,
                 'regime_tributario' => NULL,
                 'telefone' => $request->input('telefone') || '',
+                'pais' => 'Angola',
                 'morada' => ''
             ]);
 
@@ -117,10 +118,12 @@ class EmpresaController extends Controller
         }
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         // Validate and update an existing company
         $empresa = Empresa::find($id);
+
+        $user = Utilizador::where('empresa_id', $empresa->id)->first();
 
         if (!$empresa) {
             return response()->json(['message' => 'Company not found'], 404);
@@ -176,6 +179,9 @@ class EmpresaController extends Controller
                     'num_via' => $request->input('num_via')
                 ]);
             }
+
+            $user->must_fill_data_empresa = false;
+            $user->save();
 
             DB::commit();
             return response()->json($empresa);
