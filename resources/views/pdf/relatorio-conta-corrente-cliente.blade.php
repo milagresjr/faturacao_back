@@ -126,10 +126,25 @@
 <body>
     {{-- Cabeçalho da Empresa --}}
     <header>
-        <h2>{{ $dadosEmpresa['nome'] }}</h2>
-        <p>NIF: {{ $dadosEmpresa['nif'] }}</p>
-        <p>{{ $dadosEmpresa['endereco'] }}</p>
-        <p>Tel: {{ $dadosEmpresa['telefone'] }} | Email: {{ $dadosEmpresa['email'] }}</p>
+        {{-- @if ($dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo) --}}
+            <div style="border-bottom: 1px solid #069; width: 100%; margin-bottom: 10px;">
+                <div style="display: inline-block; vertical-align: top;">
+                    <img src="" alt="Logo"
+                        style="width: 200px; height: 100px; z-index: 10; object-fit: contain; display: block;">
+                </div>
+                <div style="display: block; float: right; width: 200px; text-align: right; margin-top: 20px;">
+                    <span style="font-size: 12pt; font-weight: bold;">Recibo</span>
+                    <br>
+                    <span style="font-size: 10pt;">20</span>
+                </div>
+            </div>
+        {{-- @endif --}}
+        <div>
+            <h2>{{ $dadosEmpresa['nome'] }}</h2>
+            <p>NIF: {{ $dadosEmpresa['nif'] }}</p>
+            <p>{{ $dadosEmpresa['endereco'] }}</p>
+            <p>Tel: {{ $dadosEmpresa['telefone'] }} | Email: {{ $dadosEmpresa['email'] }}</p>
+        </div>
     </header>
 
     {{-- Título do Relatório --}}

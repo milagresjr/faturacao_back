@@ -40,6 +40,13 @@ class EmpresaController extends Controller
             'regime_tributario' => 'nullable|string|in:regime_geral,regime_simplificado,regime_exclusao',
             'telefone' => 'nullable|string|max:255',
             'senha' => 'required|string|min:6|confirmed',
+        ], [
+            'email.required' => 'O campo email é obrigatório.',
+            'email.email' => 'O campo email deve ser um endereço de email válido.',
+            'email.unique' => 'Este email já está em uso.',
+            'senha.required' => 'O campo senha é obrigatório.',
+            'senha.min' => 'O campo senha deve ter pelo menos 6 caracteres.',
+            'senha.confirmed' => 'A confirmação da senha não coincide.'
         ]);
 
         if ($validated->fails()) {
