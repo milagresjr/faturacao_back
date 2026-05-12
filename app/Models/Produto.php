@@ -48,6 +48,12 @@ class Produto extends Model
         'utilizador_id'
     ];
 
+    //casts
+    protected $casts = [
+        'controla_validade' => 'boolean',
+        'movimenta_stock' => 'boolean'
+    ];
+
     //Esse método cria automaticamente o campo imagem_url sempre que um produto for convertido em JSON.
     public function getImagemUrlAttribute()
     {

@@ -14,6 +14,7 @@ class CaixaController extends Controller
     public function index(Request $request)
     {
         // Logic to list all caixas
+        $idEmpresa = $request->input('empresa_id');
 
         $per_page = $request->input('per_page', 10);
 
@@ -24,6 +25,10 @@ class CaixaController extends Controller
         if ($search) {
             // Supondo que você queira filtrar pelo campo 'nome'. Altere conforme sua necessidade.
             $caixaQuery->where('nome', 'like', '%' . $search . '%');
+        }
+
+        if ($idEmpresa) {
+            $caixaQuery->where('empresa_id', $idEmpresa);
         }
 
         // Return a list of all Caixa records

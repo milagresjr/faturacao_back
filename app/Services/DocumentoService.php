@@ -165,10 +165,11 @@ class DocumentoService
 
     $quantidadeVender = $item->quantidade;
     $lotesUtilizados = [];
-
+   
     foreach ($lotes as $lote) {
       if ($quantidadeVender <= 0) break;
 
+      // Quantidade a vender deste lote (o mínimo entre o que temos no lote e o que ainda precisamos vender)
       $quantidadeLote = min($lote->qtd_atual, $quantidadeVender);
 
       // Dar baixa no lote
@@ -187,6 +188,7 @@ class DocumentoService
         'data_validade' => $lote->data_validade
       ];
 
+      // Diminuir a quantidade que ainda precisamos vender
       $quantidadeVender -= $quantidadeLote;
 
       // Registrar movimento de stock com o lote
@@ -207,6 +209,7 @@ class DocumentoService
     }
 
     if ($quantidadeVender > 0) {
+      // Se ainda falta quantidade para vender, significa que não temos stock suficiente nos lotes
       throw new \Exception("Stock insuficiente para o produto {$produto->nome}. Faltam {$quantidadeVender} unidades.");
     }
 
@@ -217,6 +220,7 @@ class DocumentoService
     $item->update([
       'detalhes_lote' => json_encode($lotesUtilizados)
     ]);
+
   }
 
   /**

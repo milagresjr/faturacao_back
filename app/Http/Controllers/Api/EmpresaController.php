@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Armazem;
+use App\Models\Caixa;
 use App\Models\ConfiguracaoFatura;
 use App\Models\Empresa;
 use App\Models\Filial;
@@ -106,12 +107,20 @@ class EmpresaController extends Controller
             ]);
 
             //Cadastrar Loja principal
-            Armazem::create([
+            $armazemCreated = Armazem::create([
                 'nome' => 'Armazém Principal',
                 'predefinido' => '1',
                 'filial_id' => $filialCreated->id,
                 'empresa_id' => $empresa->id,
                 'utilizador_id' => $storeUser->id
+            ]);
+
+            //Criar a caixa
+            Caixa::create([
+                'nome' => 'Caixa Principal',
+                'empresa_id' => $empresa->id,
+                'armazem_id' => $armazemCreated->id,
+                'usuario_id' => $storeUser->id
             ]);
 
             DB::commit();
