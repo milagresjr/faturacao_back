@@ -11,10 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('series', function (Blueprint $table) {
-            $table->id();
-            $table->string('nome');
-            $table->timestamps();
+        Schema::table('documentos', function (Blueprint $table) {
+            $table->unsignedBigInteger('serie_id')->nullable();
         });
     }
 
@@ -23,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('series');
+        Schema::table('documentos', function (Blueprint $table) {
+            $table->dropForeign('serie_id');
+        });
     }
 };

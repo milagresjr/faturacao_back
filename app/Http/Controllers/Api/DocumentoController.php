@@ -569,10 +569,6 @@ class DocumentoController extends Controller
      */
     public function store(Request $request, DocumentoService $documentoService)
     {
-        $numFatura = $this->gerarNumeroDocumento(
-            $request->input("sigla_fatura"),
-            $request->input("empresa_id"),
-        );
 
         // Validação dos dados recebidos
         $validated = Validator::make(
@@ -583,13 +579,15 @@ class DocumentoController extends Controller
                 "sigla_fatura" => "required|string",
                 "tipo_cor" => "nullable|string",
 
+                "serie_id" => "required|integer",
+
                 "estado_documento" => "nullable|string",
                 "estado_pagamento" => "nullable|string",
                 "estado_vencimento" => "nullable|string",
 
                 "empresa_id" => "nullable|integer",
-                "empresa_nome" => "required|string",
-                "empresa_nif" => "required|integer",
+                "empresa_nome" => "nullable|string",
+                "empresa_nif" => "nullable|integer",
                 "empresa_telefone" => "nullable|integer",
                 "empresa_email" => "nullable|email",
                 "empresa_endereco" => "nullable|string",
@@ -683,6 +681,14 @@ class DocumentoController extends Controller
             ], 422);
         }
 
+        //Verificar se a empresa tem nif cadastrado
+        $empresa = Empresa::find($request->empresa_id);
+        if (!$empresa || !$empresa->nif) {
+            return response()->json([
+                'message' => 'A empresa não tem NIF cadastrado.',
+                'error' => 'MISSING_NIF'
+            ], 422);
+        }
 
         // Construção do quadro por taxas (mantendo também o 'liquido' por grupo)
         $quadroImposto = [];
@@ -893,6 +899,10 @@ class DocumentoController extends Controller
                 $request["estado_pagamento"] = EstadoPagamento::NAO_PAGO->value;
             }
 
+            $numFatura = $this->gerarNumeroDocumento(
+                $request->input("serie_id")
+            );
+
             // Criação do documento
             $documento = Documento::create([
                 "tipo_nome" => $request["tipo_fatura"],
@@ -954,6 +964,8 @@ class DocumentoController extends Controller
                 "utilizador" => $request["utilizador"],
 
                 "info_guia_id" => $infoGuiaId,
+
+                "serie_id" => $request["serie_id"]
             ]);
 
             $bancos = Conta::with("banco")
@@ -1250,6 +1262,8 @@ class DocumentoController extends Controller
                 "tipo_destino" => "required|string",
                 "tipo_nome_destino" => "required|string",
 
+                "serie_id" => "required|integer",
+
                 "caixa" => "required|string",
                 "data_emissao" => "nullable|date",
                 "data_vencimento" => "nullable|date",
@@ -1307,6 +1321,15 @@ class DocumentoController extends Controller
                 ],
                 422,
             );
+        }
+
+        //Verificar se a empresa tem nif cadastrado
+        $empresa = Empresa::find($request->empresa_id);
+        if (!$empresa || !$empresa->nif) {
+            return response()->json([
+                'message' => 'A empresa não tem NIF cadastrado.',
+                'error' => 'MISSING_NIF'
+            ], 422);
         }
 
         // Construção do quadro por taxas (mantendo também o 'liquido' por grupo)
@@ -1545,8 +1568,7 @@ class DocumentoController extends Controller
 
             // 3️⃣ Gerar número sequencial da nova faturas
             $numFatura = $this->gerarNumeroDocumento(
-                $tipoDestino,
-                $documentoOrigem->empresa_id,
+                $request->input("serie_id")
             );
 
             // 4️⃣ Criar novo documento
@@ -1749,7 +1771,7 @@ class DocumentoController extends Controller
 
     public function storeNotaCredito(Request $request)
     {
-        // VALIDAÇÃO: Verificar se a fatura já possui nota de crédito
+        // Pega o ID da fatura original a partir do request
         $faturaId = $request->input("documento_id");
 
         // Buscar a fatura original
@@ -1785,6 +1807,15 @@ class DocumentoController extends Controller
             ], 422);
         }
 
+        //Verificar se a empresa tem nif cadastrado
+        $empresa = Empresa::find($request->empresa_id);
+        if (!$empresa || !$empresa->nif) {
+            return response()->json([
+                'message' => 'A empresa não tem NIF cadastrado.',
+                'error' => 'MISSING_NIF'
+            ], 422);
+        }
+
         // Se a fatura já tiver sido totalmente creditada (opcional - baseado no valor)
         $totalCreditado = DB::table("documento_relacoes")
             ->join("documentos", "documento_relacoes.documento_id", "=", "documentos.id")
@@ -1802,12 +1833,6 @@ class DocumentoController extends Controller
             ], 422);
         }
 
-        // Gerar número do documento
-        $numFatura = $this->gerarNumeroDocumento(
-            "NC",
-            $request->input("empresa_id"),
-        );
-
         // Validação dos dados recebidos
         $validated = Validator::make(
             $request->all(),
@@ -1816,6 +1841,8 @@ class DocumentoController extends Controller
                 "tipo_fatura" => "nullable|string",
                 "sigla_fatura" => "nullable|string",
                 "tipo_cor" => "nullable|string",
+
+                "serie_id" => "required|integer",
 
                 "documento_id" => "required|integer",
 
@@ -2020,6 +2047,11 @@ class DocumentoController extends Controller
 
         $dadosDocPai = Documento::where("id", $idDocumentoPai)->first();
 
+        // Gerar número do documento
+        $numFatura = $this->gerarNumeroDocumento(
+            $request->input("serie_id")
+        );
+
         // Criação do documento
         $documento = Documento::create([
             "tipo_nome" => "Nota de Crédito",
@@ -2027,6 +2059,8 @@ class DocumentoController extends Controller
 
             "num_fatura" => $numFatura,
             "via" => "original",
+
+            "serie_id" => $request["serie_id"],
 
             "empresa_id" => $dadosDocPai->empresa_id,
             "empresa_nome" => $dadosDocPai->empresa_nome,
@@ -2223,6 +2257,7 @@ class DocumentoController extends Controller
             "sigla_fatura" => "required|string", // "RC"
             "data_emissao" => "required|date",
             "total_geral" => "required|numeric",
+            "serie_id" => "required|integer",
             "meiosPagamento" => "required|array|min:1",
             "meiosPagamento.*.descricao" => "required|string",
             "meiosPagamento.*.valor" => "required|numeric",
@@ -2242,10 +2277,18 @@ class DocumentoController extends Controller
             );
         }
 
+        //Verificar se a empresa tem nif cadastrado
+        $empresa = Empresa::find($request->empresa_id);
+        if (!$empresa || !$empresa->nif) {
+            return response()->json([
+                'message' => 'A empresa não tem NIF cadastrado.',
+                'error' => 'MISSING_NIF'
+            ], 422);
+        }
+
         // Gerar número do recibo
         $numRecibo = $this->gerarNumeroDocumento(
-            $request->sigla_fatura,
-            $request->empresa_id,
+            $request->input("serie_id")
         );
 
         $totalEntregue = 0;
@@ -2280,6 +2323,7 @@ class DocumentoController extends Controller
             "troco" => $troco,
             "estado" => "emitido",
             "hash" => "rfsuhihuhuycgygyfyukgeyggfavdyvd",
+            "serie_id" => $request->serie_id,
             "utilizador_id" => $request->utilizador_id,
             "utilizador" => $request->utilizador,
         ]);
@@ -2311,25 +2355,50 @@ class DocumentoController extends Controller
         );
     }
 
-    public function gerarNumeroDocumento(
-        string $tipoSigla,
-        string $empresId,
-    ): string {
-        $ano = Carbon::now()->year;
+    // public function gerarNumeroDocumento(
+    //     string $tipoSigla,
+    //     string $empresId,
+    // ): string {
+    //     $ano = Carbon::now()->year;
 
-        $empresa = DB::table("empresas")->find($empresId);
+    //     $empresa = DB::table("empresas")->find($empresId);
 
-        // Conta quantos documentos desse tipo e ano já existem
-        $contador = DB::table("documentos")
-            ->where("tipo_sigla", $tipoSigla) // campo tipo como 'FR', por exemplo
-            ->where("empresa_id", $empresId) // campo empresa_id
-            ->whereYear("created_at", $ano)
-            ->count();
+    //     // Conta quantos documentos desse tipo e ano já existem
+    //     $contador = DB::table("documentos")
+    //         ->where("tipo_sigla", $tipoSigla) // campo tipo como 'FR', por exemplo
+    //         ->where("empresa_id", $empresId) // campo empresa_id
+    //         ->whereYear("created_at", $ano)
+    //         ->count();
 
-        $sequencial = $contador + 1;
+    //     $sequencial = $contador + 1;
 
-        // Formato final: FR T11P2025/2
-        return "{$tipoSigla} {$empresa->indicativo_fatura}{$ano}/{$sequencial}";
+    //     // Formato final: FR T11P2025/2
+    //     return "{$tipoSigla} {$empresa->indicativo_fatura}{$ano}/{$sequencial}";
+    // }
+
+    public function gerarNumeroDocumento(int $serieId): string
+    {
+        return DB::transaction(function () use ($serieId) {
+
+            $serie = DB::table('series')
+                ->where('id', $serieId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$serie) {
+                throw new \Exception('Série não encontrada.');
+            }
+
+            $proximoNumero = $serie->sequencia_atual + 1;
+
+            DB::table('series')
+                ->where('id', $serieId)
+                ->update([
+                    'sequencia_atual' => $proximoNumero
+                ]);
+
+            return "{$serie->prefixo} {$serie->ano}/{$proximoNumero}";
+        });
     }
 
     public function gerarPdf(string $id, Request $request)
@@ -2818,6 +2887,8 @@ class DocumentoController extends Controller
         $dataInicial = $request->query("data_inicial");
         $dataFinal = $request->query("data_final");
 
+        $idEmpresa = $request->input('empresa_id');
+
         $documentoQuery = Documento::query();
 
         // 📄 Filtrar por tipo de documento
@@ -2862,6 +2933,7 @@ class DocumentoController extends Controller
                 "documentosRelacionados",
                 "relacionadoEm",
             ])
+            ->where('empresa_id', $idEmpresa)
             ->where('estado_documento', '!=', ['cancelado', 'anulado', 'pendente', 'rascunho'])
             ->orderByDesc("id")
             ->get();
@@ -2870,13 +2942,7 @@ class DocumentoController extends Controller
 
         $totalGeral = $documentos->sum("total_geral");
 
-        $dadosEmpresa = [
-            "nome" => "Softseven",
-            "endereco" => "Luanda, Camama",
-            "nif" => "999999999",
-            "telefone" => "941608052",
-            "email" => " geral@sofyseven.ao",
-        ];
+        $dadosEmpresa = Empresa::find($idEmpresa);
 
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
@@ -2943,8 +3009,6 @@ class DocumentoController extends Controller
             [
                 "Content-Type" => "application/pdf",
                 "Content-Disposition" => 'inline; filename="' . $filename . '"',
-                "Access-Control-Allow-Origin" =>
-                "https://softseven-faturacao-front.vercel.app",
             ],
         );
     }
@@ -3363,8 +3427,6 @@ class DocumentoController extends Controller
             [
                 "Content-Type" => "application/pdf",
                 "Content-Disposition" => 'inline; filename="' . $filename . '"',
-                "Access-Control-Allow-Origin" =>
-                "https://softseven-faturacao-front.vercel.app",
             ],
         );
     }
@@ -4148,8 +4210,7 @@ class DocumentoController extends Controller
             [
                 "Content-Type" => "application/pdf",
                 "Content-Disposition" => 'inline; filename="' . $filename . '"',
-                "Access-Control-Allow-Origin" =>
-                "https://softseven-faturacao-front.vercel.app",
+                "Access-Control-Allow-Origin" => "*"
             ],
         );
     }
@@ -4464,11 +4525,6 @@ class DocumentoController extends Controller
             );
         }
 
-        $numFatura = $this->gerarNumeroDocumento(
-            $request->input("sigla_fatura"),
-            $request->input("empresa_id"),
-        );
-
         // Validação dos dados recebidos
         $validated = Validator::make(
             $request->all(),
@@ -4735,6 +4791,10 @@ class DocumentoController extends Controller
         if ($troco < 0) {
             $troco = 0;
         }
+
+        $numFatura = $this->gerarNumeroDocumento(
+            $request->input("serie_id")
+        );
 
         try {
             DB::beginTransaction();
@@ -5015,30 +5075,22 @@ class DocumentoController extends Controller
         );
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function NumLastDoc(String $idSerie)
     {
-        //
-    }
 
-    public function NumLastDoc(Request $request)
-    {
-        $tipo = $request->query("tipo");
+        $serie = DB::table('series')
+            ->where('id', $idSerie)
+            ->lockForUpdate()
+            ->first();
 
-        $lastDoc = $this->gerarNumeroDocumento(
-            $tipo,
-            $request->empresa_id ?? "1",
-        );
+        if (!$serie) {
+            throw new \Exception('Série não encontrada.');
+        }
+
+        $proximoNumero = $serie->sequencia_atual + 1;
+
+        $lastDoc = "{$serie->prefixo} {$serie->ano}/{$proximoNumero}";
 
         return response()->json([
             "num_fatura" => $lastDoc,

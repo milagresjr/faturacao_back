@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\MovimentoStockController;
 use App\Http\Controllers\Api\PagamentoDocumentoCompraController;
 use App\Http\Controllers\Api\PermissaoController;
 use App\Http\Controllers\Api\SaftController;
+use App\Http\Controllers\Api\SerieController;
 use App\Http\Controllers\Api\TipoStockController;
 use App\Http\Controllers\Api\TipoTaxaIvaController;
 use App\Http\Controllers\Api\UnidadeController;
@@ -52,9 +53,9 @@ Route::patch('/reset-new-password', [UtilizadorController::class, 'resetNewPassw
 
 Route::get('/calcular-hash-agt/{id}', [DocumentoController::class, 'calcularHashAGT']);
 
+Route::get('/generate-saft', [SaftController::class, 'gerarSaft']);
 Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
-    Route::get('/generate-saft', [SaftController::class, 'gerarSaft']);
 
     Route::get('/list-saft-faturas', [SaftController::class, 'listFaturas']);
 
@@ -118,7 +119,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::patch('/alterar-stock-minimo/{idArmazem}/{idProduto}', [MovimentoStockController::class, 'alterarStockMinimo']);
         Route::apiResource('fatura-compra/pagamento', PagamentoDocumentoCompraController::class);
 
-        
+
 
         Route::patch('/unidades/{id}/definir-predefinida', [UnidadeController::class, 'definirComoPredefinida']);
         Route::apiResource('empresas', EmpresaController::class)->except(['store']);
@@ -146,9 +147,9 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::get('documentos/faturacao-por-colaborador/{utilizadorId?}', [DocumentoController::class, 'listFaturacaoPorColaborador']);
         Route::get('documentos/relatorio-faturacao-por-colaborador', [DocumentoController::class, 'pdfRelatorioFaturacaoPorColaborador']);
         Route::apiResource('documentos', DocumentoController::class);
-        
+
         Route::get('/documento/{id}/pdf', [DocumentoController::class, 'gerarPdf']);
-        
+
         Route::patch('documentos/{id}/finalizar', [DocumentoController::class, 'finalizarDocRascunho']);
         Route::delete('documentos/{id}/delete-rascunho', [DocumentoController::class, 'destroyDocRascunho']);
         Route::post('/documentos/{id}/transformar', [DocumentoController::class, 'transformarDocumento']);
@@ -162,17 +163,22 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
         Route::get('caixas/armazem/{armazemId}', [CaixaController::class, 'getByArmazem']);
         Route::get('/documento/{id}/pdf/fatura-compra', [DocumentoController::class, 'gerarPdfFaturaCompra']);
-        Route::get('/documento/num-last-doc', [DocumentoController::class, 'NumLastDoc']);
+        Route::get('/documento/num-last-doc/{idSerie}', [DocumentoController::class, 'NumLastDoc']);
 
         //rota para lotes
         Route::apiResource('lotes', LoteController::class);
         Route::get('lotes/produto/{produtoId}', [LoteController::class, 'getLotesByProduto']);
         Route::get('lotes/empresa/{empresaId}', [LoteController::class, 'getLotesByEmpresa']);
 
+        Route::get('/tipo-documento/series', [SerieController::class, 'getSeriesByTipoDocumento']);
+        Route::apiResource('series', SerieController::class);
+
+
+        Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
+
+        //});
+        Route::patch('/series/{id}/definir-padrao', [SerieController::class, 'definirComoPadrao']);
+        Route::patch('/series/{id}/definir-ativo', [SerieController::class, 'alterarAtivo']);
+        Route::apiResource('unidades', UnidadeController::class);
     });
 });
-Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
-        
-//});
-
-Route::apiResource('unidades', UnidadeController::class);

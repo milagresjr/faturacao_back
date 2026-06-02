@@ -59,7 +59,7 @@ class ArmazemController extends Controller
         return response()->json($armazem, 201);
     }
 
-    public function show($id)
+    public function show(string $id)
     {
         $armazem = Armazem::find($id);
 
@@ -70,7 +70,7 @@ class ArmazemController extends Controller
         return response()->json($armazem);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $armazem = Armazem::find($id);
 
@@ -80,9 +80,9 @@ class ArmazemController extends Controller
 
         $validator = Validator::make($request->all(), [
             'nome' => 'sometimes|required|string|max:255',
-            'endereco' => 'sometimes|required|string|max:255',
+            'endereco' => 'sometimes|nullable|string|max:255',
             'estado' => 'sometimes|required|string|max:50',
-            'filial_id' => 'sometimes|required|integer',
+            'filial_id' => 'sometimes|nullable|integer',
             'empresa_id' => 'sometimes|required|integer',
             'utilizador_id' => 'sometimes|required|integer',
         ]);
@@ -105,7 +105,7 @@ class ArmazemController extends Controller
         return response()->json($armazem);
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $armazem = Armazem::find($id);
 

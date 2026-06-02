@@ -35,6 +35,11 @@ class Empresa extends Model
         'estado' => 'boolean',
     ];
 
+    public function series()
+    {
+        return $this->hasMany(Serie::class, 'empresa_id');
+    }
+
     public function utilizadores()
     {
         return $this->hasMany(Utilizador::class, 'empresa_id');

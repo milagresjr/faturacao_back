@@ -82,6 +82,8 @@ class Documento extends Model
 
         'info_guia_id',
 
+        'serie_id',
+
         'documento_origem_id',
     ];
 

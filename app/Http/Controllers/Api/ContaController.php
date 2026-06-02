@@ -22,6 +22,10 @@ class ContaController extends Controller
 
         $contaQuery = Conta::query();
 
+        if($empresaId) {
+            $contaQuery->where('empresa_id', $empresaId);
+        }
+
         if ($search) {
             $contaQuery->where(function ($q) use ($search) {
                 $q->where('banco.sigla', 'like', '%' . $search . '%')

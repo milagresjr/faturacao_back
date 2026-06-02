@@ -8,6 +8,7 @@ use App\Models\Caixa;
 use App\Models\ConfiguracaoFatura;
 use App\Models\Empresa;
 use App\Models\Filial;
+use App\Models\Serie;
 use App\Models\TipoStock;
 use App\Models\Utilizador;
 use Illuminate\Http\Request;
@@ -122,6 +123,19 @@ class EmpresaController extends Controller
                 'armazem_id' => $armazemCreated->id,
                 'usuario_id' => $storeUser->id
             ]);
+
+            foreach (Serie::getTipoDocumento() as $tipo => $prefixo) {
+                Serie::create([
+                    'empresa_id' => $empresa->id,
+                    'nome' => strtoupper($prefixo) . ' - Série Principal',
+                    'prefixo' => $prefixo,
+                    'tipo_documento' => $tipo,
+                    'sequencia_atual' => 0,
+                    'padrao' => true,
+                    'ano' => date('Y'),
+                ]);
+            }
+
 
             DB::commit();
             return response()->json($storeUser->load('empresa'), 201);

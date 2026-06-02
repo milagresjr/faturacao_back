@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Relatório de Facturação</title>
+    <title>Relatório de Factura de Compra</title>
     <style>
         body {
             font-family: DejaVu Sans, sans-serif;
