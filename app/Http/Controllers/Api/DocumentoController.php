@@ -20,6 +20,7 @@ use App\Models\MeioPagamentoDocumento;
 use App\Models\PagamentoDocumentoCompra;
 use App\Models\TipoTaxaIva;
 use App\Services\DocumentoService;
+use App\Services\LogotipoService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -2484,10 +2485,10 @@ class DocumentoController extends Controller
         $dadosPersonalizacaoFatura = ConfiguracaoFatura::where("empresa_id", $documento->empresa_id)->first();
 
         $maxLinhas = 25;
-        if ($dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo) {
+        if ($dadosPersonalizacaoFatura && $dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo) {
             $maxLinhas = 22;
         }
-        // número de linhas por página
+
         $paginas = [];
         $subtotalTransportar = 0;
 
@@ -2504,14 +2505,8 @@ class DocumentoController extends Controller
             $paginas[] = $pagina;
         }
 
-        $imagePath = storage_path('app/public/logos-fatura/' . $dadosPersonalizacaoFatura->logo);
-
-        if (!empty($dadosPersonalizacaoFatura->logo) && file_exists($imagePath) && is_file($imagePath)) {
-            $imageData = base64_encode(file_get_contents($imagePath));
-            $src = 'data:image/png;base64,' . $imageData;
-        } else {
-            $src = null; // ou imagem padrão
-        }
+        $logoData = app(LogotipoService::class)->carregar($documento->empresa_id);
+        $src = $logoData['src'];
 
         $configFat = ConfiguracaoFatura::where('empresa_id', $empresaId)->first();
         $numVias = $configFat->num_via;
@@ -2584,7 +2579,7 @@ class DocumentoController extends Controller
         //Usa StreamedResponse com o dompdf direto
         return new StreamedResponse(
             function () use ($dompdf, $filename) {
-                echo $dompdf->stream($filename, ["Attachment" => false]);
+                $dompdf->stream($filename, ["Attachment" => false]);
             },
             200,
             [
@@ -2660,7 +2655,9 @@ class DocumentoController extends Controller
             return (float) $b["taxa"] <=> (float) $a["taxa"]; // decrescente
         });
 
-        //  return $quadroImpostoAgrupado;
+        $logoData = app(LogotipoService::class)->carregar($documento->empresa_id);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
 
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
@@ -2674,6 +2671,8 @@ class DocumentoController extends Controller
                 "documento",
                 "quadroImpostoAgrupado",
                 "meiosPagamento",
+                "src",
+                "dadosPersonalizacaoFatura",
             ]),
         )->render();
         $dompdf->loadHtml($html);
@@ -2719,7 +2718,7 @@ class DocumentoController extends Controller
         //Usa StreamedResponse com o dompdf direto
         return new StreamedResponse(
             function () use ($dompdf, $filename) {
-                echo $dompdf->stream($filename, ["Attachment" => false]);
+                $dompdf->stream($filename, ["Attachment" => false]);
             },
             200,
             [
@@ -2764,11 +2763,9 @@ class DocumentoController extends Controller
 
         $empresaId = $documento->empresa_id;
 
-        $dadosPersonalizacaoFatura = ConfiguracaoFatura::where("empresa_id", $documento->empresa_id)->first();
-
-        $imagePath = storage_path('app/public/logos-fatura/' . $dadosPersonalizacaoFatura->logo);
-        $imageData = base64_encode(file_get_contents($imagePath));
-        $src = 'data:image/png;base64,' . $imageData;
+        $logoData = app(LogotipoService::class)->carregar($documento->empresa_id);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
 
         $configFat = ConfiguracaoFatura::where('empresa_id', $empresaId)->first();
         $numVias = $configFat->num_via;
@@ -2944,6 +2941,10 @@ class DocumentoController extends Controller
 
         $dadosEmpresa = Empresa::find($idEmpresa);
 
+        $logoData = app(LogotipoService::class)->carregar($idEmpresa);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
         $options->set("isRemoteEnabled", true);
@@ -2958,6 +2959,8 @@ class DocumentoController extends Controller
                 "dataFinal",
                 "totalGeral",
                 "dadosEmpresa",
+                "src",
+                "dadosPersonalizacaoFatura",
             ]),
         )->render();
         $dompdf->loadHtml($html);
@@ -3003,7 +3006,7 @@ class DocumentoController extends Controller
         //Usa StreamedResponse com o dompdf direto
         return new StreamedResponse(
             function () use ($dompdf, $filename) {
-                echo $dompdf->stream($filename, ["Attachment" => false]);
+                $dompdf->stream($filename, ["Attachment" => false]);
             },
             200,
             [
@@ -3369,6 +3372,10 @@ class DocumentoController extends Controller
 
         $dadosEmpresa = Empresa::find($idEmpresa);
 
+        $logoData = app(LogotipoService::class)->carregar($idEmpresa);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
         $options->set("isRemoteEnabled", true);
@@ -3383,6 +3390,8 @@ class DocumentoController extends Controller
                 "saldoFinal",
                 "cliente",
                 "dadosEmpresa",
+                "src",
+                "dadosPersonalizacaoFatura",
             ]),
         )->render();
         $dompdf->loadHtml($html);
@@ -3619,6 +3628,10 @@ class DocumentoController extends Controller
         // 🏢 Dados da empresa (podes buscar da tabela empresa se quiser)
         $dadosEmpresa = Empresa::find($idEmpresa);
 
+        $logoData = app(LogotipoService::class)->carregar($idEmpresa);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         // ⚙️ Configuração DomPDF
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
@@ -3635,6 +3648,8 @@ class DocumentoController extends Controller
                 "dataFinal",
                 "dadosEmpresa",
                 "totais",
+                "src",
+                "dadosPersonalizacaoFatura",
             ]),
         )->render();
 
@@ -3844,6 +3859,10 @@ class DocumentoController extends Controller
 
         $dadosEmpresa = Empresa::find($idEmpresa);
 
+        $logoData = app(LogotipoService::class)->carregar($idEmpresa);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         // ⚙️ Configuração do DOMPDF
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
@@ -3861,6 +3880,8 @@ class DocumentoController extends Controller
                 "dataAtual",
                 "dadosEmpresa",
                 "totalGeral",
+                "src",
+                "dadosPersonalizacaoFatura",
             ),
         )->render();
 
@@ -4140,6 +4161,10 @@ class DocumentoController extends Controller
 
         $dadosEmpresa = Empresa::find($idEmpresa);
 
+        $logoData = app(LogotipoService::class)->carregar($idEmpresa);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
         $options->set("isRemoteEnabled", true);
@@ -4158,6 +4183,8 @@ class DocumentoController extends Controller
                 "totalImposto",
                 "totalGeral",
                 "dadosEmpresa",
+                "src",
+                "dadosPersonalizacaoFatura",
             ]),
         )->render();
 
@@ -4388,6 +4415,10 @@ class DocumentoController extends Controller
         // 📋 Dados da empresa
         $dadosEmpresa = Empresa::find($idEmpresa);
 
+        $logoData = app(LogotipoService::class)->carregar($idEmpresa);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         // 🧾 Agrupar documentos por colaborador
         $documentosPorColaborador = $documentos->groupBy("colaborador_nome");
 
@@ -4408,6 +4439,8 @@ class DocumentoController extends Controller
                 "totalSemDesconto",
                 "totalFaturado",
                 "dadosEmpresa",
+                "src",
+                "dadosPersonalizacaoFatura",
             ]),
         )->render();
 

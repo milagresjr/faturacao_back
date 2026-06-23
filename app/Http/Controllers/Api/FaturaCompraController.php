@@ -9,6 +9,7 @@ use App\Models\ImpostoDocumentoCompra;
 use App\Models\PagamentoDocumentoCompra;
 use App\Services\DocumentoCompraService;
 use App\Services\DocumentoService;
+use App\Services\LogotipoService;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -637,6 +638,10 @@ class FaturaCompraController extends Controller
 
         $dadosEmpresa = Empresa::find($idEmpresa);
 
+        $logoData = app(LogotipoService::class)->carregar($idEmpresa);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
         $options->set("isRemoteEnabled", true);
@@ -651,6 +656,8 @@ class FaturaCompraController extends Controller
                 "dataFinal",
                 "totalGeral",
                 "dadosEmpresa",
+                "src",
+                "dadosPersonalizacaoFatura",
             ]),
         )->render();
         $dompdf->loadHtml($html);

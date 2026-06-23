@@ -58,6 +58,11 @@ tr:nth-child(even){
 <body>
 
 <div class="header">
+    @if(!empty($dadosPersonalizacaoFatura) && $dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo && $src)
+        <div style="text-align: center; margin-bottom: 10px;">
+            <img src="{{ $src }}" alt="Logo" style="width: 120px; height: 80px; object-fit: contain;">
+        </div>
+    @endif
     <h2>Relatório de Produtos</h2>
     <span>Gerado em: {{ $data }}</span>
 </div>

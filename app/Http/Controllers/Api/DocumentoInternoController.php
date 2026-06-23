@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DocumentoInterno;
+use App\Services\LogotipoService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
@@ -26,6 +27,9 @@ class DocumentoInternoController extends Controller
     {
         $documento = DocumentoInterno::with('itens')->find($id);
 
+        $logoData = app(LogotipoService::class)->carregar($documento->empresa_id);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
 
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
@@ -37,6 +41,8 @@ class DocumentoInternoController extends Controller
             "pdf.documento-interno-transferencia",
             compact([
                 "documento",
+                "src",
+                "dadosPersonalizacaoFatura",
             ]),
         )->render();
         $dompdf->loadHtml($html);
@@ -82,7 +88,7 @@ class DocumentoInternoController extends Controller
         //Usa StreamedResponse com o dompdf direto
         return new StreamedResponse(
             function () use ($dompdf, $filename) {
-                echo $dompdf->stream($filename, ["Attachment" => false]);
+                $dompdf->stream($filename, ["Attachment" => false]);
             },
             200,
             [
@@ -103,13 +109,21 @@ class DocumentoInternoController extends Controller
             return response()->json(['message' => 'Documento não encontrado'], 404);
         }
 
+        $logoData = app(LogotipoService::class)->carregar($doc->empresa_id);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         $opts = new Options();
         $opts->setIsHtml5ParserEnabled(true);
         $opts->setIsRemoteEnabled(true);
 
         $pdf = new Dompdf($opts);
 
-        $html = view('pdf.documento-interno-nota-quebra', ['documento' => $doc])->render();
+        $html = view('pdf.documento-interno-nota-quebra', [
+            'documento' => $doc,
+            'src' => $src,
+            'dadosPersonalizacaoFatura' => $dadosPersonalizacaoFatura,
+        ])->render();
         $pdf->loadHtml($html);
         $pdf->setPaper('A4', 'portrait');
         $pdf->render();
@@ -142,7 +156,7 @@ class DocumentoInternoController extends Controller
 
         return new StreamedResponse(
             function () use ($pdf, $filename) {
-                echo $pdf->stream($filename, ['Attachment' => false]);
+                $pdf->stream($filename, ['Attachment' => false]);
             },
             200,
             [
@@ -161,13 +175,21 @@ class DocumentoInternoController extends Controller
             return response()->json(['message' => 'Documento não encontrado'], 404);
         }
 
+        $logoData = app(LogotipoService::class)->carregar($doc->empresa_id);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         $opts = new Options();
         $opts->setIsHtml5ParserEnabled(true);
         $opts->setIsRemoteEnabled(true);
 
         $pdf = new Dompdf($opts);
 
-        $html = view('pdf.documento-inventario', ['documento' => $doc])->render();
+        $html = view('pdf.documento-inventario', [
+            'documento' => $doc,
+            'src' => $src,
+            'dadosPersonalizacaoFatura' => $dadosPersonalizacaoFatura,
+        ])->render();
         $pdf->loadHtml($html);
         $pdf->setPaper('A4', 'portrait');
         $pdf->render();
@@ -200,7 +222,7 @@ class DocumentoInternoController extends Controller
 
         return new StreamedResponse(
             function () use ($pdf, $filename) {
-                echo $pdf->stream($filename, ['Attachment' => false]);
+                $pdf->stream($filename, ['Attachment' => false]);
             },
             200,
             [

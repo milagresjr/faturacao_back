@@ -103,6 +103,11 @@
 
 <body>
     <header>
+        @if(!empty($dadosPersonalizacaoFatura) && $dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo && $src)
+            <div style="text-align: center; margin-bottom: 10px;">
+                <img src="{{ $src }}" alt="Logo" style="width: 120px; height: 80px; object-fit: contain;">
+            </div>
+        @endif
         <h2>{{ $dadosEmpresa['nome'] }}</h2>
         <p>NIF: {{ $dadosEmpresa['nif'] }}</p>
         <p>{{ $dadosEmpresa['endereco'] }}</p>

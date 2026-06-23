@@ -8,6 +8,7 @@ use App\Models\LoteProduto;
 use Illuminate\Http\Request;
 use App\Models\Produto;
 use App\Models\Stock;
+use App\Services\LogotipoService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -786,10 +787,16 @@ class ProdutoController extends Controller
     |--------------------------------------------------------------------------
     */
 
+        $logoData = app(LogotipoService::class)->carregar($empresaId);
+        $src = $logoData['src'];
+        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+
         $pdf = Pdf::loadView('pdf.produto-relatorio', [
             'produtos' => $produtosFormatados,
             'data' => Carbon::now()->format('d/m/Y H:i'),
-            'filtros' => $request->all()
+            'filtros' => $request->all(),
+            'src' => $src,
+            'dadosPersonalizacaoFatura' => $dadosPersonalizacaoFatura,
         ])->setPaper('A4', 'landscape');
 
         return $pdf->stream('relatorio_produtos.pdf');

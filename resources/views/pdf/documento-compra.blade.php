@@ -125,10 +125,10 @@
 
     <div class="section" style="width: 100%; position: relative; margin-bottom: 100px;">
 
-        @if ($documento->empresa_logo)
+        @if(!empty($dadosPersonalizacaoFatura) && $dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo && $src)
         <div style="border-bottom: 1px solid #069; width: 100%; margin-bottom: 10px;">
             <div style="display: inline-block; vertical-align: top;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png"
+                <img src="{{ $src }}"
                     alt="Logo"
                     style="width: 120px; height: 100px; z-index: 10; object-fit: contain; display: block;">
             </div>
@@ -148,9 +148,8 @@
         </div>
 
         <div class="col-right" style="text-align: right;">
-            @if (!$documento->empresa_logo)
+            @if(empty($dadosPersonalizacaoFatura) || !$dadosPersonalizacaoFatura->mostrar_logo || !$dadosPersonalizacaoFatura->logo || !$src)
             <span style="font-size: 12pt; font-weight: bold;">{{ $documento->tipo_nome ?? 'Fatura' }}</span> <br>
-            <!-- <span style="font-size: 10pt;">{{ $documento->via }}</span> <br> <br> -->
             @endif
             <span>Exmo.(s) Sr.(s)</span> <br>
             <strong style="margin-top: 15px;">{{ $documento->empresa_nome ?? '' }}</strong><br>
