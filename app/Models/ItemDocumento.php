@@ -33,6 +33,11 @@ class ItemDocumento extends Model
         "lote_id",
     ];
 
+    protected $casts = [
+        "detalhes_lote" => "array",
+        "data_validade" => "date",
+    ];
+
     public function documento(): BelongsTo
     {
         return $this->belongsTo(Documento::class, "documento_id");
