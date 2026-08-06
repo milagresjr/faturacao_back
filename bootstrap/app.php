@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Console\Commands\MigrationsRepar;
+use App\Console\Commands\MigrationsDiagnostico;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         MigrationsRepar::class,
+        MigrationsDiagnostico::class,
     ])
     ->withMiddleware(function (Middleware $middleware) {
         //
