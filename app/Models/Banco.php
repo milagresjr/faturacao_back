@@ -11,6 +11,8 @@ class Banco extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'nome',
+        'codigo',
         'descricao',
         'sigla',
         'estado'

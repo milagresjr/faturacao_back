@@ -41,3 +41,11 @@ php artisan migrate
 - Autorização usa `Perfil` (Role) + `Permissao` (Permission). Verificar com `$user->temPermissao('nome')`.
 - Models usam nomes de tabelas personalizados (`$table = 'utilizadores'`, etc.).
 - Evitar modificar ficheiros em `config/` a menos que seja intencional.
+
+## Testes
+
+- `tests/Feature/DatabaseSetup.php` contém helpers `criarTabela*()` que recriam tabelas manualmente (sem migrations). Usar `$this->dropTabela('tabela')` antes de criar para evitar duplicados.
+- `tests/Feature/Serie/SerieTest.php` — 6 testes (CRUD + padrao + ativo + filtro tipo). Inserir linhas individualmente (batch `lastInsertId()` retorna o primeiro ID).
+- `tests/Feature/Documento/DocumentoTest.php` — 9 testes (criar, listar, ver, anular, nota-credito, finalizar). Usa helper `criarFatura()` que faz POST e retorna `documento.id`.
+- SAVEPOINT trans2: quando `DatabaseTransactions` aninha com controller + `gerarNumeroDocumento`, um erro SQL mascara-se porque `DB::rollBack()` no catch falha. Remover `DatabaseTransactions` temporariamente para ver o erro real.
+- `finalizarDocRascunho` retorna HTTP 201, não 200.

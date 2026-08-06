@@ -44,7 +44,8 @@ use App\Http\Middleware\ForcePasswordChange;
 Route::middleware('api')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
-    Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
+    Route::post('/auth/refresh', [AuthController::class, 'refresh']);
+    Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/empresas', [EmpresaController::class, 'store']);
 });
 
@@ -53,8 +54,8 @@ Route::patch('/reset-new-password', [UtilizadorController::class, 'resetNewPassw
 
 Route::get('/calcular-hash-agt/{id}', [DocumentoController::class, 'calcularHashAGT']);
 
-Route::get('/generate-saft', [SaftController::class, 'gerarSaft']);
 Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
+    Route::get('/generate-saft', [SaftController::class, 'gerarSaft']);
 
 
     Route::get('/list-saft-faturas', [SaftController::class, 'listFaturas']);
@@ -62,9 +63,11 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
     Route::get('/relatorio-produtos', [ProdutoController::class, 'relatorioProdutos']);
 
     Route::apiResource('utilizadores', UtilizadorController::class);
+    Route::get('/me', [UtilizadorController::class, 'me'])->middleware('auth:sanctum');
     Route::middleware('auth:sanctum')->post('utilizadores/change/password', [UtilizadorController::class, 'changePassword']);
     Route::middleware('auth:sanctum')->post('utilizadores/change/estado/{id}', [UtilizadorController::class, 'changeEstado']);
     Route::middleware('auth:sanctum')->patch('empresas/fill-data', [EmpresaController::class, 'fillDataEmpresaUser']);
+    Route::middleware('auth:sanctum')->patch('empresas/skip-fill-data', [EmpresaController::class, 'skipFillData']);
 
     Route::middleware('auth:sanctum')->post('utilizadores/check-password-change', [UtilizadorController::class, 'changeNewPassword']);
 
@@ -133,7 +136,6 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
         Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);
         Route::post('documentos/nota-credito', [DocumentoController::class, 'storeNotaCredito']);
-        Route::post('documentos/fatura-compra', [DocumentoController::class, 'storeFaturaCompra']);
         Route::post('documentos/{id}/anular', [DocumentoController::class, 'anularDocumento']);
         Route::get('documentos/relatorio', [DocumentoController::class, 'pdfRelatorioDocumento']);
         Route::get('documentos/faturacao-item', [DocumentoController::class, 'listFaturacaoPorItem']);
@@ -175,6 +177,11 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
 
         Route::get('/documento/{id}/pdf/recibo', [DocumentoController::class, 'gerarPdfRecibo']);
+
+        // Rotas AGT
+        Route::post('/comunicacao-agt/{id}/enviar', [DocumentoController::class, 'comunicacaoAgtEnviar']);
+        Route::get('/comunicacao-agt/{id}/consultar', [DocumentoController::class, 'comunicacaoAgtConsultar']);
+        Route::post('/comunicacao-agt/{id}/reenviar', [DocumentoController::class, 'comunicacaoAgtReenviar']);
 
         //});
         Route::patch('/series/{id}/definir-padrao', [SerieController::class, 'definirComoPadrao']);

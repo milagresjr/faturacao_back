@@ -7,7 +7,7 @@ return [
 
     'allowed_origins' => [
         'https://softseven-faturacao-front.vercel.app',
-        'http://localhost:3000' // para dev local
+        'http://app.localhost:3000',
     ],
 
     'allowed_origins_patterns' => [],
@@ -18,6 +18,6 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => false,
+    'supports_credentials' => true,
 
 ];

@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cookie;
 
 use function Laravel\Prompts\table;
 
@@ -258,7 +259,15 @@ class UtilizadorController extends Controller
 
             DB::commit();
 
-            return response()->json(['message' => 'Senha alterada com sucesso']);
+            $cookieDomain = env('COOKIE_DOMAIN', 'app.localhost');
+            $secure = env('APP_ENV') === 'production' && env('APP_DEBUG') !== 'true';
+
+            $cookie = Cookie::make('must_change_password', (int)$user->must_change_password, 10080, '/', $cookieDomain, $secure, true, false, 'lax');
+
+            return response()->json([
+                'message' => 'Senha alterada com sucesso',
+                'must_change_password' => (bool)$user->must_change_password
+            ])->withCookie($cookie);
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
@@ -400,5 +409,11 @@ class UtilizadorController extends Controller
             ], 500);
         }
     }
-    
+
+    public function me(Request $request)
+    {
+        $utilizador = $request->user()->load('perfil.permissoes');
+        $utilizador->makeHidden(['senha']);
+        return response()->json($utilizador);
+    }
 }

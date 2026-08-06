@@ -2,9 +2,10 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Utilizador;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateWithRememberToken
@@ -16,19 +17,39 @@ class AuthenticateWithRememberToken
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // 1. Tenta pegar token do header Authorization
         $authHeader = $request->header('Authorization');
+        $token = null;
 
         if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
-
             $token = substr($authHeader, 7);
+        }
 
-            $user = Utilizador::where('remember_token', $token)->first();
+        // 2. Se não tem no header, tenta pegar do cookie HttpOnly
+        if (!$token) {
+            $token = $request->cookie('token_softseven_fat');
+        }
 
-            if ($user) {
-                // Injeta id_empresa
-                $request->merge(['empresa_id' => $user->empresa_id]);
+        if ($token) {
+            $accessToken = PersonalAccessToken::findToken($token);
 
-                return $next($request);
+            if ($accessToken) {
+                // Access token expirado → 401 para o frontend renovar via refresh token
+                if ($accessToken->expires_at && $accessToken->expires_at->isPast()) {
+                    return response()->json(['message' => 'Não autorizado'], 401);
+                }
+
+                $user = $accessToken->tokenable;
+
+                if ($user instanceof \App\Models\Utilizador) {
+                    // Injeta id_empresa
+                    $request->merge(['empresa_id' => $user->empresa_id]);
+                    Auth::setUser($user);
+
+                    $accessToken->forceFill(['last_used_at' => now()])->save();
+
+                    return $next($request);
+                }
             }
         }
 

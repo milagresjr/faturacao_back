@@ -132,7 +132,7 @@ class FaturaCompraController extends Controller
 
             'empresa_id' => 'nullable|integer',
             'empresa_nome' => 'nullable|string',
-            'empresa_nif' => 'nullable|integer',
+            'empresa_nif' => 'nullable|string',
             'empresa_telefone' => 'nullable|integer',
             'empresa_email' => 'nullable|email',
             'empresa_endereco' => 'nullable|string',

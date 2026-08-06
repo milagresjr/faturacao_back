@@ -32,13 +32,13 @@ class SaftController extends Controller
 
         $header = [
             'AuditFileVersion' => '1.01_01',
-            'CompanyID' => $empresa->registro_comercial ?? '500000000',
+            'CompanyID' => $empresa->nif ?? '500000000',
             'TaxRegistrationNumber' => $empresa->nif ?? '500000000',
             'TaxAccountingBasis' => 'F',
             'CompanyName' => $empresa->nome ?? '',
             'CompanyAddress' => [
-                'AddressDetail' => $empresa->endereco ?? '',
-                'City' => $empresa->cidade ?? '',
+                'AddressDetail' => $empresa->endereco ?? 'Sem endereco',
+                'City' => $empresa->cidade ?? 'Sem cidade',
                 'Country' => 'AO',
             ],
             'FiscalYear' => date('Y'),
@@ -48,7 +48,7 @@ class SaftController extends Controller
             'DateCreated' => now()->format('Y-m-d'),
             'TaxEntity' => 'Global',
             'ProductCompanyTaxID' => '500000000',
-            'SoftwareValidationNumber' => 'SVN-123456/AGT/2023',
+            'SoftwareValidationNumber' => '123456/AGT/2023',
             'ProductID' => 'Zimboweb/Softseven',
             'ProductVersion' => '1.0',
             'Telephone' => $empresa->telefone ?? '',
@@ -87,15 +87,16 @@ class SaftController extends Controller
                         'City' => $fornecedor->cidade ?? 'Desconhecido',
                         'Country' => $fornecedor->pais ?? 'AO',
                     ],
+                    'SelfBillingIndicator' => '0',
                 ];
             }
 
             // Buscar produtos únicos dos documentos de compra
-            $produtosIds = $documentos->flatMap(function ($doc) {
-                return $doc->itens->pluck('produto_id');
+            $produtoCodigos = $documentos->flatMap(function ($doc) {
+                return $doc->itens->pluck('produto_codigo');
             })->unique();
 
-            $produtos = Produto::with('tipo')->whereIn('id', $produtosIds)->get();
+            $produtos = Produto::with('tipo')->whereIn('id', $documentos->flatMap(fn($d) => $d->itens->pluck('produto_id'))->unique())->get();
         } else {
             // Buscar documentos de faturação/venda
             $documentos = Documento::with(['itens', 'meiosPagamento', 'impostosDocumento'])
@@ -103,10 +104,29 @@ class SaftController extends Controller
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->whereNotIn('estado_documento', ['anulado', 'rascunho'])
                 ->whereIn('tipo_sigla', ['FR', 'FT', 'FA', 'ND'])
+                ->where(function ($q) {
+                    $q->where('cliente_id', '!=', '0')->whereNotNull('cliente_id');
+                })
                 ->get();
 
             // Buscar clientes únicos que aparecem nos documentos
             $clientesIds = $documentos->pluck('cliente_id')->unique();
+
+            // Buscar documentos de guias/transporte (GR/GT)
+            $workDocuments = Documento::with(['itens', 'meiosPagamento', 'impostosDocumento'])
+                ->where('empresa_id', $idEmpresa)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->whereNotIn('estado_documento', ['anulado', 'rascunho'])
+                ->whereIn('tipo_sigla', ['GR', 'GT'])
+                ->where(function ($q) {
+                    $q->where('cliente_id', '!=', '0')->whereNotNull('cliente_id');
+                })
+                ->get();
+
+            // Incluir clientes das guias (GR/GT) que podem não estar nas faturas
+            $workClientesIds = $workDocuments->pluck('cliente_id')->unique();
+            $clientesIds = $clientesIds->merge($workClientesIds)->unique();
+
             $clientes = Cliente::whereIn('id', $clientesIds)->get();
 
             // Master Files para faturação
@@ -122,52 +142,68 @@ class SaftController extends Controller
                         'City' => $cliente->cidade ?? 'Desconhecido',
                         'Country' => $cliente->pais ?? 'AO',
                     ],
+                    'SelfBillingIndicator' => '0',
                 ];
             }
 
-            // Buscar produtos únicos dos documentos de venda
-            $produtosIds = $documentos->flatMap(function ($doc) {
-                return $doc->itens->pluck('produto_id');
-            })->unique();
+            // Buscar produtos únicos dos documentos de venda (incluindo guias)
+            $produtoCodigos = $documentos->flatMap(function ($doc) {
+                return $doc->itens->pluck('produto_codigo');
+            })->merge(
+                $workDocuments->flatMap(function ($doc) {
+                    return $doc->itens->pluck('produto_codigo');
+                })
+            )->unique();
 
-            $produtos = Produto::with('tipo')->whereIn('id', $produtosIds)->get();
+            $produtos = Produto::with('tipo')->whereIn('id', $documentos->flatMap(fn($d) => $d->itens->pluck('produto_id'))->merge(
+                $workDocuments->flatMap(fn($d) => $d->itens->pluck('produto_id'))
+            )->unique())->get();
         }
 
         $products = [];
+        $existingCodes = [];
         foreach ($produtos as $produto) {
+            $code = $produto->codigo_produto ?? (string) $produto->id;
+            $existingCodes[] = $code;
             $products[] = [
                 'ProductType' => ($produto->tipo->nome ?? 'Produto') == 'Produto' ? 'P' : 'S',
-                'ProductCode' => $produto->id,
+                'ProductCode' => $code,
                 'ProductDescription' => $produto->nome,
-                'ProductNumberCode' => $produto->codigo ?? $produto->id,
+                'ProductNumberCode' => $produto->codigo_produto ?? $produto->id,
             ];
         }
 
+        foreach ($produtoCodigos as $code) {
+            if (!in_array($code, $existingCodes)) {
+                $products[] = [
+                    'ProductType' => 'P',
+                    'ProductCode' => $code,
+                    'ProductDescription' => 'Produto (removido)',
+                    'ProductNumberCode' => $code,
+                ];
+            }
+        }
+
         $taxTable = [
-            [
-                'TaxType' => 'IVA',
-                'TaxCountryRegion' => 'AO',
-                'TaxCode' => 'NOR',
-                'Description' => 'IVA à taxa normal',
-                'TaxAmount' => 14,
-            ],
             [
                 'TaxType' => 'NS',
                 'TaxCountryRegion' => 'AO',
                 'TaxCode' => 'NS',
                 'Description' => 'Não sujeito a IVA',
-                'TaxAmount' => 0,
+                'TaxPercentage' => 0,
             ]
         ];
 
         $masterFiles = [
             'Customer' => $customers,
             'Product' => $products,
-            'TaxTableEntry' => $taxTable
+            'TaxTable' => [
+                'TaxTableEntry' => $taxTable
+            ]
         ];
 
         /*
-    |--------------------------------------------------------------------------
+        |--------------------------------------------------------------------------
     | 3️⃣ SOURCE DOCUMENTS (Documentos)
     |--------------------------------------------------------------------------
     */
@@ -188,32 +224,32 @@ class SaftController extends Controller
                         'Quantity' => $linha->quantidade,
                         'UnitOfMeasure' => 'UN',
                         'UnitPrice' => $linha->preco_unitario,
-                        'TaxPointDate' => $documento->data_emissao,
-                        'Description' => $linha->descricao,
+                        'TaxPointDate' => Carbon::parse($documento->data_emissao)->format('Y-m-d'),
+                        'Description' => $linha->descricao ?: $linha->produto_nome,
                         'DebitAmount' => $linha->total,
                         'CreditAmount' => 0,
                         'Tax' => [
-                            'TaxType' => $linha->iva > 0 ? 'IVA' : 'NS',
+                            'TaxType' => $linha->iva_percent > 0 ? 'IVA' : 'NS',
                             'TaxCountryRegion' => 'AO',
-                            'TaxCode' => $linha->iva > 0 ? 'NOR' : 'NS',
-                            'TaxPercentage' => $linha->iva > 0 ? 14 : 0,
-                            'TaxExemptionReason' => $linha->iva > 0 ? null : 'Isento',
-                            'TaxExemptionCode' => $linha->iva > 0 ? null : 'ISENTO'
+                            'TaxCode' => $linha->iva_percent > 0 ? 'NOR' : 'NS',
+                            'TaxPercentage' => $linha->iva_percent > 0 ? 14 : 0,
                         ],
+                        'TaxExemptionReason' => $linha->iva_percent > 0 ? null : 'Transmissão de bens e serviços não sujeita',
+                        'TaxExemptionCode' => $linha->iva_percent > 0 ? null : 'M02',
                     ];
                 }
 
                 $invoices[] = [
-                    'InvoiceNo' => $documento->num_documento ?? $documento->num_fatura,
+                    'InvoiceNo' => $this->normalizarNumeroFatura($documento->num_documento ?? $documento->num_fatura),
                     'DocumentStatus' => [
                         'InvoiceStatus' => 'N',
                         'InvoiceStatusDate' => Carbon::parse($documento->data_emissao)->format('Y-m-d\TH:i:s'),
                         'SourceID' => $documento->utilizador_id,
-                        'SourceBilling' => $documento->id,
-                        'Hash' => $documento->hash ?? '',
-                        'HashControl' => '0',
+                        'SourceBilling' => 'P',
                     ],
-                    'InvoiceDate' => $documento->data_emissao,
+                    'Hash' => $documento->hash ?? '',
+                    'HashControl' => '0',
+                    'InvoiceDate' => Carbon::parse($documento->data_emissao)->format('Y-m-d'),
                     'InvoiceType' => $documento->tipo_sigla ?? 'FT',
                     'SpecialRegimes' => [
                         'SelfBillingIndicator' => '0',
@@ -225,13 +261,13 @@ class SaftController extends Controller
                     'SupplierID' => $documento->fornecedor_id,
                     'Line' => $linhas,
                     'DocumentTotals' => [
-                        'TaxPayable' => $documento->total_iva ?? 0,
-                        'NetTotal' => $documento->total_sem_iva ?? 0,
-                        'GrossTotal' => $documento->total_com_iva ?? 0,
+                        'TaxPayable' => $documento->total_impostos ?? 0,
+                        'NetTotal' => ($documento->total_geral - $documento->total_impostos) ?? 0,
+                        'GrossTotal' => $documento->total_geral ?? 0,
                     ],
                 ];
 
-                $totalDebit += $documento->total_sem_iva ?? 0;
+                $totalDebit += ($documento->total_geral - $documento->total_impostos) ?? 0;
             }
 
             $sourceDocuments = [
@@ -259,33 +295,32 @@ class SaftController extends Controller
                         'Quantity' => $linha->quantidade,
                         'UnitOfMeasure' => 'UN',
                         'UnitPrice' => $linha->preco_unitario,
-                        'TaxPointDate' => $fatura->data_emissao,
-                        'Description' => $linha->descricao,
+                        'TaxPointDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                        'Description' => $linha->descricao ?: $linha->produto_nome,
                         'DebitAmount' => $linha->total,
-                        'CreditAmount' => 0,
                         'Tax' => [
-                            'TaxType' => $linha->iva > 0 ? 'IVA' : 'NS',
+                            'TaxType' => $linha->iva_percent > 0 ? 'IVA' : 'NS',
                             'TaxCountryRegion' => 'AO',
-                            'TaxCode' => $linha->iva > 0 ? 'NOR' : 'NS',
-                            'TaxPercentage' => $linha->iva > 0 ? 14 : 0,
-                            'TaxExemptionReason' => $linha->iva > 0 ? null : 'Isento',
-                            'TaxExemptionCode' => $linha->iva > 0 ? null : 'ISENTO'
+                            'TaxCode' => $linha->iva_percent > 0 ? 'NOR' : 'NS',
+                            'TaxPercentage' => $linha->iva_percent > 0 ? 14 : 0,
                         ],
+                        'TaxExemptionReason' => $linha->iva_percent > 0 ? null : 'Transmissão de bens e serviços não sujeita',
+                        'TaxExemptionCode' => $linha->iva_percent > 0 ? null : 'M02',
                     ];
                 }
 
                 $invoices[] = [
-                    'InvoiceNo' => $fatura->num_fatura,
+                    'InvoiceNo' => $this->normalizarNumeroFatura($fatura->num_fatura),
                     'DocumentStatus' => [
                         'InvoiceStatus' => 'N',
                         'InvoiceStatusDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
                         'SourceID' => $fatura->utilizador_id,
-                        'SourceBilling' => $fatura->id,
-                        'Hash' => $fatura->hash,
-                        'HashControl' => '0',
+                        'SourceBilling' => 'P',
                     ],
-                    'InvoiceDate' => $fatura->data_emissao,
-                    'InvoiceType' => $fatura->sigla_fatura,
+                    'Hash' => $fatura->hash,
+                    'HashControl' => '0',
+                    'InvoiceDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                    'InvoiceType' => $fatura->tipo_sigla,
                     'SpecialRegimes' => [
                         'SelfBillingIndicator' => '0',
                         'CashVATSchemeIndicator' => '0',
@@ -296,13 +331,13 @@ class SaftController extends Controller
                     'CustomerID' => $fatura->cliente_id,
                     'Line' => $linhas,
                     'DocumentTotals' => [
-                        'TaxPayable' => $fatura->total_iva,
-                        'NetTotal' => $fatura->total_sem_iva,
-                        'GrossTotal' => $fatura->total_com_iva,
+                        'TaxPayable' => $fatura->total_impostos,
+                        'NetTotal' => $fatura->total_geral - $fatura->total_impostos,
+                        'GrossTotal' => $fatura->total_geral,
                     ],
                 ];
 
-                $totalDebit += $fatura->total_sem_iva;
+                $totalDebit += $fatura->total_geral - $fatura->total_impostos;
             }
 
             $sourceDocuments = [
@@ -311,12 +346,13 @@ class SaftController extends Controller
                     'TotalDebit' => $totalDebit,
                     'TotalCredit' => 0,
                     'Invoice' => $invoices,
-                ]
+                ],
             ];
 
-            // Working Documents (apenas para faturação)
+            // Working Documents (apenas guias/transportes)
             $workDocument = [];
-            foreach ($documentos as $fatura) {
+            $totalWorkDebit = 0;
+            foreach ($workDocuments as $fatura) {
                 $linhas = [];
 
                 foreach ($fatura->itens as $index => $linha) {
@@ -327,63 +363,98 @@ class SaftController extends Controller
                         'Quantity' => $linha->quantidade,
                         'UnitOfMeasure' => 'UN',
                         'UnitPrice' => $linha->preco_unitario,
-                        'TaxPointDate' => $fatura->data_emissao,
-                        'Description' => $linha->descricao,
-                        'DebitAmount' => $linha->total,
-                        'CreditAmount' => $linha->total,
+                        'TaxPointDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                        'Description' => $linha->descricao ?: $linha->produto_nome,
+                        'DebitAmount' => $linha->quantidade * $linha->preco_unitario,
                         'Tax' => [
-                            'TaxType' => $linha->iva > 0 ? 'IVA' : 'NS',
+                            'TaxType' => $linha->iva_percent > 0 ? 'IVA' : 'NS',
                             'TaxCountryRegion' => 'AO',
-                            'TaxCode' => $linha->iva > 0 ? 'NOR' : 'NS',
-                            'TaxPercentage' => $linha->iva > 0 ? 14 : 0,
-                            'TaxExemptionReason' => $linha->iva > 0 ? null : 'Isento',
-                            'TaxExemptionCode' => $linha->iva > 0 ? null : 'ISENTO'
+                            'TaxCode' => $linha->iva_percent > 0 ? 'NOR' : 'NS',
+                            'TaxPercentage' => $linha->iva_percent > 0 ? 14 : 0,
                         ],
+                        'TaxExemptionReason' => $linha->iva_percent > 0 ? null : 'Transmissão de bens e serviços não sujeita',
+                        'TaxExemptionCode' => $linha->iva_percent > 0 ? null : 'M02',
                     ];
                 }
 
+                $totalWorkDebit += $fatura->total_geral - $fatura->total_impostos;
+
                 $workDocument[] = [
-                    'DocumentNumber' => $fatura->num_fatura,
+                    'DocumentNumber' => $this->normalizarNumeroFatura($fatura->num_fatura),
                     'DocumentStatus' => [
                         'WorkStatus' => 'N',
                         'WorkStatusDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
                         'SourceID' => $fatura->utilizador_id,
-                        'SourceBilling' => $fatura->id,
+                        'SourceBilling' => 'P',
                     ],
                     'Hash' => $fatura->hash,
                     'HashControl' => '0',
-                    'WorkType' => $fatura->tipo_sigla,
+                    'WorkDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                    'WorkType' => $fatura->tipo_sigla === 'GT' ? 'GR' : $fatura->tipo_sigla,
                     'SourceID' => $fatura->utilizador_id,
                     'SystemEntryDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
                     'CustomerID' => $fatura->cliente_id,
                     'Line' => $linhas,
                     'DocumentTotals' => [
-                        'TaxPayable' => $fatura->total_iva,
-                        'NetTotal' => $fatura->total_sem_iva,
-                        'GrossTotal' => $fatura->total_com_iva,
+                        'TaxPayable' => $fatura->total_impostos,
+                        'NetTotal' => $fatura->total_geral - $fatura->total_impostos,
+                        'GrossTotal' => $fatura->total_geral,
                     ],
                 ];
             }
 
-            $workingDocuments = [
-                'NumberOfEntries' => count($workDocument),
-                'TotalDebit' => $totalDebit,
-                'TotalCredit' => 0,
-                'WorkDocument' => $workDocument
-            ];
+            if (!empty($workDocument)) {
+                $sourceDocuments['WorkingDocuments'] = [
+                    'NumberOfEntries' => count($workDocument),
+                    'TotalDebit' => $totalWorkDebit,
+                    'TotalCredit' => 0,
+                    'WorkDocument' => $workDocument,
+                ];
+            }
 
             // Payments
-            $payments = [];
+            $paymentLines = [];
+            $paymentCounters = [];
             foreach ($documentos as $fatura) {
                 if ($fatura->meiosPagamento && $fatura->meiosPagamento->count()) {
+                    $paymentCounters[$fatura->id] = 0;
                     foreach ($fatura->meiosPagamento as $pagamento) {
-                        $payments[] = [
-                            'NumberOfEntries' => $pagamento->id,
-                            'TotalDebit' => $pagamento->valor,
-                            'TotalCredit' => 0,
+                        $paymentCounters[$fatura->id]++;
+                        $pRef = $this->normalizarNumeroFatura($fatura->num_fatura);
+                        if ($paymentCounters[$fatura->id] > 1) {
+                            $pParts = explode(' ', $pRef, 2);
+                            $nParts = explode('/', $pParts[1] ?? '0');
+                            $pRef = $pParts[0] . ' ' . ($nParts[0] ?? '0') . '/' . $paymentCounters[$fatura->id];
+                        }
+                        $paymentLines[] = [
+                            'PaymentRefNo' => $pRef,
+                            'TransactionDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                            'PaymentType' => match ($fatura->forma_pagamento) {
+                                'Cash', 'Numerário', 'Dinheiro' => 'RC',
+                                'Credit', 'Crédito', 'Transferência' => 'RC',
+                                'Debit', 'Débito' => 'RC',
+                                'Refund', 'Reembolso' => 'RG',
+                                'Rent', 'Aluguer', 'Arrendamento' => 'AR',
+                                default => 'RC',
+                            },
+                            'DocumentStatus' => [
+                                'InvoiceStatus' => 'N',
+                                'InvoiceStatusDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
+                            ],
+                            'PaymentAmount' => $pagamento->valor,
+                            'PaymentMechanism' => 'CC',
+                            'CustomerID' => $fatura->cliente_id,
                         ];
                     }
                 }
+            }
+            if (!empty($paymentLines)) {
+                $sourceDocuments['Payments'] = [
+                    'NumberOfEntries' => count($paymentLines),
+                    'TotalDebit' => collect($paymentLines)->sum('PaymentAmount'),
+                    'TotalCredit' => 0,
+                    'Payment' => $paymentLines,
+                ];
             }
         }
 
@@ -395,22 +466,12 @@ class SaftController extends Controller
 
         $auditFile = [
             '_attributes' => [
-                'xmlns' => 'urn:OECD:Tax:AuditFile',
+                'xmlns' => 'urn:OECD:StandardAuditFile-Tax:AO_1.01_01',
             ],
             'Header' => $header,
             'MasterFiles' => $masterFiles,
             'SourceDocuments' => $sourceDocuments,
         ];
-
-        // Adicionar WorkingDocuments apenas para faturação
-        if ($tipo != 'compra' && !empty($workingDocuments)) {
-            $auditFile['WorkingDocuments'] = $workingDocuments;
-        }
-
-        // Adicionar Payments apenas para faturação
-        if ($tipo != 'compra' && !empty($payments)) {
-            $auditFile['Payments'] = ['Payment' => $payments];
-        }
 
         $xml = ArrayToXml::convert(
             $auditFile,
@@ -422,10 +483,9 @@ class SaftController extends Controller
         // Nome do arquivo baseado no tipo
         $fileName = $tipo == 'compra' ? 'SAFT_COMPRAS.xml' : 'SAFT_VENDAS.xml';
 
-        header('Content-Type: application/xml; charset=UTF-8');
-        header('Content-Disposition: inline; filename="' . $fileName . '"');
-        echo $xml;
-        exit;
+        return response($xml, 200)
+            ->header('Content-Type', 'application/xml; charset=UTF-8')
+            ->header('Content-Disposition', 'inline; filename="' . $fileName . '"');
     }
 
     public function listFaturas(Request $request)
@@ -437,14 +497,15 @@ class SaftController extends Controller
 
         $tipo = $request->input('tipo'); // Compra ou Faturação
 
+        $idEmpresa = $request->input('empresa_id');
+
         $query = null;
 
         if ($tipo == 'compra') {
-            $query = DocumentoCompra::query();
+            $query = DocumentoCompra::query()->where('empresa_id', $idEmpresa);
         } else {
-            $query = Documento::query();
+            $query = Documento::query()->where('empresa_id', $idEmpresa);
 
-            // Aplica os filtros apenas para documentos que NÃO são de compra
             $query->whereNotIn('estado_documento', ['anulado', 'rascunho'])
                 ->whereIn('tipo_sigla', ['FR', 'FT', 'FA', 'ND']);
         }
@@ -491,7 +552,7 @@ class SaftController extends Controller
             'DateCreated' => now()->format('Y-m-d'),
             'TaxEntity' => 'Global',
             'ProductCompanyTaxID' => '500000000', //NIF da Softseven
-            'SoftwareValidationNumber' => 'SVN-123456/AGT/2023', //Número de validação do software
+            'SoftwareValidationNumber' => '123456/AGT/2023', //Número de validação do software
             'ProductID' => 'Zimboweb/Softseven',
             'ProductVersion' => '1.0',
             'Telephone' => '',
@@ -532,6 +593,7 @@ class SaftController extends Controller
                     'City' => 'Desconhecido',
                     'Country' => $cliente->pais ?? 'Desconhecido',
                 ],
+                'SelfBillingIndicator' => '0',
             ];
         }
 
@@ -553,7 +615,7 @@ class SaftController extends Controller
         foreach ($produtos as $produto) {
             $products[] = [
                 'ProductType' => $produto->tipo->nome == 'Produto' ? 'P' : 'S' ?? 'Desconhecido',
-                'ProductCode' => $produto->id,
+                'ProductCode' => $produto->codigo_produto ?? $produto->id,
                 'ProductDescription' => $produto->nome,
                 'ProductNumberCode' => $produto->id ?? 'Desconhecido',
             ];
@@ -561,25 +623,20 @@ class SaftController extends Controller
 
         $taxTable = [
             [
-                'TaxType' => 'IVA',
-                'TaxCountryRegion' => 'AO',
-                'TaxCode' => 'NOR',
-                'Description' => 'Iva à taxa normal',
-                'TaxAmount' => 14,
-            ],
-            [
                 'TaxType' => 'NS',
                 'TaxCountryRegion' => 'AO',
                 'TaxCode' => 'NS',
-                'Description' => '',
-                'TaxAmount' => 0,
+                'Description' => 'Nao sujeito a IVA',
+                'TaxPercentage' => 0,
             ]
         ];
 
         $masterFiles = [
             'Customer' => $customers,
             'Product' => $products,
-            'TaxTableEntry' => $taxTable
+            'TaxTable' => [
+                'TaxTableEntry' => $taxTable
+            ]
         ];
 
 
@@ -589,7 +646,10 @@ class SaftController extends Controller
     |--------------------------------------------------------------------------
     */
 
-        $queryFat = Documento::with(['itens', 'meiosPagamento', 'impostosDocumento']);
+        $queryFat = Documento::with(['itens', 'meiosPagamento', 'impostosDocumento'])
+            ->where(function ($q) {
+                $q->where('cliente_id', '!=', '0')->whereNotNull('cliente_id');
+            });
 
         if ($startDate && $endDate) {
             $queryFat->whereDate('created_at', '>=', $startDate)
@@ -601,6 +661,20 @@ class SaftController extends Controller
         }
 
         $faturas = $queryFat->get();
+
+        // Add virtual entries for products referenced in invoices but not in DB
+        $existingCodes = collect($products)->pluck('ProductCode');
+        $allLineCodes = $faturas->flatMap(fn($f) => $f->itens->pluck('produto_codigo'))->unique();
+        foreach ($allLineCodes as $code) {
+            if (!$existingCodes->contains($code)) {
+                $products[] = [
+                    'ProductType' => 'P',
+                    'ProductCode' => $code,
+                    'ProductDescription' => 'Produto (removido)',
+                    'ProductNumberCode' => $code,
+                ];
+            }
+        }
 
         $invoices = [];
         $totalDebit = 0;
@@ -617,50 +691,49 @@ class SaftController extends Controller
                     'Quantity' => $linha->quantidade,
                     'UnitOfMeasure' => 'UN',
                     'UnitPrice' => $linha->preco_unitario,
-                    'TaxPointDate' => $fatura->data_emissao, //Duvida
-                    'Description' => $linha->descricao,
+                    'TaxPointDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'), //Duvida
+                    'Description' => $linha->descricao ?: $linha->produto_nome,
                     'DebitAmount' => $linha->total,
-                    'CreditAmount' => $linha->total,
                     'Tax' => [
-                        'TaxType' => $linha->iva > 0 ? 'IVA' : 'NS',
+                        'TaxType' => $linha->iva_percent > 0 ? 'IVA' : 'NS',
                         'TaxCountryRegion' => 'AO',
-                        'TaxCode' => $linha->iva > 0 ? 'NOR' : 'NS',
-                        'TaxPercentage' => $linha->iva > 0 ? 14 : 0,
-                        'TaxExemptionReason' => $linha->iva > 0 ? null : 'Isento', //Motivo isencao
-                        'TaxExemptionCode' => $linha->iva > 0 ? null : 'ISENTO' //Codigo do imposto
+                        'TaxCode' => $linha->iva_percent > 0 ? 'NOR' : 'NS',
+                        'TaxPercentage' => $linha->iva_percent > 0 ? 14 : 0,
                     ],
+                    'TaxExemptionReason' => $linha->iva_percent > 0 ? null : 'Transmissão de bens e serviços não sujeita',
+                    'TaxExemptionCode' => $linha->iva_percent > 0 ? null : 'M02',
                 ];
             }
 
             $invoices[] = [
-                'InvoiceNo' => $fatura->num_fatura,
+                'InvoiceNo' => $this->normalizarNumeroFatura($fatura->num_fatura),
                 'DocumentStatus' => [
                     'InvoiceStatus' => 'N',
                     'InvoiceStatusDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
                     'SourceID' => $fatura->utilizador_id,
-                    'SourceBilling' => $fatura->id,
-                    'Hash' => $fatura->hash,
-                    'HashControl' => '0',
-                    'InvoiceDate' => $fatura->data_emissao,
-                    'InvoiceType' => $fatura->sigla_fatura,
-                    'SpecialRegimes' => [
-                        'SelfBillingIndicator' => '0',
-                        'CashVATSchemeIndicator' => '0',
-                        'ThirdPartiesBillingIndicator' => '0'
-                    ],
-                    'SourceID' => $fatura->utilizador_id,
-                    'SystemEntryDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
-                    'CustomerID' => $fatura->cliente_id,
+                    'SourceBilling' => 'P',
                 ],
+                'Hash' => $fatura->hash,
+                'HashControl' => '0',
+                'InvoiceDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                'InvoiceType' => $fatura->tipo_sigla,
+                'SpecialRegimes' => [
+                    'SelfBillingIndicator' => '0',
+                    'CashVATSchemeIndicator' => '0',
+                    'ThirdPartiesBillingIndicator' => '0'
+                ],
+                'SourceID' => $fatura->utilizador_id,
+                'SystemEntryDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
+                'CustomerID' => $fatura->cliente_id,
                 'Line' => $linhas,
                 'DocumentTotals' => [
-                    'TaxPayable' => $fatura->total_iva,
-                    'NetTotal' => $fatura->total_sem_iva,
-                    'GrossTotal' => $fatura->total_com_iva,
+                    'TaxPayable' => $fatura->total_impostos,
+                    'NetTotal' => $fatura->total_geral - $fatura->total_impostos,
+                    'GrossTotal' => $fatura->total_geral,
                 ],
             ];
 
-            $totalDebit += $fatura->total_sem_iva;
+            $totalDebit += $fatura->total_geral - $fatura->total_impostos;
         }
 
         $sourceDocuments = [
@@ -669,12 +742,14 @@ class SaftController extends Controller
                 'TotalDebit' => $totalDebit,
                 'TotalCredit' => 0,
                 'Invoice' => $invoices,
-            ]
+            ],
         ];
 
+        // Working Documents (guias/transportes)
         $workDocument = [];
+        $totalWorkDebit = 0;
 
-        foreach ($faturas as $fatura) {
+        foreach ($faturas->whereIn('tipo_sigla', ['GR', 'GT']) as $fatura) {
 
             $linhas = [];
 
@@ -686,64 +761,99 @@ class SaftController extends Controller
                     'Quantity' => $linha->quantidade,
                     'UnitOfMeasure' => 'UN',
                     'UnitPrice' => $linha->preco_unitario,
-                    'TaxPointDate' => $fatura->data_emissao, //Duvida
-                    'Description' => $linha->descricao,
-                    'DebitAmount' => $linha->total,
-                    'CreditAmount' => $linha->total,
+                    'TaxPointDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                    'Description' => $linha->descricao ?: $linha->produto_nome,
+                    'DebitAmount' => $linha->quantidade * $linha->preco_unitario,
                     'Tax' => [
-                        'TaxType' => $linha->iva > 0 ? 'IVA' : 'NS',
+                        'TaxType' => $linha->iva_percent > 0 ? 'IVA' : 'NS',
                         'TaxCountryRegion' => 'AO',
-                        'TaxCode' => $linha->iva > 0 ? 'NOR' : 'NS',
-                        'TaxPercentage' => $linha->iva > 0 ? 14 : 0,
-                        'TaxExemptionReason' => $linha->iva > 0 ? null : 'Isento', //Motivo isencao
-                        'TaxExemptionCode' => $linha->iva > 0 ? null : 'ISENTO' //Codigo do imposto
+                        'TaxCode' => $linha->iva_percent > 0 ? 'NOR' : 'NS',
+                        'TaxPercentage' => $linha->iva_percent > 0 ? 14 : 0,
                     ],
+                    'TaxExemptionReason' => $linha->iva_percent > 0 ? null : 'Transmissão de bens e serviços não sujeita',
+                    'TaxExemptionCode' => $linha->iva_percent > 0 ? null : 'M02',
                 ];
             }
 
+            $totalWorkDebit += $fatura->total_geral - $fatura->total_impostos;
+
             $workDocument[] = [
-                'DocumentNumber' => $fatura->num_fatura,
+                'DocumentNumber' => $this->normalizarNumeroFatura($fatura->num_fatura),
                 'DocumentStatus' => [
                     'WorkStatus' => 'N',
                     'WorkStatusDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
                     'SourceID' => $fatura->utilizador_id,
-                    'SourceBilling' => $fatura->id,
+                    'SourceBilling' => 'P',
                 ],
                 'Hash' => $fatura->hash,
                 'HashControl' => '0',
-                'WorkType' => $fatura->tipo_sigla,
+                'WorkDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                'WorkType' => $fatura->tipo_sigla === 'GT' ? 'GR' : $fatura->tipo_sigla,
                 'SourceID' => $fatura->utilizador_id,
-                'SystemEntryDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
                 'CustomerID' => $fatura->cliente_id,
                 'Line' => $linhas,
                 'DocumentTotals' => [
-                    'TaxPayable' => $fatura->total_iva,
-                    'NetTotal' => $fatura->total_sem_iva,
-                    'GrossTotal' => $fatura->total_com_iva,
+                    'TaxPayable' => $fatura->total_impostos,
+                    'NetTotal' => $fatura->total_geral - $fatura->total_impostos,
+                    'GrossTotal' => $fatura->total_geral,
                 ],
             ];
         }
 
-        $workingDocuments = [
-            'NumberOfEntries' => '2', //Total de outros tipo de documento
-            'TotalDebit' => $totalDebit,
-            'TotalCredit' => 0,
-            'WorkDocument' => $workDocument
-        ];
+        if (!empty($workDocument)) {
+            $sourceDocuments['WorkingDocuments'] = [
+                'NumberOfEntries' => count($workDocument),
+                'TotalDebit' => $totalWorkDebit,
+                'TotalCredit' => 0,
+                'WorkDocument' => $workDocument,
+            ];
+        }
 
-
-        $payments = [];
-
-        // return $faturas;
+        // Payments
+        $paymentLines = [];
+        $paymentCounters = [];
 
         foreach ($faturas as $fatura) {
-            foreach ($fatura->meiosPagamento as $pagamento) {
-                $payments[] = [
-                    'NumberOfEntries' => $pagamento->id, //Numero total de recibos emitidos
-                    'TotalDebit' => $pagamento->valor,
-                    'TotalCredit' => 0,
-                ];
+            if ($fatura->meiosPagamento && $fatura->meiosPagamento->count()) {
+                $paymentCounters[$fatura->id] = 0;
+                foreach ($fatura->meiosPagamento as $pagamento) {
+                    $paymentCounters[$fatura->id]++;
+                    $pRef = $this->normalizarNumeroFatura($fatura->num_fatura);
+                    if ($paymentCounters[$fatura->id] > 1) {
+                        $pParts = explode(' ', $pRef, 2);
+                        $nParts = explode('/', $pParts[1] ?? '0');
+                        $pRef = $pParts[0] . ' ' . ($nParts[0] ?? '0') . '/' . $paymentCounters[$fatura->id];
+                    }
+                    $paymentLines[] = [
+                        'PaymentRefNo' => $pRef,
+                        'TransactionDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d'),
+                        'PaymentType' => match ($fatura->forma_pagamento) {
+                            'Cash', 'Numerário', 'Dinheiro' => 'RC',
+                            'Credit', 'Crédito', 'Transferência' => 'RC',
+                            'Debit', 'Débito' => 'RC',
+                            'Refund', 'Reembolso' => 'RG',
+                            'Rent', 'Aluguer', 'Arrendamento' => 'AR',
+                            default => 'RC',
+                        },
+                        'DocumentStatus' => [
+                            'InvoiceStatus' => 'N',
+                            'InvoiceStatusDate' => Carbon::parse($fatura->data_emissao)->format('Y-m-d\TH:i:s'),
+                        ],
+                        'PaymentAmount' => $pagamento->valor,
+                        'PaymentMechanism' => 'CC',
+                        'CustomerID' => $fatura->cliente_id,
+                    ];
+                }
             }
+        }
+
+        if (!empty($paymentLines)) {
+            $sourceDocuments['Payments'] = [
+                'NumberOfEntries' => count($paymentLines),
+                'TotalDebit' => collect($paymentLines)->sum('PaymentAmount'),
+                'TotalCredit' => 0,
+                'Payment' => $paymentLines,
+            ];
         }
 
         /*
@@ -754,15 +864,11 @@ class SaftController extends Controller
 
         $auditFile = [
             '_attributes' => [
-                'xmlns' => 'urn:OECD:Tax:AuditFile',
+                'xmlns' => 'urn:OECD:StandardAuditFile-Tax:AO_1.01_01',
             ],
             'Header' => $header,
             'MasterFiles' => $masterFiles,
             'SourceDocuments' => $sourceDocuments,
-            'WorkingDocuments' => $workingDocuments,
-            'Payments' => [
-                'Payment' => $payments
-            ]
         ];
 
 
@@ -782,5 +888,15 @@ class SaftController extends Controller
         // return response($xml, 200)
         //     ->header('Content-Type', 'application/xml')
         //     ->header('Content-Disposition', 'attachment; filename="SAFT.xml"');
+    }
+
+    private function normalizarNumeroFatura($num)
+    {
+        $num = preg_replace('/\s+/', ' ', trim($num));
+        $parts = explode(' ', $num, 2);
+        if (count($parts) > 1) {
+            return $parts[0] . ' ' . str_replace(' ', '', $parts[1]);
+        }
+        return str_replace(' ', '', $num);
     }
 }

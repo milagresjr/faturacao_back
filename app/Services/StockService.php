@@ -53,7 +53,7 @@ class StockService
         // Registrar movimento (sem lote)
         MovimentoStock::create([
           'produto_id' => $produto->id,
-          'tipo' => 'entrada',
+          'operacao' => 'entrada',
           'quantidade' => $quantidade,
           // 'preco_unitario' => $preco,
           'origem_movimento' => 'compra',

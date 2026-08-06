@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cookie;
 
 class EmpresaController extends Controller
 {
@@ -224,6 +225,18 @@ class EmpresaController extends Controller
         }
     }
 
+    function skipFillData(Request $request)
+    {
+        $user = $request->user();
+
+        $cookieDomain = env('COOKIE_DOMAIN', 'app.localhost');
+        $secure = env('APP_ENV') === 'production' && env('APP_DEBUG') !== 'true';
+
+        $cookie = Cookie::make('must_fill_data_empresa', 0, 10080, '/', $cookieDomain, $secure, true, false, 'lax');
+
+        return response()->json(['message' => 'Fill data skipped for this session', 'must_fill_data_empresa' => $user->must_fill_data_empresa], 200)->withCookie($cookie);
+    }
+
     function fillDataEmpresaUser(Request $request)
     {
         $user = $request->user();
@@ -275,7 +288,12 @@ class EmpresaController extends Controller
             'must_fill_data_empresa' => false
         ]);
 
-        return response()->json($user, 201);
+        $cookieDomain = env('COOKIE_DOMAIN', 'app.localhost');
+        $secure = env('APP_ENV') === 'production' && env('APP_DEBUG') !== 'true';
+
+        $cookie = Cookie::make('must_fill_data_empresa', 0, 10080, '/', $cookieDomain, $secure, true, false, 'lax');
+
+        return response()->json($user, 201)->withCookie($cookie);
     }
 
     public function destroy($id)

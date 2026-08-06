@@ -59,4 +59,36 @@ class Utilizador extends Authenticatable
     {
         return $this->nivel_acesso === 'admin';
     }
+
+    public function refreshTokens()
+    {
+        return $this->hasMany(RefreshToken::class, 'utilizador_id');
+    }
+
+    /**
+     * Emite um refresh token com rotação e devolve o valor em texto simples
+     * (apenas o hash sha256 fica persistido na base de dados).
+     */
+    public function issueRefreshToken(array $context = []): string
+    {
+        $plain = \Illuminate\Support\Str::random(64);
+
+        $this->refreshTokens()->create([
+            'token' => hash('sha256', $plain),
+            'device_fingerprint' => $context['device_fingerprint'] ?? null,
+            'ip_address' => $context['ip_address'] ?? null,
+            'user_agent' => $context['user_agent'] ?? null,
+            'expires_at' => now()->addDays((int) config('autenticacao.refresh_token_days')),
+        ]);
+
+        return $plain;
+    }
+
+    /**
+     * Revoga todos os refresh tokens do utilizador (ex.: deteção de roubo).
+     */
+    public function revokeAllRefreshTokens(): void
+    {
+        $this->refreshTokens()->whereNull('revoked_at')->update(['revoked_at' => now()]);
+    }
 }

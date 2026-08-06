@@ -83,6 +83,7 @@ class SerieController extends Controller
         if (($data['padrao'] ?? false) === true) {
             Serie::where('empresa_id', $data['empresa_id'])
                 ->where('tipo_documento', $data['tipo_documento'])
+                ->where('ano', $data['ano'])
                 ->update([
                     'padrao' => false
                 ]);
@@ -166,12 +167,32 @@ class SerieController extends Controller
             $tipoDocumento = $data['tipo_documento']
                 ?? $serie->tipo_documento;
 
+            $ano = $data['ano'] ?? $serie->ano;
+
             Serie::where('empresa_id', $serie->empresa_id)
                 ->where('tipo_documento', $tipoDocumento)
+                ->where('ano', $ano)
                 ->where('id', '!=', $serie->id)
                 ->update([
                     'padrao' => false
                 ]);
+        }
+
+        if (array_key_exists('padrao', $data) && $data['padrao'] === false) {
+            $tipoDocumento = $data['tipo_documento'] ?? $serie->tipo_documento;
+            $ano = $data['ano'] ?? $serie->ano;
+
+            $totalPadrao = Serie::where('empresa_id', $serie->empresa_id)
+                ->where('tipo_documento', $tipoDocumento)
+                ->where('ano', $ano)
+                ->where('padrao', true)
+                ->count();
+
+            if ($totalPadrao <= 1) {
+                return response()->json([
+                    'message' => 'Deve haver pelo menos uma série padrão para este tipo e ano.'
+                ], 422);
+            }
         }
 
         $serie->update($data);
@@ -252,6 +273,8 @@ class SerieController extends Controller
 
         Serie::where('empresa_id', $serie->empresa_id)
             ->where('tipo_documento', $serie->tipo_documento)
+            ->where('ano', $serie->ano)
+            ->where('id', '!=', $serie->id)
             ->update([
                 'padrao' => false
             ]);

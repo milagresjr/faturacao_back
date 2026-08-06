@@ -1,0 +1,17 @@
+.git/
+.gitignore
+.ftpignore
+tests/
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*
+vendor/
+node_modules/
+.env
+.env.*
+.phpunit.result.cache
+Dockerfile
+*.log
+*.sqlite

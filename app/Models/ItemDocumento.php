@@ -27,6 +27,10 @@ class ItemDocumento extends Model
         "total_sem_desconto",
         "total",
         "tipo_id",
+        "detalhes_lote",
+        "data_validade",
+        "codigo_lote",
+        "lote_id",
     ];
 
     public function documento(): BelongsTo

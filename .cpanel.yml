@@ -1,0 +1,12 @@
+---
+deployment:
+  tasks:
+    - cd /home57/softsev1/back-zimboweb-v2 && composer install --no-dev --optimize-autoloader --no-interaction
+    - cd /home57/softsev1/back-zimboweb-v2 && php artisan migrate --force
+    - cd /home57/softsev1/back-zimboweb-v2 && php artisan config:cache
+    - cd /home57/softsev1/back-zimboweb-v2 && php artisan route:cache
+    - cd /home57/softsev1/back-zimboweb-v2 && php artisan view:cache
+    - rsync -av --delete /home57/softsev1/back-zimboweb-v2/public/ /home57/softsev1/api-zimboweb.softseven.ao/
+    - rm -rf /home57/softsev1/api-zimboweb.softseven.ao/storage
+    - ln -sfn /home57/softsev1/back-zimboweb-v2/storage/app/public /home57/softsev1/api-zimboweb.softseven.ao/storage
+    - chmod -R 775 /home57/softsev1/back-zimboweb-v2/storage /home57/softsev1/back-zimboweb-v2/bootstrap/cache
