@@ -143,9 +143,9 @@
                     <div class="page">
 
 
-                        <header class="section" style="width: 100%; position: relative; margin-bottom: 100px;">
+                        <header class="section" style="width: 100%; position: relative; margin-bottom: 40px;">
 
-                            @if ($dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo)
+                            @if ($src)
                                 <div style="border-bottom: 1px solid #069; width: 100%; margin-bottom: 10px;">
                                     <div style="display: inline-block; vertical-align: top;">
                                         <img src="{{ $src }}" alt="Logo"
@@ -158,41 +158,46 @@
                                         <br>
                                         <span style="font-size: 10pt;">{{ $documento->via }}</span>
                                     </div>
+                                    <div style="clear: both;"></div>
                                 </div>
                             @endif
 
-                            <div class="col-left">
-                                <span
-                                    style="font-size: 12pt; font-weight: bold;">{{ $documento->empresa_nome ?? '' }}</span>
-                                <br>
-                                @if ($dadosPersonalizacaoFatura->endereco)
-                                    <span>{{ $documento->empresa_endereco ?? '' }}</span> <br>
-                                @endif
-                                @if ($dadosPersonalizacaoFatura->nif)
-                                    <span><b>Contribuinte:</b> {{ $documento->empresa_nif ?? '' }}</span> <br>
-                                @endif
-                                @if ($dadosPersonalizacaoFatura->email)
-                                    <span><b>E-mail:</b> {{ $documento->empresa_email ?? '' }}</span> <br>
-                                @endif
-                                @if ($dadosPersonalizacaoFatura->telefone)
-                                    <span><b>Tel:</b> {{ $documento->empresa_telefone ?? '' }}</span> <br>
-                                @endif
-                            </div>
-
-                            <div class="col-right" style="text-align: right;">
-                                @if (!$dadosPersonalizacaoFatura->mostrar_logo)
-                                    <span style="font-size: 12pt; font-weight: bold;">{{ $documento->tipo_nome }}</span>
-                                    <br>
-                                    <span style="font-size: 10pt;">{{ $documento->via }}</span> <br> <br>
-                                @endif
-                                <strong
-                                    style="margin-top: 15px;">{{ $documento->cliente_nome ?? 'Milagres jr' }}</strong><br>
-                                @if ($dadosPersonalizacaoFatura->endereco_cliente)
-                                    <span>{{ $documento->cliente_endereco ?? '' }}</span>
-                                @endif
-                                <img src="data:image/png;base64,{{ $qrCode }}"
-                                    style="display: block; float: right; width:70px;">
-                            </div>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <tr>
+                                    <td style="vertical-align: top; width: 60%;">
+                                        <span
+                                            style="font-size: 12pt; font-weight: bold;">{{ $documento->empresa_nome ?? '' }}</span>
+                                        <br>
+                                        @if ($dadosPersonalizacaoFatura->endereco)
+                                            <span>{{ $documento->empresa_endereco ?? '' }}</span> <br>
+                                        @endif
+                                        @if ($dadosPersonalizacaoFatura->nif)
+                                            <span><b>Contribuinte:</b> {{ $documento->empresa_nif ?? '' }}</span> <br>
+                                        @endif
+                                        @if ($dadosPersonalizacaoFatura->email)
+                                            <span><b>E-mail:</b> {{ $documento->empresa_email ?? '' }}</span> <br>
+                                        @endif
+                                        @if ($dadosPersonalizacaoFatura->telefone)
+                                            <span><b>Tel:</b> {{ $documento->empresa_telefone ?? '' }}</span> <br>
+                                        @endif
+                                    </td>
+                                    <td style="vertical-align: top; text-align: right; width: 40%;">
+                                        @if (!$src)
+                                            <span style="font-size: 12pt; font-weight: bold;">{{ $documento->tipo_nome }}</span>
+                                            <br>
+                                            <span style="font-size: 10pt;">{{ $documento->via }}</span> <br> <br>
+                                        @endif
+                                        <strong>{{ $documento->cliente_nome ?? 'Milagres jr' }}</strong><br>
+                                        @if ($dadosPersonalizacaoFatura->endereco_cliente)
+                                            <span>{{ $documento->cliente_endereco ?? '' }}</span>
+                                        @endif
+                                    </td>
+                                    <td style="vertical-align: top; text-align: right; width: 70px; padding-left: 10px;">
+                                        <img src="data:image/png;base64,{{ $qrCode }}"
+                                            style="width: 70px; display: block;">
+                                    </td>
+                                </tr>
+                            </table>
 
                         </header>
 

@@ -87,6 +87,7 @@ class NotaCreditoService
         $documento = Documento::create([
             'tipo_nome' => 'Nota de Crédito',
             'tipo_sigla' => 'NC',
+            'template' => $faturaOriginal->template,
             'num_fatura' => $numFatura,
             'via' => 'original',
             'serie_id' => $dados['serie_id'],
@@ -96,6 +97,7 @@ class NotaCreditoService
             'empresa_telefone' => $faturaOriginal->empresa_telefone,
             'empresa_email' => $faturaOriginal->empresa_email,
             'empresa_endereco' => $faturaOriginal->empresa_endereco,
+            'empresa_logo' => $faturaOriginal->empresa_logo,
             'cliente_id' => $faturaOriginal->cliente_id,
             'cliente_nome' => $faturaOriginal->cliente_nome,
             'cliente_nif' => $faturaOriginal->cliente_nif,

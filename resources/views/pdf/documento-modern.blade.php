@@ -136,7 +136,7 @@
             <div class="header">
 
                 <div class="left">
-                    @if ($dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo)
+                    @if ($src)
                         <img src="{{ $src }}" style="width:120px; margin-bottom:5px;">
                     @endif
 

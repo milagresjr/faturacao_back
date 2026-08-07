@@ -78,6 +78,7 @@ class DocumentoTransformService
             $novoDocumento = Documento::create([
                 'tipo_nome' => $dados['tipo_nome_destino'],
                 'tipo_sigla' => $dados['tipo_destino'],
+                'template' => $documentoOrigem->template,
                 'estado_documento' => $dados['estado_documento'] ?? 'emitido',
                 'estado_pagamento' => $estadoPagamento,
                 'estado_vencimento' => $dados['estado_vencimento'] ?? 'no_prazo',
@@ -89,6 +90,7 @@ class DocumentoTransformService
                 'empresa_telefone' => $documentoOrigem->empresa_telefone,
                 'empresa_email' => $documentoOrigem->empresa_email,
                 'empresa_endereco' => $documentoOrigem->empresa_endereco,
+                'empresa_logo' => $documentoOrigem->empresa_logo,
                 'cliente_id' => $documentoOrigem->cliente_id,
                 'cliente_nome' => $documentoOrigem->cliente_nome,
                 'cliente_nif' => $documentoOrigem->cliente_nif,

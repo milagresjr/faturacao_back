@@ -48,11 +48,13 @@ class FaturaPdfService
         $itens = collect($documento->itens);
         $dadosPersonalizacaoFatura = ConfiguracaoFatura::where('empresa_id', $documento->empresa_id)->first();
 
-        $maxLinhas = $this->calcularMaxLinhas($dadosPersonalizacaoFatura);
+        $maxLinhas = $this->calcularMaxLinhas(!empty($documento->empresa_logo));
         $paginas = $this->paginarItens($itens, $maxLinhas);
 
-        $logoData = $this->logotipoService->carregar($documento->empresa_id);
-        $src = $logoData['src'];
+        $src = null;
+        if ($documento->empresa_logo) {
+            $src = $this->logotipoService->obterSrc($documento->empresa_logo);
+        }
 
         $configFat = ConfiguracaoFatura::where('empresa_id', $documento->empresa_id)->first();
         $numVias = $configFat->num_via;
@@ -69,8 +71,8 @@ class FaturaPdfService
         $options->set('isRemoteEnabled', true);
 
         $dompdf = new Dompdf($options);
-        $template = ConfiguracaoFatura::where('empresa_id', $documento->empresa_id)->value('template');
-        $templateView = $template === 'classic' ? 'pdf.documento-classic' : 'pdf.documento-modern';
+        $template = in_array($documento->template, ['classic', 'modern', 'minimal']) ? $documento->template : 'classic';
+        $templateView = $template === 'modern' ? 'pdf.documento-modern' : 'pdf.documento-classic';
 
         $html = view($templateView, compact(
             'documento',
@@ -118,9 +120,11 @@ class FaturaPdfService
         $bancos = BancoDocumento::where('documento_id', $id)->get();
         $meiosPagamento = MeioPagamentoDocumento::where('documento_id', $id)->get();
 
-        $logoData = $this->logotipoService->carregar($documento->empresa_id);
-        $src = $logoData['src'];
-        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+        $src = null;
+        if ($documento->empresa_logo) {
+            $src = $this->logotipoService->obterSrc($documento->empresa_logo);
+        }
+        $dadosPersonalizacaoFatura = ConfiguracaoFatura::where('empresa_id', $documento->empresa_id)->first();
 
         $configFat = ConfiguracaoFatura::where('empresa_id', $documento->empresa_id)->first();
         $numVias = $configFat->num_via;
@@ -185,9 +189,8 @@ class FaturaPdfService
         $quadroImposto = ImpostoDocumentoCompra::where('documento_compra_id', $id)->get();
         $quadroImpostoAgrupado = $this->agruparImpostos($quadroImposto);
 
-        $logoData = $this->logotipoService->carregar($documento->empresa_id);
-        $src = $logoData['src'];
-        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+        $src = null;
+        $dadosPersonalizacaoFatura = ConfiguracaoFatura::where('empresa_id', $documento->empresa_id)->first();
 
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
@@ -259,13 +262,9 @@ class FaturaPdfService
         return $agrupado;
     }
 
-    private function calcularMaxLinhas(?ConfiguracaoFatura $config): int
+    private function calcularMaxLinhas(bool $temLogo): int
     {
-        $max = 25;
-        if ($config && $config->mostrar_logo && $config->logo) {
-            $max = 22;
-        }
-        return $max;
+        return $temLogo ? 22 : 25;
     }
 
     private function paginarItens($itens, int $maxLinhas): array

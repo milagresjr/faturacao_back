@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\EstadoPagamento;
 use App\Models\Conta;
+use App\Models\ConfiguracaoFatura;
 use App\Models\Documento;
 use App\Models\Empresa;
 use App\Models\ImpostoDocumento;
@@ -21,6 +22,7 @@ class FaturaService
         private CalculoImpostoService $impostoService,
         private DocumentoService $documentoService,
         private ReciboService $reciboService,
+        private LogotipoService $logotipoService,
     ) {}
 
     public function criar(array $dados)
@@ -84,6 +86,7 @@ class FaturaService
             $documento = Documento::create([
                 'tipo_nome' => $dados['tipo_fatura'],
                 'tipo_sigla' => $dados['sigla_fatura'],
+                'template' => $this->logotipoService->obterTemplate($empresa->id),
                 'armazem_id' => $dados['armazem_id'] ?? null,
                 'estado_documento' => $estadoDoc,
                 'estado_pagamento' => $estadoPagamento,
@@ -96,6 +99,7 @@ class FaturaService
                 'empresa_telefone' => $dados['empresa_telefone'] ?? $empresa->telefone,
                 'empresa_email' => $dados['empresa_email'] ?? $empresa->email,
                 'empresa_endereco' => $dados['empresa_endereco'] ?? $empresa->morada,
+                'empresa_logo' => $this->logotipoService->obterNomeLogo($empresa->id),
                 'cliente_id' => $dados['cliente_id'] ?? null,
                 'cliente_nome' => $dados['cliente_nome'],
                 'cliente_nif' => $dados['cliente_nif'],

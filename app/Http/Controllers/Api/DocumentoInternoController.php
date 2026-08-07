@@ -27,9 +27,11 @@ class DocumentoInternoController extends Controller
     {
         $documento = DocumentoInterno::with('itens')->find($id);
 
-        $logoData = app(LogotipoService::class)->carregar($documento->empresa_id);
-        $src = $logoData['src'];
-        $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
+        $src = null;
+        if ($documento->empresa_logo) {
+            $src = app(LogotipoService::class)->obterSrc($documento->empresa_logo);
+        }
+        $dadosPersonalizacaoFatura = app(LogotipoService::class)->carregar($documento->empresa_id)['dadosPersonalizacaoFatura'];
 
         $options = new Options();
         $options->set("isHtml5ParserEnabled", true);
@@ -110,7 +112,10 @@ class DocumentoInternoController extends Controller
         }
 
         $logoData = app(LogotipoService::class)->carregar($doc->empresa_id);
-        $src = $logoData['src'];
+        $src = null;
+        if ($doc->empresa_logo) {
+            $src = app(LogotipoService::class)->obterSrc($doc->empresa_logo);
+        }
         $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
 
         $opts = new Options();
@@ -176,7 +181,10 @@ class DocumentoInternoController extends Controller
         }
 
         $logoData = app(LogotipoService::class)->carregar($doc->empresa_id);
-        $src = $logoData['src'];
+        $src = null;
+        if ($doc->empresa_logo) {
+            $src = app(LogotipoService::class)->obterSrc($doc->empresa_logo);
+        }
         $dadosPersonalizacaoFatura = $logoData['dadosPersonalizacaoFatura'];
 
         $opts = new Options();

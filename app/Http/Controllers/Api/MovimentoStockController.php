@@ -13,6 +13,7 @@ use App\Models\Produto;
 use App\Models\Stock;
 use App\Models\Utilizador;
 use App\Services\ValidadeService;
+use App\Services\LogotipoService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,11 +26,13 @@ class MovimentoStockController extends Controller
 {
 
     protected $validadeService;  // ← NOVO
+    protected $logotipoService;
 
     // ← NOVO: Injetar o serviço
-    public function __construct(ValidadeService $validadeService)
+    public function __construct(ValidadeService $validadeService, LogotipoService $logotipoService)
     {
         $this->validadeService = $validadeService;
+        $this->logotipoService = $logotipoService;
     }
 
     /**
@@ -848,6 +851,7 @@ class MovimentoStockController extends Controller
             $documento = DocumentoInterno::create([
                 'tipo_nome' => 'Nota de Quebra',
                 'tipo_sigla' => 'NQ',
+                'template' => $this->logotipoService->obterTemplate($empresa->id),
                 'estado_documento' => 'emitido',
                 'num_fatura' => $numFatura,
                 'via' => 'original',
@@ -858,6 +862,7 @@ class MovimentoStockController extends Controller
                 "empresa_telefone" => $empresa->telefone,
                 "empresa_email" => $empresa->email,
                 "empresa_endereco" => $empresa->endereco,
+                "empresa_logo" => $this->logotipoService->obterNomeLogo($empresa->id),
 
                 "cliente_id" => "0",
 
@@ -954,6 +959,7 @@ class MovimentoStockController extends Controller
             $documento = DocumentoInterno::create([
                 'tipo_nome' => $tipo === 'entrada_inventario' ? 'Entrada de Inventário' : 'Saída de Inventário',
                 'tipo_sigla' => $tipo === 'entrada_inventario' ? 'EI' : 'SI',
+                'template' => $this->logotipoService->obterTemplate($empresa->id),
                 // 'estado_documento' => 'emitido',
                 'num_fatura' => $numFatura,
                 'via' => 'original',
@@ -964,6 +970,7 @@ class MovimentoStockController extends Controller
                 "empresa_telefone" => $empresa->telefone,
                 "empresa_email" => $empresa->email,
                 "empresa_endereco" => $empresa->endereco,
+                "empresa_logo" => $this->logotipoService->obterNomeLogo($empresa->id),
 
                 "data_emissao" => now(),
 
@@ -1071,6 +1078,7 @@ class MovimentoStockController extends Controller
             $documento = DocumentoInterno::create([
                 'tipo_nome' => 'Transferência',
                 'tipo_sigla' => 'TR',
+                'template' => $this->logotipoService->obterTemplate($empresa->id),
                 'estado_documento' => 'emitido',
                 'num_fatura' => $numFatura,
                 'via' => 'original',
@@ -1081,6 +1089,7 @@ class MovimentoStockController extends Controller
                 "empresa_telefone" => $empresa->telefone,
                 "empresa_email" => $empresa->email,
                 "empresa_endereco" => $empresa->endereco,
+                "empresa_logo" => $this->logotipoService->obterNomeLogo($empresa->id),
 
                 "cliente_id" => "0",
 

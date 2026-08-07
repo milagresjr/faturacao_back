@@ -78,12 +78,12 @@ class AuthTest extends TestCase
         ]);
     }
 
-    public function test_utilizador_pode_fazer_login(): void
+    public function test_utilizador_pode_fazer_login_com_nome_de_utilizador(): void
     {
         $this->criarUtilizador();
 
         $response = $this->postJson('/api/login', [
-            'nome_de_utilizador' => 'joao.teste',
+            'login' => 'joao.teste',
             'senha' => 'password123',
         ]);
 
@@ -92,15 +92,27 @@ class AuthTest extends TestCase
             'message',
             'utilizador' => ['id', 'nome_pessoal', 'nome_de_utilizador', 'email'],
             'token_type',
-            'remember_me',
         ]);
         $response->assertJson([
             'message' => 'Login successful',
             'token_type' => 'Bearer',
         ]);
-        
+
         // Token agora vem no cookie, não no body
         $this->assertNotEmpty($response->headers->get('Set-Cookie'));
+    }
+
+    public function test_utilizador_pode_fazer_login_com_email(): void
+    {
+        $this->criarUtilizador();
+
+        $response = $this->postJson('/api/login', [
+            'login' => 'joao@teste.com',
+            'senha' => 'password123',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson(['message' => 'Login successful']);
     }
 
     public function test_login_falha_com_senha_errada(): void
@@ -108,12 +120,12 @@ class AuthTest extends TestCase
         $this->criarUtilizador();
 
         $response = $this->postJson('/api/login', [
-            'nome_de_utilizador' => 'joao.teste',
+            'login' => 'joao.teste',
             'senha' => 'senha_errada',
         ]);
 
         $response->assertStatus(401);
-        $response->assertJson(['message' => 'Invalid credentials']);
+        $response->assertJson(['message' => 'Credenciais inválidas']);
     }
 
     public function test_utilizador_pode_fazer_logout(): void

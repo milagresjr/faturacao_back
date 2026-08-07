@@ -17,6 +17,7 @@ class DocumentoFinalizeService
         private CalculoImpostoService $impostoService,
         private DocumentoService $documentoService,
         private ReciboService $reciboService,
+        private LogotipoService $logotipoService,
     ) {}
 
     public function finalizar(array $dados, int $id)
@@ -100,6 +101,7 @@ class DocumentoFinalizeService
             $documento->update([
                 'tipo_nome' => $dados['tipo_fatura'],
                 'tipo_sigla' => $dados['sigla_fatura'],
+                'template' => $this->logotipoService->obterTemplate($dados['empresa_id']),
                 'estado_documento' => $dados['estado_documento'] ?? 'emitido',
                 'estado_pagamento' => $estadoPagamento,
                 'estado_vencimento' => $dados['estado_vencimento'] ?? 'no_prazo',
@@ -111,6 +113,7 @@ class DocumentoFinalizeService
                 'empresa_telefone' => $dados['empresa_telefone'] ?? null,
                 'empresa_email' => $dados['empresa_email'] ?? null,
                 'empresa_endereco' => $dados['empresa_endereco'] ?? null,
+                'empresa_logo' => $this->logotipoService->obterNomeLogo($dados['empresa_id']),
                 'cliente_id' => $dados['cliente_id'] ?? null,
                 'cliente_nome' => $dados['cliente_nome'],
                 'cliente_nif' => $dados['cliente_nif'],

@@ -50,6 +50,7 @@ Route::middleware('api')->group(function () {
 });
 
 Route::post('/forgot-password', [UtilizadorController::class, 'sendCodePasswordReset']);
+Route::post('/verify-reset-code', [UtilizadorController::class, 'verifyResetCode']);
 Route::patch('/reset-new-password', [UtilizadorController::class, 'resetNewPassword']);
 
 Route::get('/calcular-hash-agt/{id}', [DocumentoController::class, 'calcularHashAGT']);

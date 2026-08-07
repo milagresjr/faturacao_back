@@ -55,14 +55,20 @@ class ReciboService
 
         $troco = max($totalEntregue - $dados['total_geral'], 0);
 
+        $docPai = isset($dados['documento_relacionado_id'])
+            ? Documento::find($dados['documento_relacionado_id'])
+            : null;
+
         $documento = Documento::create([
             'tipo_nome' => $dados['tipo_fatura'],
             'tipo_sigla' => $dados['sigla_fatura'],
+            'template' => $docPai ? $docPai->template : null,
             'num_fatura' => $numRecibo,
             'via' => 'Original',
             'empresa_id' => $dados['empresa_id'],
             'empresa_nome' => $dados['empresa_nome'],
             'empresa_nif' => $dados['empresa_nif'],
+            'empresa_logo' => $docPai ? $docPai->empresa_logo : null,
             'cliente_id' => $dados['cliente_id'] ?? null,
             'cliente_nome' => $dados['cliente_nome'] ?? null,
             'cliente_nif' => $dados['cliente_nif'] ?? null,

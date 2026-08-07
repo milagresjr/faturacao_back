@@ -95,7 +95,7 @@
 
 {{-- HEADER --}}
 <div class="header">
-    @if(!empty($dadosPersonalizacaoFatura) && $dadosPersonalizacaoFatura->mostrar_logo && $dadosPersonalizacaoFatura->logo && $src)
+    @if ($src)
         <div style="text-align: center; margin-bottom: 15px;">
             <img src="{{ $src }}" alt="Logo" style="width: 120px; height: 80px; object-fit: contain;">
         </div>

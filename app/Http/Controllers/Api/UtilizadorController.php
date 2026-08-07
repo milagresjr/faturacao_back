@@ -229,7 +229,7 @@ class UtilizadorController extends Controller
             'senha' => ['required', 'confirmed', 'min:8'],
             'utilizador_id' => ['nullable', 'exists:utilizadores,id'], // opcional
         ]);
-        
+
         if ($validated->fails()) {
             return response()->json([
                 'message' => 'Erro de validação',
@@ -281,11 +281,24 @@ class UtilizadorController extends Controller
     public function sendCodePasswordReset(Request $request)
     {
 
-        $request->validate([
-            'email' => 'required|email|exists:utilizadores,email',
+        $validated = Validator::make($request->all(), [
+            'email' => 'required|email',
         ]);
 
+        if ($validated->fails()) {
+            return response()->json([
+                'message' => 'Erro de validação',
+                'errors' => $validated->errors()
+            ], 422);
+        }
+
         $user = Utilizador::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Este e-mail não está registado no sistema.',
+            ], 404);
+        }
 
         // Gerar código de 6 dígitos
         $code = rand(100000, 999999);
@@ -318,6 +331,43 @@ class UtilizadorController extends Controller
         ]);
     }
 
+    public function verifyResetCode(Request $request)
+    {
+        $validated = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'codigo' => 'required|string|min:6|max:6',
+        ]);
+
+        if ($validated->fails()) {
+            return response()->json([
+                'message' => 'Erro de validação',
+                'errors' => $validated->errors()
+            ], 422);
+        }
+
+        $data = $validated->validated();
+
+        $reset = DB::table('password_resets_custom')
+            ->where('email', $data['email'])
+            ->where('token', $data['codigo'])
+            ->first();
+
+        if (!$reset) {
+            return response()->json(['message' => 'Código inválido.'], 400);
+        }
+
+        if (Carbon::now()->greaterThan($reset->expires_at)) {
+            return response()->json(['message' => 'Código expirado. Solicite um novo código.'], 400);
+        }
+
+        DB::table('password_resets_custom')
+            ->where('email', $data['email'])
+            ->where('token', $data['codigo'])
+            ->update(['verified_at' => now()]);
+
+        return response()->json(['message' => 'Código verificado com sucesso.']);
+    }
+
     public function resetNewPassword(Request $request)
     {
         $validated = Validator::make($request->all(), [
@@ -347,7 +397,11 @@ class UtilizadorController extends Controller
             }
 
             if (Carbon::now()->greaterThan($reset->expires_at)) {
-                return response()->json(['message' => 'Código expirado.'], 400);
+                return response()->json(['message' => 'Código expirado. Solicite um novo código.'], 400);
+            }
+
+            if (!$reset->verified_at) {
+                return response()->json(['message' => 'O código ainda não foi verificado.'], 400);
             }
 
             $userEmail = $reset->email ?? null;

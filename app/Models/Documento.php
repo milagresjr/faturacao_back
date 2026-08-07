@@ -16,6 +16,7 @@ class Documento extends Model
         'tipo_nome',
         'tipo_sigla',
         'tipo_cor',
+        'template',
 
         'armazem_id',
 

@@ -52,7 +52,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $validated = Validator::make($request->all(), [
-            'nome_de_utilizador' => 'required|string',
+            'login' => 'required|string',
             'senha' => 'required|string',
             'remember_me' => 'sometimes|boolean',
         ]);
@@ -61,12 +61,18 @@ class AuthController extends Controller
             return response()->json(['message' => 'Validation error', 'errors' => $validated->errors()], 422);
         }
 
+        $login = $request->input('login');
+
         $utilizador = $this->loadUtilizadorCompleto()
-            ->whereRaw('BINARY nome_de_utilizador = ?', [$request->nome_de_utilizador])->first();
+            ->where(function ($q) use ($login) {
+                $q->whereRaw('BINARY nome_de_utilizador = ?', [$login])
+                    ->orWhereRaw('BINARY email = ?', [$login]);
+            })
+            ->first();
 
         if (!$utilizador || !password_verify($request->senha, $utilizador->senha)) {
             return response()->json([
-                'message' => 'Invalid credentials'
+                'message' => 'Credenciais inválidas'
             ], 401);
         }
 
