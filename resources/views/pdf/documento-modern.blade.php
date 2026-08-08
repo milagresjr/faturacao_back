@@ -407,6 +407,11 @@
                                 <strong>{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</strong>
                             </td>
                         </tr>
+                        <tr>
+                            <td colspan="2" style="font-size: 8pt; font-style: italic; border: none; padding-top: 4px;">
+                                {{ $totalPorExtenso }}
+                            </td>
+                        </tr>
                     </table>
                 </div>
 

@@ -493,19 +493,25 @@
                                 {{ number_format($documento->retencao, 2, ',', '.') }}
                             </td>
                         </tr>
-                        <tr>
-                            <td style="text-align: left; padding: 2px;">Troco</td>
-                            <td style="text-align: right; padding: 2px;">
-                                {{ number_format($documento->troco, 2, ',', '.') }}
-                            </td>
-                        </tr>
-                        <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
-                            <th style="text-align: left; padding: 2px;">Total (Kz)</th>
-                            <td style="text-align: right; padding: 2px;">
-                                <strong>{{ number_format($documento->total_geral, 2, ',', '.') }}</strong>
-                            </td>
-                        </tr>
-                    </table>
+<tr>
+            <td style="text-align: left; padding: 2px;">Troco</td>
+            <td style="text-align: right; padding: 2px;">
+                {{ number_format($documento->troco, 2, ',', '.') }}
+            </td>
+        </tr>
+        <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
+            <th style="text-align: left; padding: 2px;">Total (Kz)</th>
+            <td style="text-align: right; padding: 2px;">
+                <strong>{{ number_format($documento->total_geral, 2, ',', '.') }}</strong>
+            </td>
+        </tr>
+        <tr class="borderless">
+            <td colspan="2"
+                style="text-align: left; padding: 4px 2px 0 2px; font-size: 8pt; font-style: italic; border: none;">
+                {{ $totalPorExtenso }}
+            </td>
+        </tr>
+    </table>
                 </div>
 
             </div>

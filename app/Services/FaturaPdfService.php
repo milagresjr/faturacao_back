@@ -23,6 +23,7 @@ class FaturaPdfService
 {
     public function __construct(
         private LogotipoService $logotipoService,
+        private NumeroPorExtensoService $numeroPorExtensoService,
     ) {}
 
     public function gerarPdf(int $id)
@@ -66,6 +67,8 @@ class FaturaPdfService
 
         $qrCode = $this->gerarQrCode($documento);
 
+        $totalPorExtenso = $this->numeroPorExtensoService->converter($documento->total_geral);
+
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
@@ -85,7 +88,8 @@ class FaturaPdfService
             'dadosPersonalizacaoFatura',
             'vias',
             'totalPaginasPorVia',
-            'qrCode'
+            'qrCode',
+            'totalPorExtenso'
         ))->render();
 
         $dompdf->loadHtml($html);
@@ -132,6 +136,8 @@ class FaturaPdfService
 
         $qrCode = $this->gerarQrCode($documento);
 
+        $totalPorExtenso = $this->numeroPorExtensoService->converter($valorPago);
+
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
@@ -147,7 +153,8 @@ class FaturaPdfService
             'src',
             'dadosPersonalizacaoFatura',
             'vias',
-            'qrCode'
+            'qrCode',
+            'totalPorExtenso'
         ))->render();
 
         $dompdf->loadHtml($html);

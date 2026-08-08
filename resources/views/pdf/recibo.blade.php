@@ -281,6 +281,12 @@
                         <strong>{{ number_format($valorPago, 2, ',', '.') }}</strong>
                     </td>
                 </tr>
+                <tr>
+                    <td colspan="2"
+                        style="text-align: left; padding: 4px 2px 0 2px; font-size: 8pt; font-style: italic; border: none;">
+                        {{ $totalPorExtenso }}
+                    </td>
+                </tr>
             </table>
         </div>
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DocumentoInterno;
 use App\Services\LogotipoService;
+use App\Services\NumeroPorExtensoService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
@@ -39,12 +40,15 @@ class DocumentoInternoController extends Controller
 
         $dompdf = new Dompdf($options);
 
+        $totalPorExtenso = app(NumeroPorExtensoService::class)->converter($documento->total_geral);
+
         $html = view(
             "pdf.documento-interno-transferencia",
             compact([
                 "documento",
                 "src",
                 "dadosPersonalizacaoFatura",
+                "totalPorExtenso",
             ]),
         )->render();
         $dompdf->loadHtml($html);
@@ -124,10 +128,13 @@ class DocumentoInternoController extends Controller
 
         $pdf = new Dompdf($opts);
 
+        $totalPorExtenso = app(NumeroPorExtensoService::class)->converter($doc->total_geral);
+
         $html = view('pdf.documento-interno-nota-quebra', [
             'documento' => $doc,
             'src' => $src,
             'dadosPersonalizacaoFatura' => $dadosPersonalizacaoFatura,
+            'totalPorExtenso' => $totalPorExtenso,
         ])->render();
         $pdf->loadHtml($html);
         $pdf->setPaper('A4', 'portrait');
