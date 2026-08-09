@@ -269,7 +269,7 @@
             <table
                 style="width: 100%; border-collapse: collapse; border-top: 1px solid #000; border-bottom: 1px solid #000;">
                 <tr>
-                    <td style="text-align: left; padding: 2px;">Subtotal<< /td>
+                    <td style="text-align: left; padding: 2px;">Subtotal</td>
                     <td style="text-align: right; padding: 2px;">
                         {{ number_format($valorPago, 2, ',', '.') }}
                     </td>
