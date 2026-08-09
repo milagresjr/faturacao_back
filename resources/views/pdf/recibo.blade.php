@@ -216,9 +216,9 @@
                 <tr>
                     <td>{{ $documento->data_emissao }}</td>
                     <td>{{ $docRelacionado->num_fatura }}</td>
-                    <td>{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</td>
+                    <td>{{ number_format($docRelacionado->total_geral, 2, ',', '.') }} Kz</td>
                     <td>{{ number_format($valorPago, 2, ',', '.') }} Kz</td>
-                    <td>{{ number_format($documento->total_geral - $valorPago, 2, ',', '.') }} Kz</td>
+                    <td>{{ number_format($docRelacionado->total_geral - $valorPago, 2, ',', '.') }} Kz</td>
                 </tr>
             </tbody>
         </table>
