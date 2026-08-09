@@ -277,7 +277,7 @@ class AuthController extends Controller
 
     private function cookieDomain(): string
     {
-        return env('COOKIE_DOMAIN', 'app.localhost');
+        return (string) config('autenticacao.cookie_domain', 'app.localhost');
     }
 
     private function cookieSecure(): bool
@@ -287,11 +287,11 @@ class AuthController extends Controller
             return true;
         }
 
-        return env('APP_ENV') === 'production' && env('APP_DEBUG') !== 'true';
+        return (bool) config('autenticacao.cookie_secure', false);
     }
 
     private function cookieSameSite(): string
     {
-        return env('COOKIE_SAME_SITE', 'lax');
+        return (string) config('autenticacao.cookie_same_site', 'lax');
     }
 }
