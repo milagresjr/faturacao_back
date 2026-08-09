@@ -259,10 +259,11 @@ class UtilizadorController extends Controller
 
             DB::commit();
 
-            $cookieDomain = env('COOKIE_DOMAIN', 'app.localhost');
-            $secure = env('APP_ENV') === 'production' && env('APP_DEBUG') !== 'true';
+            $cookieDomain = (string) config('autenticacao.cookie_domain', 'app.localhost');
+            $secure = (bool) config('autenticacao.cookie_secure', false);
+            $sameSite = (string) config('autenticacao.cookie_same_site', 'lax');
 
-            $cookie = Cookie::make('must_change_password', (int)$user->must_change_password, 10080, '/', $cookieDomain, $secure, true, false, 'lax');
+            $cookie = Cookie::make('must_change_password', (int)$user->must_change_password, 10080, '/', $cookieDomain, $secure, true, false, $sameSite);
 
             return response()->json([
                 'message' => 'Senha alterada com sucesso',

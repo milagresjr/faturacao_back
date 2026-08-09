@@ -241,12 +241,17 @@ class EmpresaController extends Controller
     {
         $user = $request->user();
 
-        $cookieDomain = env('COOKIE_DOMAIN', 'app.localhost');
-        $secure = env('APP_ENV') === 'production' && env('APP_DEBUG') !== 'true';
+        $cookieDomain = (string) config('autenticacao.cookie_domain', 'app.localhost');
+        $secure = (bool) config('autenticacao.cookie_secure', false);
+        $sameSite = (string) config('autenticacao.cookie_same_site', 'lax');
 
-        $cookie = Cookie::make('must_fill_data_empresa', 0, 10080, '/', $cookieDomain, $secure, true, false, 'lax');
+        $cookie = Cookie::make('must_fill_data_empresa', 0, 10080, '/', $cookieDomain, $secure, true, false, $sameSite);
 
-        return response()->json(['message' => 'Fill data skipped for this session', 'must_fill_data_empresa' => $user->must_fill_data_empresa], 200)->withCookie($cookie);
+        // Persiste o estado do utilizador para que sobreviva a logout/login
+        $user->must_fill_data_empresa = 0;
+        $user->save();
+
+        return response()->json(['message' => 'Fill data skipped for this session', 'must_fill_data_empresa' => 0], 200)->withCookie($cookie);
     }
 
     function fillDataEmpresaUser(Request $request)
@@ -300,10 +305,11 @@ class EmpresaController extends Controller
             'must_fill_data_empresa' => false
         ]);
 
-        $cookieDomain = env('COOKIE_DOMAIN', 'app.localhost');
-        $secure = env('APP_ENV') === 'production' && env('APP_DEBUG') !== 'true';
+        $cookieDomain = (string) config('autenticacao.cookie_domain', 'app.localhost');
+        $secure = (bool) config('autenticacao.cookie_secure', false);
+        $sameSite = (string) config('autenticacao.cookie_same_site', 'lax');
 
-        $cookie = Cookie::make('must_fill_data_empresa', 0, 10080, '/', $cookieDomain, $secure, true, false, 'lax');
+        $cookie = Cookie::make('must_fill_data_empresa', 0, 10080, '/', $cookieDomain, $secure, true, false, $sameSite);
 
         return response()->json($user, 201)->withCookie($cookie);
     }
