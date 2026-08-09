@@ -219,15 +219,16 @@ class AuthController extends Controller
     {
         $cookieDomain = $this->cookieDomain();
         $secure = $this->cookieSecure();
+        $samesite = $this->cookieSameSite();
 
         $mustChangePassword ??= (int) $utilizador->must_change_password;
         $mustFillDataEmpresa ??= (int) $utilizador->must_fill_data_empresa;
 
-        $accessCookie = Cookie::make(self::ACCESS_COOKIE, $accessToken, (int) config('autenticacao.access_token_minutes'), '/', $cookieDomain, $secure, true, false, 'lax');
-        $refreshCookie = Cookie::make(self::REFRESH_COOKIE, $refreshToken, $refreshMinutes, '/', $cookieDomain, $secure, true, false, 'lax');
-        $mustChangePasswordCookie = Cookie::make(self::MUST_CHANGE_PASSWORD_COOKIE, $mustChangePassword, $refreshMinutes, '/', $cookieDomain, $secure, true, false, 'lax');
-        $mustFillDataEmpresaCookie = Cookie::make(self::MUST_FILL_DATA_EMPRESA_COOKIE, $mustFillDataEmpresa, $refreshMinutes, '/', $cookieDomain, $secure, true, false, 'lax');
-        $hasAuthCookie = Cookie::make(self::HAS_AUTH_COOKIE, '1', $refreshMinutes, '/', $cookieDomain, $secure, false, false, 'lax');
+        $accessCookie = Cookie::make(self::ACCESS_COOKIE, $accessToken, (int) config('autenticacao.access_token_minutes'), '/', $cookieDomain, $secure, true, false, $samesite);
+        $refreshCookie = Cookie::make(self::REFRESH_COOKIE, $refreshToken, $refreshMinutes, '/', $cookieDomain, $secure, true, false, $samesite);
+        $mustChangePasswordCookie = Cookie::make(self::MUST_CHANGE_PASSWORD_COOKIE, $mustChangePassword, $refreshMinutes, '/', $cookieDomain, $secure, true, false, $samesite);
+        $mustFillDataEmpresaCookie = Cookie::make(self::MUST_FILL_DATA_EMPRESA_COOKIE, $mustFillDataEmpresa, $refreshMinutes, '/', $cookieDomain, $secure, true, false, $samesite);
+        $hasAuthCookie = Cookie::make(self::HAS_AUTH_COOKIE, '1', $refreshMinutes, '/', $cookieDomain, $secure, false, false, $samesite);
 
         return response()->json([
             'message' => $message,
@@ -281,6 +282,16 @@ class AuthController extends Controller
 
     private function cookieSecure(): bool
     {
+        // Se SameSite=none, secure DEVE ser true (o browser rejeita o cookie caso contrário)
+        if ($this->cookieSameSite() === 'none') {
+            return true;
+        }
+
         return env('APP_ENV') === 'production' && env('APP_DEBUG') !== 'true';
+    }
+
+    private function cookieSameSite(): string
+    {
+        return env('COOKIE_SAME_SITE', 'lax');
     }
 }
