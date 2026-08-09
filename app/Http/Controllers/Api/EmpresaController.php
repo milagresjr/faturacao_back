@@ -8,6 +8,7 @@ use App\Models\Caixa;
 use App\Models\ConfiguracaoFatura;
 use App\Models\Empresa;
 use App\Models\Filial;
+use App\Models\Moeda;
 use App\Models\Serie;
 use App\Models\TipoStock;
 use App\Models\Utilizador;
@@ -123,6 +124,17 @@ class EmpresaController extends Controller
                 'empresa_id' => $empresa->id,
                 'armazem_id' => $armazemCreated->id,
                 'usuario_id' => $storeUser->id
+            ]);
+
+            //Criar a moeda padrão (Kwanza)
+            Moeda::create([
+                'empresa_id' => $empresa->id,
+                'codigo' => 'AKZ',
+                'nome' => 'Kwanza',
+                'simbolo' => 'Kz',
+                'casas_decimais' => 2,
+                'predefinida' => true,
+                'estado' => true
             ]);
 
             foreach (Serie::getTipoDocumento() as $tipo => $prefixo) {

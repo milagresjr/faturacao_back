@@ -1,0 +1,32 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('config_validacao_produtos', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('produto_id');
+            $table->integer('dias_alerta_precoce')->default(30);
+            $table->integer('dias_alerta_critico')->default(7);
+            $table->timestamps();
+
+            $table->foreign('produto_id')->references('id')->on('produtos')->onDelete('cascade');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('config_validacao_produtos');
+    }
+};

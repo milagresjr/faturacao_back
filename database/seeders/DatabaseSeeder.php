@@ -21,7 +21,9 @@ class DatabaseSeeder extends Seeder
             MotivoIsencaoTableSeeder::class,
             BancosSeeder::class,
             TipoClienteSeeder::class,
-            TipoProdutoSeeder::class
+            TipoProdutoSeeder::class,
+            MoedaSeeder::class,
+            NotificacaoSeeder::class
         ]);
     }
 }

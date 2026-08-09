@@ -4,17 +4,27 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Armazem;
+use App\Models\CategoriaProduto;
+use App\Models\Fornecedor;
 use App\Models\LoteProduto;
-use Illuminate\Http\Request;
+use App\Models\Marca;
 use App\Models\Produto;
 use App\Models\Stock;
+use App\Models\SubCategoria;
+use App\Models\TipoTaxaIva;
+use App\Models\TipoStock;
 use App\Services\LogotipoService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ProdutoController extends Controller
 {
@@ -800,5 +810,577 @@ class ProdutoController extends Controller
         ])->setPaper('A4', 'landscape');
 
         return $pdf->stream('relatorio_produtos.pdf');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | EXPORTAR / IMPORTAR
+    |--------------------------------------------------------------------------
+    */
+
+    private function colunasExportacao(): array
+    {
+        return [
+            'nome',
+            'descricao',
+            'codigo_produto',
+            'codigo_barra',
+            'preco_custo',
+            'preco_venda',
+            'preco_final',
+            'margem_lucro',
+            'valor_iva',
+            'stock_min',
+            'stock_max',
+            'stock_ideial',
+            'unidade',
+            'imposto',
+            'tipo',
+            'marca',
+            'categoria',
+            'sub_categoria',
+            'fornecedor',
+            'armazem',
+            'tipo_stock',
+            'controla_validade',
+            'movimenta_stock',
+            'estado',
+        ];
+    }
+
+    private function produtosFormatadosExport(Request $request): array
+    {
+        $empresaId = $request->input('empresa_id');
+
+        $query = Produto::with(['marca', 'categoria', 'subCategoria', 'fornecedor', 'armazem'])
+            ->where('empresa_id', $empresaId);
+
+        if ($request->search) {
+            $query->where(function ($q) use ($request) {
+                $q->where('nome', 'like', "%{$request->search}%")
+                    ->orWhere('descricao', 'like', "%{$request->search}%")
+                    ->orWhere('codigo_produto', 'like', "%{$request->search}%");
+            });
+        }
+
+        if ($request->categoria_id && $request->categoria_id !== 'all') {
+            $query->where('categoria_id', $request->categoria_id);
+        }
+
+        if ($request->marca_id && $request->marca_id !== 'all') {
+            $query->where('marca_id', $request->marca_id);
+        }
+
+        if ($request->fornecedor_id && $request->fornecedor_id !== 'all') {
+            $query->where('fornecedor_id', $request->fornecedor_id);
+        }
+
+        if ($request->data_inicio) {
+            $query->whereDate('created_at', '>=', $request->data_inicio);
+        }
+
+        if ($request->data_fim) {
+            $query->whereDate('created_at', '<=', $request->data_fim);
+        }
+
+        return $query->orderByDesc('id')
+            ->get()
+            ->map(function ($produto) {
+                $tipoIva = $produto->tipoIva;
+                return [
+                    $produto->nome,
+                    $produto->descricao ?? '',
+                    $produto->codigo_produto ?? '',
+                    $produto->codigo_barra ?? '',
+                    $produto->preco_custo ?? 0,
+                    $produto->preco_venda ?? 0,
+                    $produto->preco_final ?? 0,
+                    $produto->margem_lucro ?? 0,
+                    $produto->valor_iva ?? 0,
+                    $produto->stock_min ?? 0,
+                    $produto->stock_max ?? 0,
+                    $produto->stock_ideial ?? 0,
+                    $produto->unidade ?? '',
+                    $produto->imposto ?? ($tipoIva ? $tipoIva->id : ''),
+                    $produto->tipo->nome ?? '',
+                    $produto->marca->nome ?? '',
+                    $produto->categoria->nome ?? '',
+                    $produto->subCategoria->nome ?? '',
+                    $produto->fornecedor->nome ?? '',
+                    $produto->armazem->nome ?? '',
+                    $produto->tipoStock ? ($produto->tipoStock->tipo ?? '') : '',
+                    $produto->controla_validade ? 'sim' : 'nao',
+                    $produto->movimenta_stock ? 'sim' : 'nao',
+                    $produto->estado ? 'ativo' : 'inativo',
+                ];
+            })
+            ->toArray();
+    }
+
+    public function exportarCsv(Request $request)
+    {
+        $linhas = $this->produtosFormatadosExport($request);
+
+        $csv = fopen('php://temp', 'r+');
+        fwrite($csv, "\xEF\xBB\xBF");
+        fputcsv($csv, array_merge(['id'], $this->colunasExportacao()), separator: ',', enclosure: '"', escape: '\\');
+
+        $linhas = array_map(function ($linha, $indice) {
+            return array_merge([$indice + 1], $linha);
+        }, $linhas, array_keys($linhas));
+
+        foreach ($linhas as $linha) {
+            fputcsv($csv, $linha, separator: ',', enclosure: '"', escape: '\\');
+        }
+        rewind($csv);
+        $content = stream_get_contents($csv);
+        fclose($csv);
+
+        return response($content, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="produtos.csv"',
+        ]);
+    }
+
+    public function exportarExcel(Request $request)
+    {
+        $linhas = $this->produtosFormatadosExport($request);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Produtos');
+
+        $headings = array_merge(['id'], $this->colunasExportacao());
+
+        foreach (range('A', $sheet->getHighestColumn()) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Cabeçalho
+        foreach ($headings as $indice => $titulo) {
+            $coordenada = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($indice + 1) . '1';
+            $sheet->setCellValue($coordenada, $titulo);
+        }
+
+        $sheet->getStyle('A1:' . $sheet->getHighestDataColumn() . '1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '4F46E5'],
+            ],
+        ]);
+
+        $linhas = array_map(function ($linha, $indice) {
+            return array_merge([$indice + 1], $linha);
+        }, $linhas, array_keys($linhas));
+
+        $sheet->fromArray($linhas, null, 'A2');
+
+        $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        return response($content, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="produtos.xlsx"',
+        ]);
+    }
+
+    public function importar(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt',
+            'empresa_id' => 'required|integer|exists:empresas,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $empresaId = (int) $request->input('empresa_id');
+        $utilizadorId = $request->input('utilizador_id');
+
+        $linhas = $this->lerLinhasArquivo($request->file('file'));
+
+        if (count($linhas) < 2) {
+            return response()->json(['message' => 'O arquivo está vazio.'], 422);
+        }
+
+        $cabecalho = array_map([$this, 'normalizarColuna'], $linhas[0]);
+        $cabecalhoOriginal = array_map(fn($v) => trim((string) $v), $linhas[0]);
+
+        // Mapeamento custom vindo do frontend: { coluna_original: campo_interno }
+        $mapeamentoCustom = $this->mapeamentoCustom($request);
+
+        $mapa = $this->construirMapa($cabecalho, $cabecalhoOriginal, $mapeamentoCustom);
+
+        $criados = 0;
+        $atualizados = 0;
+        $erros = [];
+
+        foreach (array_slice(array_values($linhas), 1) as $indice => $linha) {
+            $numeroLinha = $indice + 2;
+
+            if (!isset($linha[0])) {
+                continue;
+            }
+
+            $linha = array_values($linha);
+            $dados = [];
+
+            foreach ($mapa as $campo => $posicao) {
+                $dados[$campo] = $linha[$posicao] ?? null;
+            }
+
+            $nome = trim((string) ($dados['nome'] ?? ''));
+
+            if ($nome === '') {
+                $erros[] = ['linha' => $numeroLinha, 'erro' => 'Campo "nome" é obrigatório.'];
+                continue;
+            }
+
+            // Resolver relações por nome ou id
+            $tipoId = $this->resolverTipo($dados['tipo'] ?? null, $empresaId);
+            $marcaId = $this->resolverPorNome('Marca', $dados['marca'] ?? null, $empresaId);
+            $categoriaId = $this->resolverPorNome('CategoriaProduto', $dados['categoria'] ?? null, $empresaId);
+            $subCategoriaId = $this->resolverPorNome('SubCategoria', $dados['sub_categoria'] ?? null, $empresaId);
+            $fornecedorId = $this->resolverPorNome('Fornecedor', $dados['fornecedor'] ?? null, $empresaId);
+            $armazemId = $this->resolverPorNome('Armazem', $dados['armazem'] ?? null, $empresaId);
+
+            $imposto = $this->resolverImposto($dados['imposto'] ?? null, $empresaId);
+
+            $data = [
+                'nome' => $nome,
+                'descricao' => $dados['descricao'] ?? null,
+                'codigo_produto' => $dados['codigo_produto'] ?? null,
+                'codigo_barra' => $dados['codigo_barra'] ?? null,
+                'preco_custo' => $this->numerico($dados['preco_custo'] ?? 0) ?: 0,
+                'preco_venda' => $this->numerico($dados['preco_venda'] ?? 0) ?: 0,
+                'preco_final' => $this->numerico($dados['preco_final'] ?? 0) ?: 0,
+                'margem_lucro' => $this->numerico($dados['margem_lucro'] ?? 0) ?: 0,
+                'valor_iva' => $this->numerico($dados['valor_iva'] ?? 0) ?: 0,
+                'stock_min' => (int) ($this->numerico($dados['stock_min'] ?? 0) ?: 0),
+                'stock_max' => (int) ($this->numerico($dados['stock_max'] ?? 0) ?: 0),
+                'stock_ideial' => (int) ($this->numerico($dados['stock_ideial'] ?? 0) ?: 0),
+                'unidade' => $dados['unidade'] ?? 'UNI',
+                'imposto' => $imposto,
+                'marca_id' => $marcaId,
+                'categoria_id' => $categoriaId,
+                'sub_categoria_id' => $subCategoriaId,
+                'fornecedor_id' => $fornecedorId,
+                'armazem_id' => $armazemId,
+                'tipo_stock_id' => $this->resolverTipoStock($dados['tipo_stock'] ?? null, $empresaId),
+                'controla_validade' => $this->simNao($dados['controla_validade'] ?? 'nao'),
+                'movimenta_stock' => $this->simNao($dados['movimenta_stock'] ?? 'sim'),
+                'estado' => $this->ativoInativo($dados['estado'] ?? 'ativo'),
+                'empresa_id' => $empresaId,
+                'tipo_id' => $tipoId ?? 1,
+            ];
+
+            try {
+                $produto = null;
+
+                if (!empty($dados['codigo_produto'])) {
+                    $produto = Produto::where('empresa_id', $empresaId)
+                        ->where('codigo_produto', $dados['codigo_produto'])
+                        ->withTrashed()
+                        ->first();
+                } elseif ($nome !== '') {
+                    $produto = Produto::where('empresa_id', $empresaId)
+                        ->where('nome', $nome)
+                        ->first();
+                }
+
+                if ($produto) {
+                    if ($produto->trashed()) {
+                        $produto->restore();
+                    }
+                    // Na atualização, aplicar apenas as colunas presentes no arquivo
+                    $colunasPresentes = array_keys(array_filter($dados, fn($v) => $v !== null && $v !== ''));
+                    $camposAtualizar = array_intersect($colunasPresentes, $this->colunasExportacao());
+                    $produto->update(array_intersect_key($data, array_flip($camposAtualizar)));
+                    $atualizados++;
+                } else {
+                    if (empty($data['codigo_produto'])) {
+                        $data['codigo_produto'] = $this->gerarCodigoProduto($nome, $tipoId == 1 ? 'P' : 'S', $empresaId);
+                    }
+                    if (!$utilizadorId) {
+                        $utilizadorId = $request->input('utilizador_id');
+                    }
+                    $data['utilizador_id'] = $utilizadorId;
+
+                    $produto = DB::transaction(function () use ($data) {
+                        $novo = Produto::create($data);
+
+                        $armazens = Armazem::where('empresa_id', $data['empresa_id'])->get();
+                        foreach ($armazens as $armz) {
+                            Stock::firstOrCreate(
+                                ['produto_id' => $novo->id, 'armazem_id' => $armz->id],
+                                ['empresa_id' => $data['empresa_id'], 'stock_min' => 0, 'stock_ideal' => 0, 'stock_max' => 0, 'stock_atual' => 0]
+                            );
+                        }
+
+                        return $novo;
+                    });
+
+                    $criados++;
+                }
+            } catch (\Throwable $e) {
+                $erros[] = ['linha' => $numeroLinha, 'erro' => $e->getMessage()];
+            }
+        }
+
+        return response()->json([
+            'criados' => $criados,
+            'atualizados' => $atualizados,
+            'sucessos' => $criados + $atualizados,
+            'erros' => $erros,
+        ], 200);
+    }
+
+    private function lerLinhasArquivo($file): array
+    {
+        try {
+            $reader = IOFactory::createReaderForFile($file->getRealPath());
+            if ($reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Csv) {
+                $reader->setInputEncoding(\PhpOffice\PhpSpreadsheet\Reader\Csv::GUESS_ENCODING);
+            }
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($file->getRealPath());
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        return $spreadsheet->getActiveSheet()->toArray(null, false, true, false);
+    }
+
+    private function mapeamentoCustom(Request $request): array
+    {
+        $mapeamento = $request->input('mapeamento');
+
+        if (is_array($mapeamento)) {
+            return $mapeamento;
+        }
+
+        if (is_string($mapeamento) && $mapeamento !== '') {
+            $decoded = json_decode($mapeamento, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return [];
+    }
+
+    private function construirMapa(array $cabecalho, array $cabecalhoOriginal, array $mapeamentoCustom): array
+    {
+        if (!empty($mapeamentoCustom)) {
+            $mapa = [];
+            $normalizados = array_map([$this, 'normalizarColuna'], $cabecalhoOriginal);
+
+            foreach ($mapeamentoCustom as $coluna => $campo) {
+                if (empty($campo)) {
+                    continue;
+                }
+                $colunaNorm = $this->normalizarColuna($coluna);
+                $posicao = array_search($colunaNorm, $normalizados, true);
+
+                if ($posicao === false) {
+                    $posicao = array_search($this->normalizarColuna($coluna), $cabecalho, true);
+                }
+
+                if ($posicao !== false) {
+                    $mapa[$campo] = $posicao;
+                }
+            }
+
+            return $mapa;
+        }
+
+        return $this->mapearColunas($cabecalho);
+    }
+
+    public function importarPreview(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $linhas = $this->lerLinhasArquivo($request->file('file'));
+
+        if (empty($linhas)) {
+            return response()->json(['message' => 'Não foi possível ler o arquivo. Verifique o formato.'], 422);
+        }
+
+        $cabecalhos = array_values($linhas[0]);
+        $cabecalhos = array_map(fn($v) => trim((string) $v), $cabecalhos);
+
+        // Remover colunas vazias no fim
+        while (end($cabecalhos) === '' && count($cabecalhos) > 0) {
+            array_pop($cabecalhos);
+        }
+
+        $preview = array_slice(array_values($linhas), 1, 5);
+
+        return response()->json([
+            'cabecalhos' => $cabecalhos,
+            'preview' => array_map(fn($linha) => array_values($linha), $preview),
+            'total_linhas' => max(0, count(array_values($linhas)) - 1),
+        ]);
+    }
+
+    public function importPresets()
+    {
+        $config = config('import-mappings', ['presets' => [], 'campos' => []]);
+
+        $presets = collect($config['presets'] ?? [])->map(function ($preset, $chave) {
+            return [
+                'chave' => $chave,
+                'titulo' => $preset['titulo'] ?? $chave,
+                'mapeamento' => $preset['mapeamento'] ?? [],
+            ];
+        })->values();
+
+        $campos = collect($config['campos'] ?? [])->map(function ($campo, $chave) {
+            return [
+                'campo' => $chave,
+                'label' => $campo['label'] ?? $chave,
+                'obrigatorio' => $campo['obrigatorio'] ?? false,
+                'aliases' => $campo['aliases'] ?? [],
+            ];
+        })->values();
+
+        return response()->json([
+            'presets' => $presets,
+            'campos' => $campos,
+        ]);
+    }
+
+    private function normalizarColuna($valor): string
+    {
+        $valor = trim((string) $valor);
+        $valor = mb_strtolower($valor, 'UTF-8');
+        $valor = str_replace(
+            ['á', 'é', 'í', 'ó', 'ú', 'à', 'ê', 'ô', 'ã', 'õ', 'ç', ' '],
+            ['a', 'e', 'i', 'o', 'u', 'a', 'e', 'o', 'a', 'o', 'c', '_'],
+            $valor
+        );
+        return $valor;
+    }
+
+    private function mapearColunas(array $cabecalho): array
+    {
+        $mapa = [];
+        foreach ($cabecalho as $posicao => $coluna) {
+            if (in_array($coluna, ['id', 'stock_total', 'quantidade', 'preco_fixo', 'lucro_fixo'], true)) {
+                continue;
+            }
+            $mapa[$coluna] = $posicao;
+        }
+        return $mapa;
+    }
+
+    private function resolverTipo($valor, int $empresaId)
+    {
+        $valor = is_string($valor) ? trim($valor) : $valor;
+        if (is_numeric($valor)) {
+            return (int) $valor;
+        }
+        $nome = mb_strtolower((string) $valor, 'UTF-8');
+        if (str_contains($nome, 'serv')) {
+            return 2;
+        }
+        return 1;
+    }
+
+    private function resolverPorNome(string $modelo, $valor, int $empresaId)
+    {
+        if ($valor === null || $valor === '') {
+            return null;
+        }
+        if (is_numeric($valor)) {
+            return (int) $valor;
+        }
+        $model = 'App\\Models\\' . $modelo;
+        $registro = $model::where('nome', 'like', '%' . trim((string) $valor) . '%')->first();
+        return $registro ? $registro->id : null;
+    }
+
+    private function resolverImposto($valor, int $empresaId)
+    {
+        if ($valor === null || $valor === '') {
+            return null;
+        }
+        if (is_numeric($valor)) {
+            return (int) $valor;
+        }
+        $taxa = TipoTaxaIva::where('taxa', 'like', '%' . trim((string) $valor) . '%')->first();
+        return $taxa ? $taxa->id : null;
+    }
+
+    private function resolverTipoStock($valor, int $empresaId)
+    {
+        if ($valor === null || $valor === '') {
+            return null;
+        }
+        if (is_numeric($valor)) {
+            return (int) $valor;
+        }
+        $tipoStock = TipoStock::where('tipo', 'like', '%' . trim((string) $valor) . '%')
+            ->orWhere('sigla', 'like', '%' . trim((string) $valor) . '%')
+            ->first();
+        return $tipoStock ? $tipoStock->id : null;
+    }
+
+    private function simNao($valor): bool
+    {
+        if (is_bool($valor)) {
+            return $valor;
+        }
+        if (is_numeric($valor)) {
+            return (int) $valor === 1;
+        }
+        $valor = mb_strtolower(trim((string) $valor), 'UTF-8');
+        return in_array($valor, ['sim', 's', 'yes', 'true', 'verdadeiro', '1'], true);
+    }
+
+    private function ativoInativo($valor): bool
+    {
+        if (is_bool($valor)) {
+            return $valor;
+        }
+        if (is_numeric($valor)) {
+            return (int) $valor === 1;
+        }
+        $valor = mb_strtolower(trim((string) $valor), 'UTF-8');
+        return !in_array($valor, ['inativo', 'false', '0', 'no', 'nao'], true);
+    }
+
+    private function numerico($valor): float
+    {
+        if (is_numeric($valor)) {
+            return (float) $valor;
+        }
+
+        $valor = str_replace(['Kz', 'KZ', 'kz', ' '], '', trim((string) $valor));
+
+        if ($valor === '' || $valor === null) {
+            return 0;
+        }
+
+        // "1.234,56" (pt-BR/pt-PT: ponto como milhar, vírgula como decimal)
+        if (str_contains($valor, ',') && str_contains($valor, '.')) {
+            $valor = str_replace('.', '', $valor);
+            $valor = str_replace(',', '.', $valor);
+        } elseif (str_contains($valor, ',')) {
+            $valor = str_replace(',', '.', $valor);
+        }
+
+        return (float) $valor;
     }
 }

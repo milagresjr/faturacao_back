@@ -16,6 +16,7 @@ use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Endroid\QrCode\Builder\Builder;
+use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\PngWriter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -311,11 +312,17 @@ class FaturaPdfService
             '*G:' . $documento->data_emissao .
             '*H:' . $documento->total_geral;
 
+        $logoPath = storage_path('app/public/AGT/Logo-AGT.png');
+
         $builder = new Builder(
             writer: new PngWriter(),
             data: $qrString,
             size: 100,
-            margin: 2
+            margin: 2,
+            errorCorrectionLevel: ErrorCorrectionLevel::Quartile,
+            logoPath: file_exists($logoPath) ? $logoPath : '',
+            logoResizeToWidth: 32,
+            logoPunchoutBackground: true
         );
 
         $result = $builder->build();

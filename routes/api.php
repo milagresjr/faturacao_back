@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\FaturaCompraController;
 use App\Http\Controllers\Api\FilialController;
 use App\Http\Controllers\Api\FornecedorController;
 use App\Http\Controllers\Api\LoteController;
+use App\Http\Controllers\Api\MoedaController;
+use App\Http\Controllers\Api\TaxaCambioController;
 use App\Http\Controllers\Api\MarcaController;
 use App\Http\Controllers\Api\PerfilController;
 use App\Http\Controllers\Api\ProdutoController;
@@ -26,6 +28,7 @@ use App\Http\Controllers\Api\TipoClienteController;
 use App\Http\Controllers\Api\TipoProdutoController;
 use App\Http\Controllers\Api\MotivoIsencaoController;
 use App\Http\Controllers\Api\MovimentoStockController;
+use App\Http\Controllers\Api\NotificacaoController;
 use App\Http\Controllers\Api\PagamentoDocumentoCompraController;
 use App\Http\Controllers\Api\PermissaoController;
 use App\Http\Controllers\Api\SaftController;
@@ -80,6 +83,11 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
     Route::middleware(ForcePasswordChange::class)->group(function () {
 
+        Route::get('produtos/exportar-excel', [ProdutoController::class, 'exportarExcel']);
+        Route::get('produtos/exportar-csv', [ProdutoController::class, 'exportarCsv']);
+        Route::post('produtos/importar', [ProdutoController::class, 'importar']);
+        Route::post('produtos/importar-preview', [ProdutoController::class, 'importarPreview']);
+        Route::get('produtos/import-presets', [ProdutoController::class, 'importPresets']);
         Route::apiResource('produtos', ProdutoController::class);
         Route::patch('/produtos/{id}/change-estado', [ProdutoController::class, 'changeEstado']);
 
@@ -109,6 +117,18 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::apiResource('clientes', ClienteController::class);
         //Route::apiResource('produtos', ProdutoController::class);
         Route::get('motivo-isencao', [MotivoIsencaoController::class, 'index']);
+        Route::apiResource('motivo-isencao', MotivoIsencaoController::class)->only([
+            'store', 'update', 'destroy'
+        ]);
+        Route::apiResource('moedas', MoedaController::class);
+        Route::apiResource('taxas-cambio', TaxaCambioController::class);
+
+        Route::get('notificacoes', [NotificacaoController::class, 'index']);
+        Route::get('notificacoes/stats', [NotificacaoController::class, 'stats']);
+        Route::post('notificacoes/marcar-lida/{id}', [NotificacaoController::class, 'marcarLida']);
+        Route::post('notificacoes/marcar-todas', [NotificacaoController::class, 'marcarTodas']);
+        Route::get('notificacoes/exportar-pdf', [NotificacaoController::class, 'exportarPdf']);
+        Route::get('notificacoes/exportar-csv', [NotificacaoController::class, 'exportarCsv']);
         Route::apiResource('tipo-stock', TipoStockController::class);
 
         //Route::apiResource('utilizadores', UtilizadorController::class);

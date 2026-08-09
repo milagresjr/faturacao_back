@@ -40,6 +40,11 @@ class Empresa extends Model
         return $this->hasMany(Serie::class, 'empresa_id');
     }
 
+    public function moedas()
+    {
+        return $this->hasMany(Moeda::class, 'empresa_id');
+    }
+
     public function utilizadores()
     {
         return $this->hasMany(Utilizador::class, 'empresa_id');
