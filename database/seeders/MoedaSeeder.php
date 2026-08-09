@@ -17,6 +17,12 @@ class MoedaSeeder extends Seeder
         $empresas = Empresa::all();
 
         foreach ($empresas as $empresa) {
+            // Ignorar empresas com id inválido (0 ou negativo) — a FK exige id real
+            if ((int) $empresa->id <= 0) {
+                $this->command->warn("Empresa '{$empresa->nome}' ignorada (id inválido: {$empresa->id}).");
+                continue;
+            }
+
             $existe = Moeda::where('empresa_id', $empresa->id)
                 ->where('codigo', 'AKZ')
                 ->first();

@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\AlertaStock;
 use App\Models\ConfigValidacaoProduto;
+use App\Models\Empresa;
 use App\Models\LoteProduto;
 use App\Models\NotificacaoValidade;
 use App\Models\Produto;
@@ -15,7 +16,15 @@ class NotificacaoSeeder extends Seeder
 {
     public function run(): void
     {
-        $empresaId = 1;
+        // Usar a primeira empresa válida em vez de assumir o id 1
+        $empresa = Empresa::where('id', '>', 0)->orderBy('id')->first();
+
+        if (!$empresa) {
+            $this->command->warn('Nenhuma empresa encontrada. Notificações não criadas.');
+            return;
+        }
+
+        $empresaId = $empresa->id;
 
         // 1) Garantir configurações de validade dos produtos que controlam validade
         $produtosValidade = Produto::where('empresa_id', $empresaId)
