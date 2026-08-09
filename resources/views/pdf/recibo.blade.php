@@ -218,7 +218,7 @@
                     <td>{{ $docRelacionado->num_fatura }}</td>
                     <td>{{ number_format($docRelacionado->total_geral, 2, ',', '.') }} Kz</td>
                     <td>{{ number_format($valorPago, 2, ',', '.') }} Kz</td>
-                    <td>{{ number_format($docRelacionado->total_geral - $valorPago, 2, ',', '.') }} Kz</td>
+                    <td>{{ number_format($saldoDevedor, 2, ',', '.') }} Kz</td>
                 </tr>
             </tbody>
         </table>

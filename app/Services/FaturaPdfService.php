@@ -122,6 +122,20 @@ class FaturaPdfService
         $pagamento = MeioPagamentoDocumento::where('documento_id', $id)->first();
         $valorPago = $pagamento?->valor ?? 0;
 
+        if ($docRelacionado) {
+            $totalRecibos = $docRelacionado->documentosRelacionados()
+                ->wherePivot('tipo_relacao', 'RECIBO_FATURA')
+                ->sum('total_geral');
+
+            $totalNotasCredito = $docRelacionado->documentosRelacionados()
+                ->wherePivot('tipo_relacao', 'NOTA_DE_CREDITO_FATURA')
+                ->sum('total_geral');
+
+            $saldoDevedor = max(0, $docRelacionado->total_geral - $totalRecibos - $totalNotasCredito);
+        } else {
+            $saldoDevedor = 0;
+        }
+
         $bancos = BancoDocumento::where('documento_id', $id)->get();
         $meiosPagamento = MeioPagamentoDocumento::where('documento_id', $id)->get();
 
@@ -151,6 +165,7 @@ class FaturaPdfService
             'bancos',
             'meiosPagamento',
             'valorPago',
+            'saldoDevedor',
             'src',
             'dadosPersonalizacaoFatura',
             'vias',
