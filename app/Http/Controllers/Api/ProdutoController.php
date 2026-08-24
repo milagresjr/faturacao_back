@@ -43,6 +43,8 @@ class ProdutoController extends Controller
         $precoMaxCompra = $request->input('preco_max_compra');
         $estado = $request->input('estado');
         $stock = $request->input('stock');
+        $movimentaStock = $request->input('movimenta_stock');
+        $tipoId = $request->input('tipo_id');
 
         $produtoQuery = Produto::query();
 
@@ -51,6 +53,16 @@ class ProdutoController extends Controller
                 $q->where('nome', 'like', '%' . $search . '%')
                     ->orWhere('descricao', 'like', '%' . $search . '%');
             });
+        }
+
+        // Filtro por flag de movimentação de stock (ex.: fatura de compra)
+        if ($movimentaStock !== null && $movimentaStock !== '') {
+            $produtoQuery->where('produtos.movimenta_stock', filter_var($movimentaStock, FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
+        }
+
+        // Filtro por tipo de produto (1 = Produto, 2 = Serviço)
+        if ($tipoId !== null && $tipoId !== '') {
+            $produtoQuery->where('produtos.tipo_id', (int) $tipoId);
         }
 
         if ($categorias) {
@@ -314,6 +326,12 @@ class ProdutoController extends Controller
         }
 
         $data = $request->all();
+
+        // Serviço não movimenta stock nem controla validade
+        if ((int) ($data['tipo_id'] ?? 0) === 2) {
+            $data['movimenta_stock'] = false;
+            $data['controla_validade'] = false;
+        }
 
         return DB::transaction(function () use ($data, $request) {
 
@@ -634,6 +652,12 @@ class ProdutoController extends Controller
         }
 
         $data = $validator->validated();
+
+        // Serviço não movimenta stock nem controla validade
+        if ((int) ($data['tipo_id'] ?? $produto->tipo_id) === 2) {
+            $data['movimenta_stock'] = false;
+            $data['controla_validade'] = false;
+        }
 
         // Se houve upload, substitui o campo imagem
         if ($filename) {
@@ -1033,6 +1057,14 @@ class ProdutoController extends Controller
                 $dados[$campo] = $linha[$posicao] ?? null;
             }
 
+            // Normaliza chaves alternativas de stock (presets/mapeamento usam
+            // "stock_minimo"/"stock_maximo", o importador consome "stock_min"/"stock_max")
+            foreach (['stock_minimo' => 'stock_min', 'stock_maximo' => 'stock_max'] as $de => $para) {
+                if (!isset($dados[$para]) && isset($dados[$de])) {
+                    $dados[$para] = $dados[$de];
+                }
+            }
+
             $nome = trim((string) ($dados['nome'] ?? ''));
 
             if ($nome === '') {
@@ -1078,6 +1110,12 @@ class ProdutoController extends Controller
                 'tipo_id' => $tipoId ?? 1,
             ];
 
+            // Serviço não movimenta stock nem controla validade
+            if ((int) ($data['tipo_id'] ?? 1) === 2) {
+                $data['movimenta_stock'] = false;
+                $data['controla_validade'] = false;
+            }
+
             try {
                 $produto = null;
 
@@ -1099,6 +1137,17 @@ class ProdutoController extends Controller
                     // Na atualização, aplicar apenas as colunas presentes no arquivo
                     $colunasPresentes = array_keys(array_filter($dados, fn($v) => $v !== null && $v !== ''));
                     $camposAtualizar = array_intersect($colunasPresentes, $this->colunasExportacao());
+
+                    // Garante que serviço fique com as flags de stock desativadas,
+                    // mesmo que as colunas não venham no arquivo
+                    if ((int) ($data['tipo_id'] ?? 1) === 2) {
+                        foreach (['movimenta_stock', 'controla_validade'] as $flagServico) {
+                            if (!in_array($flagServico, $camposAtualizar)) {
+                                $camposAtualizar[] = $flagServico;
+                            }
+                        }
+                    }
+
                     $produto->update(array_intersect_key($data, array_flip($camposAtualizar)));
                     $atualizados++;
                 } else {

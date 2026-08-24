@@ -15,7 +15,10 @@ class CalculoImpostoService
         $subtotalBruto = 0;
 
         foreach ($itens as $item) {
-            $impostoTaxaId = $item['iva_percent'] ?? $item['imposto_taxa_id'] ?? null;
+            // Prioriza o ID real da taxa; no fluxo legado o ID vem dentro de 'iva_percent'
+            $impostoTaxaId = !empty($item['imposto_taxa_id'])
+                ? $item['imposto_taxa_id']
+                : ($item['iva_percent'] ?? null);
             $tipo = $impostoTaxaId ? TipoTaxaIva::find($impostoTaxaId) : null;
             $taxaIva = $tipo?->taxa ?? 0;
             $codigo = $tipo?->codigo ?? 'NOR';
@@ -176,7 +179,10 @@ class CalculoImpostoService
     {
         $result = [];
         foreach ($itens as $item) {
-            $idImpostoTaxa = $item['iva_percent'] ?? $item['imposto_taxa_id'] ?? null;
+            // Prioriza o ID real da taxa; no fluxo legado o ID vem dentro de 'iva_percent'
+            $idImpostoTaxa = !empty($item['imposto_taxa_id'])
+                ? $item['imposto_taxa_id']
+                : ($item['iva_percent'] ?? null);
             $tipoTaxa = $idImpostoTaxa ? TipoTaxaIva::find($idImpostoTaxa) : null;
             $taxaIva = $tipoTaxa?->taxa ?? 0;
             $codigoIva = $tipoTaxa?->codigo ?? 'NOR';
@@ -213,7 +219,8 @@ class CalculoImpostoService
                 'desconto_percent' => $item['desconto_percent'],
                 'desconto_fixo' => $item['desconto_fixo'],
                 'iva_percent' => $taxaIva ?? 0,
-                'imposto_taxa_id' => $idImpostoTaxa,
+                // Garante integridade da FK: só insere ID existente, caso contrário NULL
+                'imposto_taxa_id' => $tipoTaxa?->id,
                 'codigo_iva' => $codigoIva ?? '',
                 'tipo_id' => $item['tipo_id'] ?? null,
                 'motivo_isencao' => $motivoIsencaoDescricao,

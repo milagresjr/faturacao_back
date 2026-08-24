@@ -46,7 +46,7 @@ class FornecedorController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nome' => 'required|string|max:255',
-            'telefone' => 'required|string|max:20',
+            'telefone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255|unique:fornecedores,email',
             'endereco' => 'required|string|max:255',
             'nif' => 'required|string|max:50|unique:fornecedores,nif',
@@ -58,7 +58,6 @@ class FornecedorController extends Controller
             'empresa_id.exists' => 'A empresa selecionada não existe.',
             'utilizador_id.exists' => 'O utilizador selecionado não existe.',
             'nome.required' => 'O campo nome é obrigatório.',
-            'telefone.required' => 'O campo telefone é obrigatório.',
             'endereco.required' => 'O campo endereço é obrigatório.',
             'nif.required' => 'O campo NIF é obrigatório.',
         ]);
@@ -83,7 +82,7 @@ class FornecedorController extends Controller
 
         $validator = Validator::make($request->all(), [
             'nome' => 'sometimes|required|string|max:255',
-            'telefone' => 'sometimes|required|string|max:20',
+            'telefone' => 'sometimes|nullable|string|max:20',
             'email' => 'sometimes|required|email|max:255|unique:fornecedores,email,' . $id,
             'endereco' => 'sometimes|required|string|max:255',
             'nif' => 'sometimes|required|string|max:50|unique:fornecedores,nif,' . $id,
@@ -96,7 +95,6 @@ class FornecedorController extends Controller
             'empresa_id.exists' => 'A empresa selecionada não existe.',
             'utilizador_id.exists' => 'O utilizador selecionado não existe.',
             'nome.required' => 'O campo nome é obrigatório.',
-            'telefone.required' => 'O campo telefone é obrigatório.',
             'endereco.required' => 'O campo endereço é obrigatório.',
             'nif.required' => 'O campo NIF é obrigatório.',
         ]);

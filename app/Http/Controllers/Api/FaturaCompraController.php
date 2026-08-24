@@ -523,7 +523,7 @@ class FaturaCompraController extends Controller
             }
 
             //Atualiza o stock de cada produto da fatura
-            $documentoCompraService->updateStock($documento->load("itens"));
+            $stockResultado = $documentoCompraService->updateStock($documento->load("itens"));
 
             DB::commit();
         } catch (\Throwable $th) {
@@ -539,7 +539,8 @@ class FaturaCompraController extends Controller
 
         return response()->json([
             'message' => 'Documento de compra criado com sucesso.',
-            'documento' => $documento->load(['itens', 'otherItens', 'pagamentos.documento'])
+            'documento' => $documento->load(['itens', 'otherItens', 'pagamentos.documento']),
+            'stock' => $stockResultado,
         ], 201);
     }
 

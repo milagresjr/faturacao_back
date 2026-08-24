@@ -239,17 +239,14 @@ class EmpresaController extends Controller
 
     function skipFillData(Request $request)
     {
-        $user = $request->user();
-
         $cookieDomain = (string) config('autenticacao.cookie_domain', 'app.localhost');
         $secure = (bool) config('autenticacao.cookie_secure', false);
         $sameSite = (string) config('autenticacao.cookie_same_site', 'lax');
 
+        // O adiamento vale apenas para a sessão atual (via cookie).
+        // O valor na BD só é zerado quando o utilizador completa o preenchimento,
+        // garantindo que em novos logins ele volta para /welcome.
         $cookie = Cookie::make('must_fill_data_empresa', 0, 10080, '/', $cookieDomain, $secure, true, false, $sameSite);
-
-        // Persiste o estado do utilizador para que sobreviva a logout/login
-        $user->must_fill_data_empresa = 0;
-        $user->save();
 
         return response()->json(['message' => 'Fill data skipped for this session', 'must_fill_data_empresa' => 0], 200)->withCookie($cookie);
     }

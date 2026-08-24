@@ -8,6 +8,7 @@ use App\Models\LoteProduto;
 use App\Models\MovimentoStock;
 use App\Models\Produto;
 use App\Models\Stock;
+use Illuminate\Support\Facades\Log;
 
 class DocumentoCompraService
 {
@@ -95,13 +96,48 @@ class DocumentoCompraService
 
 
   //==================================================
-  public function updateStock(DocumentoCompra $documento)
+  public function updateStock(DocumentoCompra $documento): array
   {
+    $resultado = [
+      'movimentados' => [],
+      'ignorados' => [],
+    ];
+
     foreach ($documento->itens as $item) {
       $produto = Produto::find($item->produto_id);
 
+      if (!$produto) {
+        Log::warning('Item ignorado na atualização de stock da compra: produto não encontrado.', [
+          'documento' => $documento->num_fatura,
+          'produto_id' => $item->produto_id,
+          'quantidade' => $item->quantidade,
+        ]);
+
+        $resultado['ignorados'][] = [
+          'produto_id' => $item->produto_id,
+          'nome' => $item->nome ?? null,
+          'quantidade' => $item->quantidade,
+          'motivo' => 'Produto não encontrado',
+        ];
+        continue;
+      }
+
       // Se o produto não movimenta stock, pula
       if (!$produto->movimenta_stock) {
+        Log::warning('Item ignorado na atualização de stock da compra: produto configurado para não movimentar stock.', [
+          'documento' => $documento->num_fatura,
+          'produto_id' => $produto->id,
+          'produto_nome' => $produto->nome,
+          'tipo_id' => $produto->tipo_id,
+          'quantidade' => $item->quantidade,
+        ]);
+
+        $resultado['ignorados'][] = [
+          'produto_id' => $produto->id,
+          'nome' => $produto->nome,
+          'quantidade' => $item->quantidade,
+          'motivo' => 'Produto configurado para não movimentar stock',
+        ];
         continue;
       }
 
@@ -118,7 +154,15 @@ class DocumentoCompraService
       else {
         $this->atualizarStockSimplesEntrada($produto, $item, $documento);
       }
+
+      $resultado['movimentados'][] = [
+        'produto_id' => $produto->id,
+        'nome' => $produto->nome,
+        'quantidade' => $item->quantidade,
+      ];
     }
+
+    return $resultado;
   }
 
   /**
