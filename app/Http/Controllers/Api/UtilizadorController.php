@@ -467,7 +467,13 @@ class UtilizadorController extends Controller
 
     public function me(Request $request)
     {
-        $utilizador = $request->user()->load('perfil.permissoes');
+        // Carrega também a empresa (com NIF) — sem isto o frontend considera
+        // o NIF pendente até o refresh de sessão chegar, fazendo avisos "piscarem"
+        $utilizador = $request->user()->load([
+            'empresa:id,nome,email,nif,telefone,morada,regime_tributario',
+            'perfil:id,nome',
+            'perfil.permissoes:id,nome',
+        ]);
         $utilizador->makeHidden(['senha']);
         return response()->json($utilizador);
     }

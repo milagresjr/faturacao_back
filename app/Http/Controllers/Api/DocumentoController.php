@@ -17,6 +17,7 @@ use App\Services\DocumentoTransformService;
 use App\Services\FaturaPdfService;
 use App\Services\FaturaService;
 use App\Services\NotaCreditoService;
+use App\Services\NotaDebitoService;
 use App\Services\ReciboService;
 use App\Services\RelatorioService;
 use Carbon\Carbon;
@@ -29,6 +30,7 @@ class DocumentoController extends Controller
     public function __construct(
         private FaturaService $faturaService,
         private NotaCreditoService $notaCreditoService,
+        private NotaDebitoService $notaDebitoService,
         private ReciboService $reciboService,
         private DocumentoTransformService $transformService,
         private DocumentoFinalizeService $finalizeService,
@@ -119,6 +121,11 @@ class DocumentoController extends Controller
         return $this->relatorioService->listFaturas($request, 'NC');
     }
 
+    public function listNotaDebito(Request $request)
+    {
+        return $this->relatorioService->listFaturas($request, 'ND');
+    }
+
     public function store(Request $request, DocumentoService $documentoService)
     {
         $validated = Validator::make($request->all(), [
@@ -181,6 +188,25 @@ class DocumentoController extends Controller
         }
 
         return $this->notaCreditoService->criar($request->all());
+    }
+
+    public function storeNotaDebito(Request $request)
+    {
+        $validated = Validator::make($request->all(), [
+            'documento_id' => 'required|integer',
+            'serie_id' => 'required|integer',
+            'data_emissao' => 'required|date',
+            'motivo_emissao' => 'required|string',
+            'itens' => 'required|array|min:1',
+            'utilizador_id' => 'required|integer',
+            'utilizador' => 'required|string',
+        ]);
+
+        if ($validated->fails()) {
+            return response()->json(['message' => 'Erro de validação.', 'errors' => $validated->errors()], 422);
+        }
+
+        return $this->notaDebitoService->criar($request->all());
     }
 
     public function storeRecibo(Request $request, $tipoRelacao = 'RECIBO_FATURA')
@@ -288,7 +314,7 @@ class DocumentoController extends Controller
     public function show(string $id)
     {
         $documento = Documento::with([
-            'itens',
+            'itens.tipoIva',
             'impostosDocumento',
             'meiosPagamento',
             'documentosRelacionados',

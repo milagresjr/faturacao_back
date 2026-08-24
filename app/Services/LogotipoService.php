@@ -60,6 +60,37 @@ class LogotipoService
     }
 
     /**
+     * Retorna o logo com dimensões proporcionais dentro de uma caixa máxima.
+     * O DomPDF não suporta "object-fit", por isso o tamanho exato tem de ser
+     * calculado no servidor para não distorcer nem estourar o cabeçalho do PDF.
+     *
+     * @return array|null {src, largura, altura}
+     */
+    public function obterEstilo(?string $nomeLogo, int $maxLargura = 220, int $maxAltura = 90): ?array
+    {
+        $src = $this->obterSrc($nomeLogo);
+        if ($src === null) {
+            return null;
+        }
+
+        $imagePath = storage_path('app/public/logos-fatura/' . $nomeLogo);
+        [$larguraOriginal, $alturaOriginal] = @getimagesize($imagePath) ?: [0, 0];
+
+        if ($larguraOriginal <= 0 || $alturaOriginal <= 0) {
+            // Dimensões desconhecidas: usa a caixa máxima (comportamento antigo)
+            return ['src' => $src, 'largura' => $maxLargura, 'altura' => $maxAltura];
+        }
+
+        $escala = min($maxLargura / $larguraOriginal, $maxAltura / $alturaOriginal);
+
+        return [
+            'src' => $src,
+            'largura' => max(1, (int) round($larguraOriginal * $escala)),
+            'altura' => max(1, (int) round($alturaOriginal * $escala)),
+        ];
+    }
+
+    /**
      * Retorna o template de fatura (classic/modern/minimal) configurado na empresa.
      */
     public function obterTemplate(int $empresaId): string

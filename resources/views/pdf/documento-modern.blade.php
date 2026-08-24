@@ -17,10 +17,18 @@
         }
 
         body {
-            margin: 20 20 20 50px;
+            margin: 20px 20px 20px 50px;
             font-family: DejaVu Sans, sans-serif;
             font-size: 11px;
             color: #2d3748;
+        }
+
+        /* Bloco de resumo atómico: impostos + meios de pagamento + coordenadas
+           bancárias + totais nunca são partidos entre páginas — ou cabem na
+           página atual, ou vão INTEIROS para a seguinte. */
+        .resumo-final {
+            page-break-inside: avoid;
+            width: 100%;
         }
 
         .header {
@@ -137,7 +145,13 @@
 
                 <div class="left">
                     @if ($src)
-                        <img src="{{ $src }}" style="width:120px; margin-bottom:5px;">
+                        @php
+                            // Mantém o visual compacto do template, mas com proporção correta
+                            $fator = min(140 / $logo['largura'], 1);
+                            $logoLargura = (int) round($logo['largura'] * $fator);
+                            $logoAltura = (int) round($logo['altura'] * $fator);
+                        @endphp
+                        <img src="{{ $src }}" style="width: {{ $logoLargura }}px; height: {{ $logoAltura }}px; margin-bottom:5px;">
                     @endif
 
                     <div class="title">{{ $documento->empresa_nome }}</div>
@@ -294,8 +308,8 @@
             @endif
         @endforeach
 
-        {{-- BLOCO FINAL EM DUAS COLUNAS --}}
-        <div style="width:100%; margin-top: 10px;">
+        {{-- BLOCO FINAL EM DUAS COLUNAS — atómico: nunca é partido entre páginas --}}
+        <div class="resumo-final" style="margin-top: 10px;">
 
             {{-- ESQUERDA --}}
             <div style="float:left; width:55%;">

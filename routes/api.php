@@ -157,6 +157,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
 
         Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);
         Route::post('documentos/nota-credito', [DocumentoController::class, 'storeNotaCredito']);
+        Route::post('documentos/nota-debito', [DocumentoController::class, 'storeNotaDebito']);
         Route::post('documentos/{id}/anular', [DocumentoController::class, 'anularDocumento']);
         Route::get('documentos/relatorio', [DocumentoController::class, 'pdfRelatorioDocumento']);
         Route::get('documentos/faturacao-item', [DocumentoController::class, 'listFaturacaoPorItem']);
@@ -180,6 +181,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::get('documentos/tipo/fatura-proforma', [DocumentoController::class, 'listFaturaProforma']);
         Route::get('documentos/tipo/guia', [DocumentoController::class, 'listGuias']);
         Route::get('documentos/tipo/nota-credito', [DocumentoController::class, 'listNotaCredito']);
+        Route::get('documentos/tipo/nota-debito', [DocumentoController::class, 'listNotaDebito']);
 
         Route::apiResource('fatura-compra', FaturaCompraController::class);
         Route::get('relatorio/fatura-compra', [FaturaCompraController::class, 'pdfRelatorioDocumentoCompra']);

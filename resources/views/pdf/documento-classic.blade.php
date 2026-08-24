@@ -17,11 +17,19 @@
         }
 
         body {
-            margin: 20 20 20 50px;
+            margin: 20px 20px 20px 50px;
             /* margem esquerda maior */
             font-family: DejaVu Sans, sans-serif;
             font-size: 12px;
             position: relative;
+        }
+
+        /* Bloco de resumo atómico: impostos + meios de pagamento + coordenadas
+           bancárias + totais nunca são partidos entre páginas — ou cabem na
+           página atual, ou vão INTEIROS para a seguinte. */
+        .resumo-final {
+            page-break-inside: avoid;
+            width: 100%;
         }
 
         .header,
@@ -149,7 +157,7 @@
                                 <div style="border-bottom: 1px solid #069; width: 100%; margin-bottom: 10px;">
                                     <div style="display: inline-block; vertical-align: top;">
                                         <img src="{{ $src }}" alt="Logo"
-                                            style="width: 200px; height: 100px; z-index: 10; object-fit: contain; display: block;">
+                                            style="width: {{ $logo['largura'] }}px; height: {{ $logo['altura'] }}px; z-index: 10; display: block;">
                                     </div>
                                     <div
                                         style="display: block; float: right; width: 200px; text-align: right; margin-top: 20px;">
@@ -380,140 +388,141 @@
                 @endforeach
             </div>
 
-            <div class="section row" style="width: 100%;">
-                <!-- Impostos à esquerda -->
+            {{-- Bloco de resumo atómico: nunca é partido entre páginas --}}
+            <div class="resumo-final">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        {{-- Coluna esquerda: impostos, meios de pagamento e coordenadas bancárias --}}
+                        <td style="vertical-align: top; width: 65%;">
 
-                <div class="col-left" style="width: 70%; float: left; margin-top: 10px;">
-
-                    <table class="table-imposto" style="width: 420px; margin-bottom: 20px;">
-                        <thead>
-                            <tr>
-                                <th style="text-align: left;">Cod. IVA</th>
-                                <th style="text-align: left;">Taxa</th>
-                                <th style="text-align: left;">Incidência</th>
-                                <th style="text-align: right;">Imposto</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($quadroImpostoAgrupado as $valores)
-                                <tr>
-                                    <td style="font-size: 8pt;">{{ $valores['codigo'] }}</td>
-                                    <td style="font-size: 8pt;">
-                                        {{ $valores['taxa'] == 0 ? '0%' : (int) $valores['taxa'] . '%' }}
-                                    </td>
-                                    <td style="font-size: 8pt;">
-                                        {{ number_format($valores['incidencia'], 2, ',', '.') }} Kz
-                                    </td>
-                                    <td style="font-size: 8pt; text-align: right;">
-                                        {{ number_format($valores['imposto'], 2, ',', '.') }} Kz
-                                    </td>
-                                </tr>
-
-                                @if ($valores['taxa'] == 0 && !empty($valores['motivos']))
-                                    <tr class="borderless">
-                                        <td colspan="4" style="font-size: 10px; color: #555;">
-                                            @foreach (explode(';', $valores['motivos']) as $motivo)
-                                                @if (trim($motivo) !== '')
-                                                    <em
-                                                        style="font-size:8px; line-height:8px; margin:0; padding:0; display:block;">
-                                                        {{ trim($motivo) }}
-                                                    </em>
-                                                @endif
-                                            @endforeach
-                                        </td>
+                            <table class="table-imposto" style="width: 420px; margin-bottom: 20px;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left;">Cod. IVA</th>
+                                        <th style="text-align: left;">Taxa</th>
+                                        <th style="text-align: left;">Incidência</th>
+                                        <th style="text-align: right;">Imposto</th>
                                     </tr>
-                                @endif
-                            @endforeach
-                        </tbody>
-                    </table>
+                                </thead>
+                                <tbody>
+                                    @foreach ($quadroImpostoAgrupado as $valores)
+                                        <tr>
+                                            <td style="font-size: 8pt;">{{ $valores['codigo'] }}</td>
+                                            <td style="font-size: 8pt;">
+                                                {{ $valores['taxa'] == 0 ? '0%' : (int) $valores['taxa'] . '%' }}
+                                            </td>
+                                            <td style="font-size: 8pt;">
+                                                {{ number_format($valores['incidencia'], 2, ',', '.') }} Kz
+                                            </td>
+                                            <td style="font-size: 8pt; text-align: right;">
+                                                {{ number_format($valores['imposto'], 2, ',', '.') }} Kz
+                                            </td>
+                                        </tr>
 
-                    @if (count($meiosPagamento) > 0)
-                        <table class="table-meio-pag" style="width: 420px;">
-                            <tr style="border-top: 1px solid #000;">
-                                <th class="text-align: left;">Meio de Pagamento</th>
-                                <th></th>
-                            </tr>
-                            @foreach ($meiosPagamento as $meioPagamento)
+                                        @if ($valores['taxa'] == 0 && !empty($valores['motivos']))
+                                            <tr class="borderless">
+                                                <td colspan="4" style="font-size: 10px; color: #555;">
+                                                    @foreach (explode(';', $valores['motivos']) as $motivo)
+                                                        @if (trim($motivo) !== '')
+                                                            <em
+                                                                style="font-size:8px; line-height:8px; margin:0; padding:0; display:block;">
+                                                                {{ trim($motivo) }}
+                                                            </em>
+                                                        @endif
+                                                    @endforeach
+                                                </td>
+                                            </tr>
+                                        @endif
+                                    @endforeach
+                                </tbody>
+                            </table>
+
+                            @if (count($meiosPagamento) > 0)
+                                <table class="table-meio-pag" style="width: 420px;">
+                                    <tr style="border-top: 1px solid #000;">
+                                        <th class="text-align: left;">Meio de Pagamento</th>
+                                        <th></th>
+                                    </tr>
+                                    @foreach ($meiosPagamento as $meioPagamento)
+                                        <tr>
+                                            <td style="font-size: 8pt;">{{ $meioPagamento->descricao }}</td>
+                                            <td style="font-size: 8pt; text-align: right;">
+                                                {{ number_format($meioPagamento->valor, 2, ',', '.') }} Kz</td>
+                                        </tr>
+                                    @endforeach
+                                </table>
+                            @endif
+
+                            @if (!empty($bancos) && count($bancos) > 0)
+                                <b style="display: block; font-size: 10px; margin-top: 12px;">Coordenadas Bancárias</b>
+                                <table class="table-banco" style="margin-top: 4px; width: 420px;">
+                                    <tr>
+                                        <th style="font-size: 9pt; font-weight: 500;">Banco</th>
+                                        <th style="font-size: 9pt; font-weight: 500;">Nº Conta</th>
+                                        <th style="font-size: 9pt; font-weight: 500; text-align: right;">Iban</th>
+                                    </tr>
+                                    @foreach ($bancos as $banco)
+                                        <tr>
+                                            <td style="font-size: 8pt;">{{ $banco->sigla }}</td>
+                                            <td style="font-size: 8pt;">{{ $banco->numero_conta }}</td>
+                                            <td style="font-size: 8pt; text-align: right;">{{ $banco->iban }}</td>
+                                        </tr>
+                                    @endforeach
+                                </table>
+                            @endif
+
+                        </td>
+
+                        {{-- Coluna direita: totais --}}
+                        <td style="vertical-align: top; width: 35%; padding-left: 20px;">
+                            <table
+                                style="width: 250px; border-collapse: collapse; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-left: auto;">
                                 <tr>
-                                    <td style="font-size: 8pt;">{{ $meioPagamento->descricao }}</td>
-                                    <td style="font-size: 8pt; text-align: right;">
-                                        {{ number_format($meioPagamento->valor, 2, ',', '.') }} Kz</td>
+                                    <td style="text-align: left; padding: 2px;">Subtotal</td>
+                                    <td style="text-align: right; padding: 2px;">
+                                        {{ number_format($documento->total_sem_desconto, 2, ',', '.') }}
+                                    </td>
                                 </tr>
-                            @endforeach
-                        </table>
-                    @endif
-
-                    @if (!empty($bancos) && count($bancos) > 0)
-                        <table class="table-banco" style="margin-top: 10px; width: 420px;">
-                            <div>
-                                <b style="text-align: left; width: 50%;">Coordenadas Bancárias</b>
-                            </div>
-                            <tr>
-                                <th style="font-size: 9pt; font-weight: 500;">Banco</th>
-                                <th style="font-size: 9pt; font-weight: 500;">Nº Conta</th>
-                                <th style="font-size: 9pt; font-weight: 500; text-align: right;">Iban</th>
-                            </tr>
-                            @foreach ($bancos as $banco)
                                 <tr>
-                                    <td style="font-size: 8pt;">{{ $banco->sigla }}</td>
-                                    <td style="font-size: 8pt;">{{ $banco->numero_conta }}</td>
-                                    <td style="font-size: 8pt; text-align: right;">{{ $banco->iban }}</td>
+                                    <td style="text-align: left; padding: 2px;">Desconto</td>
+                                    <td style="text-align: right; padding: 2px;">
+                                        {{ number_format($documento->desconto_total, 2, ',', '.') }}
+                                    </td>
                                 </tr>
-                            @endforeach
-                        </table>
-                    @endif
-
-                </div>
-
-                <!-- Totais à direita -->
-                <div style="margin-top: 10px; width: 250px; display: block; float: right;">
-                    <table
-                        style="width: 100%; border-collapse: collapse; border-top: 1px solid #000; border-bottom: 1px solid #000;">
-                        <tr>
-                            <td style="text-align: left; padding: 2px;">Subtotal</td>
-                            <td style="text-align: right; padding: 2px;">
-                                {{ number_format($documento->total_sem_desconto, 2, ',', '.') }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="text-align: left; padding: 2px;">Desconto</td>
-                            <td style="text-align: right; padding: 2px;">
-                                {{ number_format($documento->desconto_total, 2, ',', '.') }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="text-align: left; padding: 2px;">IVA</td>
-                            <td style="text-align: right; padding: 2px;">
-                                {{ number_format($documento->total_impostos, 2, ',', '.') }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="text-align: left; padding: 2px;">Retenção</td>
-                            <td style="text-align: right; padding: 2px;">
-                                {{ number_format($documento->retencao, 2, ',', '.') }}
-                            </td>
-                        </tr>
-<tr>
-            <td style="text-align: left; padding: 2px;">Troco</td>
-            <td style="text-align: right; padding: 2px;">
-                {{ number_format($documento->troco, 2, ',', '.') }}
-            </td>
-        </tr>
-        <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
-            <th style="text-align: left; padding: 2px;">Total (Kz)</th>
-            <td style="text-align: right; padding: 2px;">
-                <strong>{{ number_format($documento->total_geral, 2, ',', '.') }}</strong>
-            </td>
-        </tr>
-        <tr class="borderless">
-            <td colspan="2"
-                style="text-align: left; padding: 4px 2px 0 2px; font-size: 8pt; font-style: italic; border: none;">
-                {{ $totalPorExtenso }}
-            </td>
-        </tr>
-    </table>
-                </div>
-
+                                <tr>
+                                    <td style="text-align: left; padding: 2px;">IVA</td>
+                                    <td style="text-align: right; padding: 2px;">
+                                        {{ number_format($documento->total_impostos, 2, ',', '.') }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="text-align: left; padding: 2px;">Retenção</td>
+                                    <td style="text-align: right; padding: 2px;">
+                                        {{ number_format($documento->retencao, 2, ',', '.') }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="text-align: left; padding: 2px;">Troco</td>
+                                    <td style="text-align: right; padding: 2px;">
+                                        {{ number_format($documento->troco, 2, ',', '.') }}
+                                    </td>
+                                </tr>
+                                <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
+                                    <th style="text-align: left; padding: 2px;">Total (Kz)</th>
+                                    <td style="text-align: right; padding: 2px;">
+                                        <strong>{{ number_format($documento->total_geral, 2, ',', '.') }}</strong>
+                                    </td>
+                                </tr>
+                                <tr class="borderless">
+                                    <td colspan="2"
+                                        style="text-align: left; padding: 4px 2px 0 2px; font-size: 8pt; font-style: italic; border: none;">
+                                        {{ $totalPorExtenso }}
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
         </div>

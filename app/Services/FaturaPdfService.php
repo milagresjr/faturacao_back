@@ -53,10 +53,11 @@ class FaturaPdfService
         $maxLinhas = $this->calcularMaxLinhas(!empty($documento->empresa_logo));
         $paginas = $this->paginarItens($itens, $maxLinhas);
 
-        $src = null;
-        if ($documento->empresa_logo) {
-            $src = $this->logotipoService->obterSrc($documento->empresa_logo);
-        }
+        // Logo com dimensões proporcionais (o DomPDF não suporta object-fit)
+        $logo = $documento->empresa_logo
+            ? $this->logotipoService->obterEstilo($documento->empresa_logo)
+            : null;
+        $src = $logo['src'] ?? null;
 
         $configFat = ConfiguracaoFatura::where('empresa_id', $documento->empresa_id)->first();
         $numVias = $configFat->num_via;
@@ -86,6 +87,7 @@ class FaturaPdfService
             'meiosPagamento',
             'infoGuia',
             'src',
+            'logo',
             'dadosPersonalizacaoFatura',
             'vias',
             'totalPaginasPorVia',
@@ -295,14 +297,52 @@ class FaturaPdfService
         $paginas = [];
         $subtotalTransportar = 0;
 
-        foreach ($itens->chunk($maxLinhas) as $chunk) {
+        // Reserva espaço na última página para o bloco de resumo
+        // (impostos, meios de pagamento, coordenadas bancárias e totais)
+        // caber na mesma página na maioria dos casos — quebra mais inteligente.
+        $reservaUltimaPagina = 4;
+
+        $total = $itens->count();
+        if ($total === 0) {
+            return [[
+                'itens' => $itens,
+                'valor_transportado' => 0,
+                'valor_transportar' => 0,
+            ]];
+        }
+
+        $numPaginas = (int) ceil($total / $maxLinhas);
+        $restantes = $total;
+        $offset = 0;
+
+        for ($i = 0; $i < $numPaginas; $i++) {
+            $capacidade = ($i === $numPaginas - 1)
+                ? max(1, $maxLinhas - $reservaUltimaPagina)
+                : $maxLinhas;
+
+            // Se, com a reserva, os restantes já couberem todos aqui sem estourar,
+            // consome tudo nesta página (evita página final quase vazia).
+            $qtd = min($restantes, $capacidade);
+
+            $chunk = $itens->slice($offset, $qtd)->values();
             $subtotalPagina = $chunk->sum('total');
+
             $paginas[] = [
                 'itens' => $chunk,
                 'valor_transportado' => $subtotalTransportar,
                 'valor_transportar' => $subtotalTransportar + $subtotalPagina,
             ];
+
             $subtotalTransportar += $subtotalPagina;
+            $offset += $qtd;
+            $restantes -= $qtd;
+
+            if ($restantes <= 0) {
+                break;
+            }
+
+            // Recalcula o número de páginas para o remanescente
+            $numPaginas = $i + 1 + (int) ceil($restantes / $maxLinhas);
         }
 
         return $paginas;
