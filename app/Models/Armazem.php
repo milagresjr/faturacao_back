@@ -11,6 +11,7 @@ class Armazem extends Model
     protected $fillable = [
         'nome',
         'endereco',
+        'numero_estabelecimento',
         'estado',
         'predefinido',
         'filial_id',

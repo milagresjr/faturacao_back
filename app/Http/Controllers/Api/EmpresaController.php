@@ -7,7 +7,6 @@ use App\Models\Armazem;
 use App\Models\Caixa;
 use App\Models\ConfiguracaoFatura;
 use App\Models\Empresa;
-use App\Models\Filial;
 use App\Models\Moeda;
 use App\Models\Serie;
 use App\Models\TipoStock;
@@ -103,17 +102,10 @@ class EmpresaController extends Controller
                 'empresa_id' => $empresa->id
             ]);
 
-            $filialCreated = Filial::create([
-                'nome' => 'Filial 1',
-                'empresa_id' => $empresa->id,
-                'utilizador_id' => $storeUser->id
-            ]);
-
             //Cadastrar Loja principal
             $armazemCreated = Armazem::create([
                 'nome' => 'Armazém Principal',
                 'predefinido' => '1',
-                'filial_id' => $filialCreated->id,
                 'empresa_id' => $empresa->id,
                 'utilizador_id' => $storeUser->id
             ]);

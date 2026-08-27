@@ -18,8 +18,8 @@ return [
     | - refresh_token_days: usado quando remember_me = true (sessão persistente)
     | - refresh_token_session_days: usado quando remember_me = false (sessão curta)
     */
-    'refresh_token_days' => (int) env('REFRESH_TOKEN_EXPIRATION_DAYS', 30),
-    'refresh_token_session_days' => (int) env('REFRESH_TOKEN_SESSION_DAYS', 1),
+    'refresh_token_days' => (float) env('REFRESH_TOKEN_EXPIRATION_DAYS', 30),
+    'refresh_token_session_days' => (float) env('REFRESH_TOKEN_SESSION_DAYS', 1),
 
     /*
     |--------------------------------------------------------------------------

@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BancoController;
 use App\Http\Controllers\Api\CaixaController;
+use App\Http\Controllers\Api\ConfiguracaoAgtController;
+use App\Http\Controllers\Api\ComunicacaoAgtController;
+use App\Http\Controllers\Api\SerieAgtController;
 use App\Http\Controllers\Api\CategoriaProdutoController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\ConfiguracaoFaturaController;
@@ -114,6 +117,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::apiResource('filiais', FilialController::class);
         Route::apiResource('armazens', ArmazemController::class);
         Route::apiResource('tipo-clientes', TipoClienteController::class);
+        Route::get('clientes/{id}/detail', [ClienteController::class, 'detail']);
         Route::apiResource('clientes', ClienteController::class);
         //Route::apiResource('produtos', ProdutoController::class);
         Route::get('motivo-isencao', [MotivoIsencaoController::class, 'index']);
@@ -205,6 +209,25 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::post('/comunicacao-agt/{id}/enviar', [DocumentoController::class, 'comunicacaoAgtEnviar']);
         Route::get('/comunicacao-agt/{id}/consultar', [DocumentoController::class, 'comunicacaoAgtConsultar']);
         Route::post('/comunicacao-agt/{id}/reenviar', [DocumentoController::class, 'comunicacaoAgtReenviar']);
+
+        // Configuração AGT
+        Route::get('/configuracoes-agt', [ConfiguracaoAgtController::class, 'show']);
+        Route::post('/configuracoes-agt', [ConfiguracaoAgtController::class, 'store']);
+
+        // Comunicações AGT
+        Route::get('/comunicacoes-agt', [ComunicacaoAgtController::class, 'index']);
+        Route::get('/comunicacoes-agt/pendentes', [ComunicacaoAgtController::class, 'pendentes']);
+        Route::post('/comunicacoes-agt/enviar', [ComunicacaoAgtController::class, 'enviar']);
+        Route::post('/comunicacoes-agt/enviar-varios', [ComunicacaoAgtController::class, 'enviarVarios']);
+        Route::get('/comunicacoes-agt/{id}/consultar', [ComunicacaoAgtController::class, 'consultar']);
+        Route::post('/comunicacoes-agt/{id}/reenviar', [ComunicacaoAgtController::class, 'reenviar']);
+
+        // Séries AGT
+        Route::get('/series-agt', [SerieAgtController::class, 'index']);
+        Route::get('/series-agt/{id}', [SerieAgtController::class, 'show']);
+        Route::post('/series-agt/solicitar', [SerieAgtController::class, 'solicitar']);
+        Route::post('/series-agt/sincronizar', [SerieAgtController::class, 'sincronizar']);
+        Route::patch('/series-agt/{id}/toggle-ativo', [SerieAgtController::class, 'toggleAtivo']);
 
         //});
         Route::patch('/series/{id}/definir-padrao', [SerieController::class, 'definirComoPadrao']);

@@ -3,37 +3,117 @@
 namespace App\Services;
 
 use App\Models\Documento;
-use Carbon\Carbon;
 
 class AgtHashService
 {
+    private string $softwareProductId = 'SoftSeven Faturacao';
+    private string $softwareProductVersion = '1.0.0';
+
+    /**
+     * Assinar informações do software (jwsSoftwareSignature).
+     * Usa a chave privada do software (gerada pela SoftSeven).
+     */
+    public function signSoftwareInfo(?string $softwareValidationNumber = null): string
+    {
+        $payload = [
+            'productId' => $this->softwareProductId,
+            'productVersion' => $this->softwareProductVersion,
+            'softwareValidationNumber' => $softwareValidationNumber ?? '',
+        ];
+
+        return $this->sign($payload, $this->getSoftwarePrivateKey());
+    }
+
+    /**
+     * Assinar um documento individual (jwsDocumentSignature).
+     * Usa a chave privada do software.
+     */
+    public function signDocument(Documento $documento): string
+    {
+        $payload = [
+            'documentNo' => $documento->num_fatura,
+            'taxRegistrationNumber' => $documento->empresa_nif,
+            'documentType' => $documento->tipo_sigla,
+            'documentDate' => $documento->data_emissao->format('Y-m-d'),
+            'customerTaxID' => $documento->cliente_nif ?? '',
+            'customerCountry' => 'AO',
+            'companyName' => $documento->empresa_nome ?? '',
+            'documentTotals' => [
+                'taxPayable' => (float) $documento->valor_iva,
+                'netTotal' => (float) $documento->total_sem_desconto,
+                'grossTotal' => (float) $documento->total_geral,
+            ],
+        ];
+
+        return $this->sign($payload, $this->getSoftwarePrivateKey());
+    }
+
+    /**
+     * Assinar o corpo do pedido (jwsSignature).
+     * Usa a chave privada do contribuinte (descarregada do portal AGT).
+     */
+    public function signRequest(array $payload, string $privateKeyPem): string
+    {
+        return $this->sign($payload, $privateKeyPem);
+    }
+
+    /**
+     * Calcular hash de integridade (para campo hash do documento).
+     * Mantido por compatibilidade com o modelo existente.
+     */
     public function calcular(int $documentoId): string
     {
         $documento = Documento::findOrFail($documentoId);
 
-        $invoiceDate = Carbon::parse($documento->data_emissao)->format('Y-m-d');
-        $systemEntryDate = Carbon::parse($documento->created_at)->format('Y-m-d\TH:i:s');
-        $grossTotal = number_format($documento->total_geral, 2, '.', '');
-
-        $hashAnterior = Documento::where('empresa_id', $documento->empresa_id)
-            ->where('tipo_sigla', $documento->tipo_sigla)
-            ->whereYear('data_emissao', $documento->data_emissao->year)
-            ->where('id', '<', $documento->id)
-            ->orderBy('id', 'desc')
-            ->value('hash') ?? '';
-
-        $mensagem = $invoiceDate . ';' .
-            $systemEntryDate . ';' .
+        $mensagem = $documento->empresa_nif . ';' .
             $documento->num_fatura . ';' .
-            $grossTotal . ';' .
-            $hashAnterior;
+            $documento->tipo_sigla . ';' .
+            $documento->data_emissao->format('Y-m-d') . ';' .
+            $documento->total_geral;
 
-        $privateKey = openssl_pkey_get_private(
-            file_get_contents(storage_path('app/keys/ChavePrivada.pem'))
-        );
+        return hash('sha256', $mensagem);
+    }
 
-        openssl_sign($mensagem, $assinatura, $privateKey, OPENSSL_ALGO_SHA1);
+    private function sign(array $payload, string $privateKeyPem): string
+    {
+        $header = json_encode(['typ' => 'JWS', 'alg' => 'RS256'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        return base64_encode($assinatura);
+        $payloadJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        $base64Header = $this->base64UrlEncode($header);
+        $base64Payload = $this->base64UrlEncode($payloadJson);
+
+        $signingInput = $base64Header . '.' . $base64Payload;
+
+        $privateKey = openssl_pkey_get_private($privateKeyPem);
+
+        if (!$privateKey) {
+            throw new \RuntimeException('Chave privada inválida ou não encontrada.');
+        }
+
+        $signature = '';
+        openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
+        openssl_pkey_free($privateKey);
+
+        return $signingInput . '.' . $this->base64UrlEncode($signature);
+    }
+
+    private function getSoftwarePrivateKey(): string
+    {
+        $path = storage_path('app/keys/ChavePrivada.pem');
+
+        if (!file_exists($path)) {
+            throw new \RuntimeException(
+                'Chave privada do software não encontrada. ' .
+                'Gere com: openssl genrsa -out ChavePrivada.pem 4096'
+            );
+        }
+
+        return file_get_contents($path);
+    }
+
+    private function base64UrlEncode(string $data): string
+    {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
     }
 }

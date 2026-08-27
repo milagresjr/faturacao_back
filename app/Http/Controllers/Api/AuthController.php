@@ -84,8 +84,8 @@ class AuthController extends Controller
 
         // Refresh token: longo, com rotação. Duração depende do remember_me.
         $refreshDays = $rememberMe
-            ? (int) config('autenticacao.refresh_token_days')
-            : (int) config('autenticacao.refresh_token_session_days');
+            ? (float) config('autenticacao.refresh_token_days')
+            : (float) config('autenticacao.refresh_token_session_days');
 
         $fingerprint = $this->deviceFingerprint($request);
 

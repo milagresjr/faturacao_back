@@ -42,4 +42,9 @@ return [
         'number' => env('SMS_NUMERO_ADMIN'),
     ],
 
+    'agt' => [
+        'username' => env('AGT_USERNAME'),
+        'password' => env('AGT_PASSWORD'),
+    ],
+
 ];

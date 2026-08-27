@@ -359,24 +359,19 @@ class FaturaPdfService
 
     private function gerarQrCode(Documento $documento): string
     {
-        $qrString = 'A:' . $documento->empresa_nif .
-            '*B:' . $documento->cliente_nif .
-            '*C:AO' .
-            '*D:' . $documento->tipo_sigla .
-            '*F:' . $documento->num_fatura .
-            '*G:' . $documento->data_emissao .
-            '*H:' . $documento->total_geral;
+        $documentNoEncoded = str_replace(' ', '%20', $documento->num_fatura);
+        $qrString = "https://quiosqueagt.minfin.gov.ao/facturacao-eletronica/consultar-fe?emissor={$documento->empresa_nif}&document={$documentNoEncoded}";
 
         $logoPath = storage_path('app/public/AGT/Logo-AGT.png');
 
         $builder = new Builder(
             writer: new PngWriter(),
             data: $qrString,
-            size: 100,
+            size: 350,
             margin: 2,
-            errorCorrectionLevel: ErrorCorrectionLevel::Quartile,
+            errorCorrectionLevel: ErrorCorrectionLevel::Medium,
             logoPath: file_exists($logoPath) ? $logoPath : '',
-            logoResizeToWidth: 32,
+            logoResizeToWidth: 70,
             logoPunchoutBackground: true
         );
 

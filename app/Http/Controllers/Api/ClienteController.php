@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Cliente;
 use App\Models\Documento;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -248,6 +249,83 @@ class ClienteController extends Controller
         return response()->json([
             'message' => 'Cliente removido com sucesso',
             'deleted_id' => $id
+        ]);
+    }
+
+    public function detail(Request $request, $id)
+    {
+        $cliente = Cliente::with(['tipoCliente', 'empresa', 'utilizador'])->find($id);
+
+        if (!$cliente) {
+            return $this->notFoundResponse();
+        }
+
+        $allDocs = Documento::where('cliente_id', $id)
+            ->whereIn('tipo_sigla', ['FT', 'FR', 'FG', 'NC', 'RC'])
+            ->where('estado_documento', 'emitido')
+            ->get();
+
+        $totalFaturado = 0;
+        $totalRecebido = 0;
+        $totalReembolsos = 0;
+
+        foreach ($allDocs as $doc) {
+            if (in_array($doc->tipo_sigla, ['FT', 'FR', 'FG'])) {
+                $totalFaturado += $doc->total_geral;
+            } elseif (in_array($doc->tipo_sigla, ['NC', 'RC'])) {
+                $totalRecebido += $doc->total_geral;
+            }
+
+            if ($doc->tipo_sigla === 'NC') {
+                $totalReembolsos += $doc->total_geral;
+            }
+        }
+
+        $totalDividas = $totalFaturado - $totalRecebido;
+
+        $totalDocumentos = Documento::where('cliente_id', $id)->count();
+
+        $documentosPorEstado = Documento::where('cliente_id', $id)
+            ->where('estado_documento', 'emitido')
+            ->select('estado_pagamento', DB::raw('count(*) as total'))
+            ->groupBy('estado_pagamento')
+            ->pluck('total', 'estado_pagamento')
+            ->toArray();
+
+        $primeiroDocumento = Documento::where('cliente_id', $id)
+            ->where('estado_documento', 'emitido')
+            ->orderBy('data_emissao')
+            ->value('data_emissao');
+
+        $ultimoDocumento = Documento::where('cliente_id', $id)
+            ->where('estado_documento', 'emitido')
+            ->orderByDesc('data_emissao')
+            ->value('data_emissao');
+
+        $documentosQuery = Documento::where('cliente_id', $id);
+
+        $tipoSigla = $request->query('tipo_sigla');
+        if ($tipoSigla) {
+            $documentosQuery->where('tipo_sigla', $tipoSigla);
+        }
+
+        $documentosPaginados = $documentosQuery
+            ->orderByDesc('data_emissao')
+            ->paginate($request->input('per_page', 10));
+
+        return response()->json([
+            'cliente' => $cliente,
+            'estatisticas' => [
+                'total_faturado' => round($totalFaturado, 2),
+                'total_recebido' => round($totalRecebido, 2),
+                'total_dividas' => round($totalDividas, 2),
+                'total_reembolsos' => round($totalReembolsos, 2),
+                'total_documentos' => $totalDocumentos,
+                'documentos_por_estado' => $documentosPorEstado,
+                'ultimo_documento' => $ultimoDocumento,
+                'primeiro_documento' => $primeiroDocumento,
+            ],
+            'documentos' => $documentosPaginados,
         ]);
     }
 

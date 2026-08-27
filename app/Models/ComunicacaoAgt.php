@@ -13,6 +13,8 @@ class ComunicacaoAgt extends Model
         'documento_id',
         'tipo_comunicacao',
         'status',
+        'submission_uuid',
+        'request_id',
         'request_payload',
         'response_payload',
         'codigo_erro',
