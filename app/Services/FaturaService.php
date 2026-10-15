@@ -48,7 +48,8 @@ class FaturaService
         );
 
         $retencao = $this->impostoService->calcularRetencao($dados['itens']);
-        $troco = $this->impostoService->calcularTroco($dados['meiosPagamento'] ?? [], $totais['total_final']);
+        $totalAPagar = $this->impostoService->calcularValorAPagar($totais['total_final'], $retencao);
+        $troco = $this->impostoService->calcularTroco($dados['meiosPagamento'] ?? [], $totalAPagar);
 
         $totalEntregue = $totais['total_final'] + $troco - ($totais['total_final'] + $troco - array_sum(array_column($dados['meiosPagamento'] ?? [], 'valor')));
 
@@ -74,7 +75,7 @@ class FaturaService
             }
 
             $estadoPagamento = $this->impostoService->determinarEstadoPagamento(
-                $totais['total_final'],
+                $totalAPagar,
                 $totalEntregueCalc
             );
 
@@ -122,6 +123,7 @@ class FaturaService
                 'total_sem_desconto' => $totais['total_sem_desconto'],
                 'total_impostos' => $totais['total_impostos'],
                 'total_geral' => $totais['total_final'],
+                'valor_a_pagar' => $totalAPagar,
                 'troco' => $troco,
                 'utilizador_id' => $dados['utilizador_id'],
                 'utilizador' => $dados['utilizador'],
@@ -140,7 +142,7 @@ class FaturaService
                 $dataRecibo = [
                     'tipo_fatura' => 'Recibo',
                     'sigla_fatura' => 'RC',
-                    'total_geral' => $totais['total_final'],
+                    'total_geral' => $totalAPagar,
                     'documento_relacionado_id' => $documento->id,
                     'empresa_id' => $documento->empresa_id,
                     'empresa_nome' => $documento->empresa_nome,

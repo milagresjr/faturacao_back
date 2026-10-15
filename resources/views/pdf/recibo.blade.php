@@ -216,7 +216,7 @@
                 <tr>
                     <td>{{ $documento->data_emissao }}</td>
                     <td>{{ $docRelacionado->num_fatura }}</td>
-                    <td>{{ number_format($docRelacionado->total_geral, 2, ',', '.') }} Kz</td>
+                    <td>{{ number_format($docRelacionado->valor_a_pagar ?? ($docRelacionado->total_geral - $docRelacionado->retencao), 2, ',', '.') }} Kz</td>
                     <td>{{ number_format($valorPago, 2, ',', '.') }} Kz</td>
                     <td>{{ number_format($saldoDevedor, 2, ',', '.') }} Kz</td>
                 </tr>

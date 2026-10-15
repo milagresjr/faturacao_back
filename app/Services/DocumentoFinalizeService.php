@@ -48,13 +48,14 @@ class DocumentoFinalizeService
         );
 
         $retencao = $this->impostoService->calcularRetencao($dados['itens']);
+        $totalAPagar = $this->impostoService->calcularValorAPagar($totais['total_final'], $retencao);
 
         $totalEntregueCalc = 0;
         foreach (($dados['meiosPagamento'] ?? []) as $mp) {
             $totalEntregueCalc += (float) $mp['valor'];
         }
 
-        $troco = max($totalEntregueCalc - $totais['total_final'], 0);
+        $troco = max($totalEntregueCalc - $totalAPagar, 0);
 
         $estadoDoc = $dados['estado_documento'] ?? 'emitido';
         $numFatura = $estadoDoc === 'rascunho'
@@ -94,7 +95,7 @@ class DocumentoFinalizeService
             }
 
             $estadoPagamento = $this->impostoService->determinarEstadoPagamento(
-                $totais['total_final'],
+                $totalAPagar,
                 $totalEntregueCalc
             );
 
@@ -136,6 +137,7 @@ class DocumentoFinalizeService
                 'total_sem_desconto' => $totais['total_sem_desconto'],
                 'total_impostos' => $totais['total_impostos'],
                 'total_geral' => $totais['total_final'],
+                'valor_a_pagar' => $totalAPagar,
                 'troco' => $troco,
                 'utilizador_id' => $dados['utilizador_id'],
                 'utilizador' => $dados['utilizador'],
@@ -201,7 +203,7 @@ class DocumentoFinalizeService
             $dataRecibo = [
                 'tipo_fatura' => 'Recibo',
                 'sigla_fatura' => 'RC',
-                'total_geral' => $totais['total_final'],
+                'total_geral' => $totalAPagar,
                 'documento_relacionado_id' => $documento->id,
                 'empresa_id' => $documento->empresa_id,
                 'empresa_nome' => $documento->empresa_nome,

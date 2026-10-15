@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Fornecedor;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class FornecedorController extends Controller
 {
@@ -44,12 +45,26 @@ class FornecedorController extends Controller
 
     public function store(Request $request)
     {
+        $empresaId = $request->input('empresa_id');
+
         $validator = Validator::make($request->all(), [
             'nome' => 'required|string|max:255',
             'telefone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255|unique:fornecedores,email',
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('fornecedores', 'email')
+                    ->where(fn ($query) => $query->where('empresa_id', $empresaId)),
+            ],
             'endereco' => 'required|string|max:255',
-            'nif' => 'required|string|max:50|unique:fornecedores,nif',
+            'nif' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('fornecedores', 'nif')
+                    ->where(fn ($query) => $query->where('empresa_id', $empresaId)),
+            ],
             'empresa_id' => 'required|integer|exists:empresas,id',
             'utilizador_id' => 'required|integer|exists:utilizadores,id',
         ],[
@@ -80,12 +95,30 @@ class FornecedorController extends Controller
             return response()->json(['error' => 'Fornecedor not found'], 404);
         }
 
+        $empresaId = $request->input('empresa_id', $fornecedor->empresa_id);
+
         $validator = Validator::make($request->all(), [
             'nome' => 'sometimes|required|string|max:255',
             'telefone' => 'sometimes|nullable|string|max:20',
-            'email' => 'sometimes|required|email|max:255|unique:fornecedores,email,' . $id,
+            'email' => [
+                'sometimes',
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('fornecedores', 'email')
+                    ->where(fn ($query) => $query->where('empresa_id', $empresaId))
+                    ->ignore($id),
+            ],
             'endereco' => 'sometimes|required|string|max:255',
-            'nif' => 'sometimes|required|string|max:50|unique:fornecedores,nif,' . $id,
+            'nif' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('fornecedores', 'nif')
+                    ->where(fn ($query) => $query->where('empresa_id', $empresaId))
+                    ->ignore($id),
+            ],
             'estado' => 'sometimes|required|boolean',
             'empresa_id' => 'sometimes|required|integer|exists:empresas,id',
             'utilizador_id' => 'sometimes|required|integer|exists:utilizadores,id',

@@ -118,6 +118,7 @@ class NotaCreditoService
             'total_sem_desconto' => $totais['total_sem_desconto'],
             'total_impostos' => $totais['total_impostos'],
             'total_geral' => $totais['total_final'],
+            'valor_a_pagar' => $totais['total_final'],
             'utilizador_id' => $dados['utilizador_id'],
             'utilizador' => $dados['utilizador'],
         ]);

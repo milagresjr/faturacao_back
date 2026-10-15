@@ -76,6 +76,7 @@ class ReciboService
             'data_emissao' => $dados['data_emissao'],
             'movimenta_stock' => false,
             'total_geral' => $dados['total_geral'],
+            'valor_a_pagar' => $dados['total_geral'],
             'troco' => $troco,
             'estado' => 'emitido',
             'hash' => 'rfsuhihuhuycgygyfyukgeyggfavdyvd',

@@ -510,7 +510,7 @@
                                 <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000;">
                                     <th style="text-align: left; padding: 2px;">Total (Kz)</th>
                                     <td style="text-align: right; padding: 2px;">
-                                        <strong>{{ number_format($documento->total_geral, 2, ',', '.') }}</strong>
+                                        <strong>{{ number_format($documento->valor_a_pagar ?? ($documento->total_geral - $documento->retencao), 2, ',', '.') }}</strong>
                                     </td>
                                 </tr>
                                 <tr class="borderless">

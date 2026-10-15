@@ -170,6 +170,50 @@ class DocumentoController extends Controller
         return $this->faturaService->criar($request->all());
     }
 
+    /**
+     * Pré-visualização de totais (fonte única de cálculo no backend).
+     */
+    public function calculo(Request $request)
+    {
+        $validated = Validator::make($request->all(), [
+            'itens' => 'required|array|min:1',
+            'itens.*.preco_venda' => 'required|numeric',
+            'itens.*.quantidade' => 'required|numeric',
+        ]);
+
+        if ($validated->fails()) {
+            return response()->json(['message' => 'Erro de validação.', 'errors' => $validated->errors()], 422);
+        }
+
+        $itens = $request->input('itens', []);
+
+        $quadroResult = $this->impostoService->calcularQuadroImposto($itens);
+        $quadroImposto = $quadroResult['quadro'];
+
+        $totais = $this->impostoService->calcularTotais(
+            $itens,
+            $request->input('desconto_tipo'),
+            $request->input('desconto_total'),
+            $quadroImposto,
+            $quadroResult['total_liquido']
+        );
+
+        $retencao = $this->impostoService->calcularRetencao($itens);
+        $valorAPagar = $this->impostoService->calcularValorAPagar($totais['total_final'], $retencao);
+
+        return response()->json([
+            'total_sem_desconto' => $totais['total_sem_desconto'],
+            'desconto_itens_total' => $totais['desconto_itens_total'],
+            'desconto_geral' => $totais['desconto_geral'],
+            'desconto_total' => $totais['desconto_itens_total'] + $totais['desconto_geral'],
+            'total_impostos' => $totais['total_impostos'],
+            'total_geral' => $totais['total_final'],
+            'retencao' => $retencao,
+            'valor_a_pagar' => $valorAPagar,
+            'quadro_imposto' => array_values($quadroImposto),
+        ]);
+    }
+
     public function storeNotaCredito(Request $request)
     {
         $validated = Validator::make($request->all(), [

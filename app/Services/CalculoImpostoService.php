@@ -7,6 +7,16 @@ use Illuminate\Support\Facades\DB;
 
 class CalculoImpostoService
 {
+    /**
+     * Taxa de retenção na fonte aplicada a serviços (6.5%).
+     */
+    public const RETENCAO_SERVICOS_TAXA = 0.065;
+
+    /**
+     * Valor mínimo do subtotal de uma linha de serviço para haver retenção.
+     */
+    public const RETENCAO_SERVICOS_LIMITE = 20000;
+
     public function calcularQuadroImposto(array $itens): array
     {
         $quadroImposto = [];
@@ -142,17 +152,44 @@ class CalculoImpostoService
         ];
     }
 
+    /**
+     * Retenção na fonte sobre serviços: 6.5% do subtotal de cada linha de
+     * serviço cujo subtotal seja superior a 20.000 Kz.
+     */
     public function calcularRetencao(array $itens): float
     {
-        $retencao = 0;
+        $retencao = 0.0;
+
         foreach ($itens as $item) {
-            if (isset($item['tipo_produto']) && $item['tipo_produto'] === 'S') {
-                if ($item['preco_venda'] > 20000) {
-                    $retencao += $item['preco_venda'] * 0.06;
-                }
+            if (!$this->eServico($item)) {
+                continue;
+            }
+
+            $subtotal = (float) ($item['preco_venda'] ?? 0) * (float) ($item['quantidade'] ?? 0);
+
+            if ($subtotal > self::RETENCAO_SERVICOS_LIMITE) {
+                $retencao += $subtotal * self::RETENCAO_SERVICOS_TAXA;
             }
         }
-        return $retencao;
+
+        return round($retencao, 2);
+    }
+
+    /**
+     * Valor efetivamente a pagar: total do documento deduzido da retenção.
+     */
+    public function calcularValorAPagar(float $totalFinal, float $retencao): float
+    {
+        return round(max($totalFinal - $retencao, 0), 2);
+    }
+
+    private function eServico(array $item): bool
+    {
+        if (isset($item['tipo_produto'])) {
+            return strtoupper((string) $item['tipo_produto']) === 'S';
+        }
+
+        return isset($item['tipo_id']) && (string) $item['tipo_id'] === '2';
     }
 
     public function calcularTroco(array $meiosPagamento, float $totalFinal): float

@@ -39,7 +39,8 @@ class DocumentoTransformService
         );
 
         $retencao = $this->impostoService->calcularRetencao($dados['itens']);
-        $troco = $this->impostoService->calcularTroco($dados['meiosPagamento'] ?? [], $totais['total_final']);
+        $totalAPagar = $this->impostoService->calcularValorAPagar($totais['total_final'], $retencao);
+        $troco = $this->impostoService->calcularTroco($dados['meiosPagamento'] ?? [], $totalAPagar);
 
         $totalEntregueCalc = 0;
         foreach (($dados['meiosPagamento'] ?? []) as $mp) {
@@ -71,7 +72,7 @@ class DocumentoTransformService
                 ]);
             }
 
-            $estadoPagamento = $this->impostoService->determinarEstadoPagamento($totais['total_final'], $totalEntregueCalc);
+            $estadoPagamento = $this->impostoService->determinarEstadoPagamento($totalAPagar, $totalEntregueCalc);
 
             $numFatura = $this->numeroService->gerarNumeroDocumento($dados['serie_id']);
 
@@ -113,6 +114,7 @@ class DocumentoTransformService
                 'total_sem_desconto' => $totais['total_sem_desconto'],
                 'total_impostos' => $totais['total_impostos'],
                 'total_geral' => $totais['total_final'],
+                'valor_a_pagar' => $totalAPagar,
                 'troco' => $troco,
                 'utilizador_id' => $dados['utilizador_id'] ?? $documentoOrigem->utilizador_id,
                 'utilizador' => $dados['utilizador'] ?? $documentoOrigem->utilizador,

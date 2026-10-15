@@ -62,6 +62,7 @@ class Documento extends Model
         'total_sem_desconto',
         'total_impostos',
         'total_geral',
+        'valor_a_pagar',
         'troco',
 
         'motivo_emissao_nota_credito',

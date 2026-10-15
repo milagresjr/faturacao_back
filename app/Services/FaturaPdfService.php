@@ -69,7 +69,9 @@ class FaturaPdfService
 
         $qrCode = $this->gerarQrCode($documento);
 
-        $totalPorExtenso = $this->numeroPorExtensoService->converter($documento->total_geral);
+        $totalPorExtenso = $this->numeroPorExtensoService->converter(
+            $documento->valor_a_pagar ?? ($documento->total_geral - $documento->retencao)
+        );
 
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
@@ -133,7 +135,9 @@ class FaturaPdfService
                 ->wherePivot('tipo_relacao', 'NOTA_DE_CREDITO_FATURA')
                 ->sum('total_geral');
 
-            $saldoDevedor = max(0, $docRelacionado->total_geral - $totalRecibos - $totalNotasCredito);
+            $valorFacturado = $docRelacionado->valor_a_pagar
+                ?? ($docRelacionado->total_geral - $docRelacionado->retencao);
+            $saldoDevedor = max(0, $valorFacturado - $totalRecibos - $totalNotasCredito);
         } else {
             $saldoDevedor = 0;
         }

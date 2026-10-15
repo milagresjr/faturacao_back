@@ -418,7 +418,7 @@
                         <tr>
                             <td><strong>Total</strong></td>
                             <td class="right-text">
-                                <strong>{{ number_format($documento->total_geral, 2, ',', '.') }} Kz</strong>
+                                <strong>{{ number_format($documento->valor_a_pagar ?? ($documento->total_geral - $documento->retencao), 2, ',', '.') }} Kz</strong>
                             </td>
                         </tr>
                         <tr>

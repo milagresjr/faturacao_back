@@ -159,6 +159,7 @@ Route::middleware([AuthenticateWithRememberToken::class])->group(function () {
         Route::get('documento-interno/nota-quebra/{id}/pdf', [DocumentoInternoController::class, 'gerarPdfDocNotaQuebra']);
         Route::get('documento-interno/inventario/{id}/pdf', [DocumentoInternoController::class, 'gerarPdfDocInventario']);
 
+        Route::post('documentos/calculo', [DocumentoController::class, 'calculo']);
         Route::post('documentos/recibo', [DocumentoController::class, 'storeRecibo']);
         Route::post('documentos/nota-credito', [DocumentoController::class, 'storeNotaCredito']);
         Route::post('documentos/nota-debito', [DocumentoController::class, 'storeNotaDebito']);
