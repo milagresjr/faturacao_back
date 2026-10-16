@@ -293,7 +293,7 @@ class ProdutoController extends Controller
         $validator = Validator::make($request->all(), [
             'nome' => 'required|string|max:255',
             'descricao' => 'nullable|string|max:255',
-            'preco_custo' => 'required|numeric',
+            'preco_custo' => 'nullable|numeric',
             'preco_venda' => 'required|numeric',
             'preco_final' => 'required|numeric',
             'margem_lucro' => 'required|numeric',
@@ -331,6 +331,7 @@ class ProdutoController extends Controller
         if ((int) ($data['tipo_id'] ?? 0) === 2) {
             $data['movimenta_stock'] = false;
             $data['controla_validade'] = false;
+            $data['preco_custo'] = 0;
         }
 
         return DB::transaction(function () use ($data, $request) {
@@ -618,7 +619,7 @@ class ProdutoController extends Controller
         $validator = Validator::make($request->all(), [
             'nome' => 'sometimes|required|string|max:255',
             'descricao' => 'sometimes|nullable|string|max:255',
-            'preco_custo' => 'sometimes|required|numeric',
+            'preco_custo' => 'sometimes|nullable|numeric',
             'preco_venda' => 'sometimes|required|numeric',
             'preco_final' => 'sometimes|required|numeric',
             'margem_lucro' => 'sometimes|required|numeric',
@@ -657,6 +658,7 @@ class ProdutoController extends Controller
         if ((int) ($data['tipo_id'] ?? $produto->tipo_id) === 2) {
             $data['movimenta_stock'] = false;
             $data['controla_validade'] = false;
+            $data['preco_custo'] = 0;
         }
 
         // Se houve upload, substitui o campo imagem
