@@ -175,6 +175,7 @@ class AgtComunicacaoService
             'schemaVersion' => '1.2',
             'submissionUUID' => $submissionUuid,
             'taxRegistrationNumber' => $documento->empresa_nif,
+            'publicKey' => $config->chave_publica ?? '',
             'submissionTimeStamp' => now()->toIso8601String(),
             'softwareInfo' => [
                 'softwareInfoDetail' => $softwareInfoDetail,
@@ -316,6 +317,7 @@ class AgtComunicacaoService
             'schemaVersion' => '1.2',
             'submissionUUID' => $comunicacao->submission_uuid,
             'taxRegistrationNumber' => $comunicacao->documento->empresa_nif ?? '',
+            'publicKey' => $config->chave_publica ?? '',
             'submissionTimeStamp' => now()->toIso8601String(),
             'softwareInfo' => [
                 'softwareInfoDetail' => [

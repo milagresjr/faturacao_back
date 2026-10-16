@@ -151,6 +151,7 @@ class AgtSerieService
         $payload = [
             'schemaVersion' => '1.2',
             'taxRegistrationNumber' => $config->empresa->nif ?? '',
+            'publicKey' => $config->chave_publica ?? '',
             'submissionTimeStamp' => now()->toIso8601String(),
             'softwareInfo' => [
                 'softwareInfoDetail' => [
@@ -261,6 +262,7 @@ class AgtSerieService
             'schemaVersion' => '1.2',
             'submissionUUID' => $submissionUuid,
             'taxRegistrationNumber' => $config->empresa->nif ?? '',
+            'publicKey' => $config->chave_publica ?? '',
             'submissionTimeStamp' => now()->toIso8601String(),
             'softwareInfo' => [
                 'softwareInfoDetail' => [

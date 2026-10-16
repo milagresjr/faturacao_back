@@ -31,6 +31,7 @@ class ConfiguracaoAgtController extends Controller
             'empresa_id' => 'required|integer|exists:empresas,id',
             'numero_validacao_software' => 'nullable|string|max:255',
             'certificado_digital' => 'nullable|string',
+            'chave_publica' => 'nullable|string',
             'ambiente' => 'nullable|string|in:testes,producao',
             'comunicacao_ativa' => 'nullable|boolean',
         ]);

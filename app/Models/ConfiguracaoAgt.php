@@ -12,6 +12,7 @@ class ConfiguracaoAgt extends Model
         'empresa_id',
         'numero_validacao_software',
         'certificado_digital',
+        'chave_publica',
         'ambiente',
         'comunicacao_ativa',
     ];
